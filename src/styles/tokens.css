@@ -1,0 +1,138 @@
+/*
+ * Alpha Chain — design tokens (neon-noir esports, elevated).
+ * Ported + extended from the Blazor `alpha-chain-theme.css`. The canonical
+ * source of color for the DOM lives here; the Phaser FX layer mirrors the few
+ * colors it needs as 0xRRGGBB numbers in src/theme.ts.
+ */
+
+:root {
+  color-scheme: dark;
+
+  /* ── Surfaces ─────────────────────────────────────────────────────── */
+  --ac-bg-0: #06080f;
+  --ac-bg-1: #0c1020;
+  --ac-bg-2: #141a30;
+  --ac-panel: rgba(18, 24, 44, 0.66);
+  --ac-panel-2: rgba(24, 31, 56, 0.78);
+  --ac-panel-solid: #121830;
+  --ac-border: rgba(255, 255, 255, 0.08);
+  --ac-border-strong: rgba(255, 255, 255, 0.18);
+  --ac-hi: rgba(255, 255, 255, 0.06); /* inner top highlight */
+
+  --ac-ink: #eaf2ff;
+  --ac-ink-soft: rgba(234, 242, 255, 0.64);
+  --ac-ink-faint: rgba(234, 242, 255, 0.40);
+  --ac-ink-ghost: rgba(234, 242, 255, 0.16);
+
+  /* ── Accents ──────────────────────────────────────────────────────── */
+  --ac-cyan: #00e5ff;
+  --ac-magenta: #ff2e8b;
+  --ac-violet: #b97bff;
+  --ac-amber: #ffb020;
+  --ac-danger: #ff3b5c;
+  --ac-mint: #14f195;
+  --ac-go: var(--ac-cyan);
+
+  /* ── Card-family accents (color-blind separated: hue + lightness) ──── */
+  --ac-accent-letter: #14f195; /* mint  — word/letter scoring */
+  --ac-accent-clock: #2f86e6; /* blue  — shot-clock */
+  --ac-accent-economy: #ffb020; /* amber — points/economy/aggression */
+  --ac-accent-utility: #e36ec9; /* orchid — utility/defensive */
+  --ac-accent-neutral: #8aa0b3; /* slate — inert/unknown */
+
+  /* ── Player accent rotation (assigned by turn-order index) ─────────── */
+  --ac-p1: #00e5ff;
+  --ac-p2: #ff2e8b;
+  --ac-p3: #b97bff;
+  --ac-p4: #ffd23a;
+  --ac-p5: #14f195;
+  --ac-p6: #ff8a3d;
+
+  /* ── Glows + hard 3D shadow (house style) ──────────────────────────── */
+  --ac-glow-cyan: 0 0 22px rgba(0, 229, 255, 0.45);
+  --ac-glow-mag: 0 0 22px rgba(255, 46, 139, 0.45);
+  --ac-glow-mint: 0 0 22px rgba(20, 241, 149, 0.5);
+  --ac-glow-danger: 0 0 22px rgba(255, 59, 92, 0.5);
+  --ac-shadow-sm: 3px 3px 0 #000;
+  --ac-shadow: 5px 5px 0 #000;
+  --ac-shadow-lift: 7px 7px 0 #000;
+  --ac-drop: 0 18px 40px rgba(0, 0, 0, 0.5);
+  --ac-drop-sm: 0 8px 20px rgba(0, 0, 0, 0.42);
+
+  /* ── Type ──────────────────────────────────────────────────────────── */
+  --font-display: "Chakra Petch", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Courier New", ui-monospace, monospace;
+
+  /* ── Radius + spacing scale ────────────────────────────────────────── */
+  --r-xs: 0.4rem;
+  --r-sm: 0.6rem;
+  --r-md: 0.85rem;
+  --r-lg: 1.1rem;
+  --r-xl: 1.5rem;
+  --sp-1: 0.35rem;
+  --sp-2: 0.6rem;
+  --sp-3: 0.9rem;
+  --sp-4: 1.25rem;
+  --sp-5: 1.75rem;
+}
+
+/* ── Keyframes ─────────────────────────────────────────────────────────── */
+@keyframes ac-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+@keyframes ac-pop {
+  0% { transform: scale(0.6) translateY(8px); opacity: 0; }
+  100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+@keyframes ac-float-up {
+  0% { transform: translateY(0); opacity: 0; }
+  18% { opacity: 1; }
+  100% { transform: translateY(-2.2rem); opacity: 0; }
+}
+@keyframes ac-rise {
+  0% { transform: translateY(12px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+@keyframes ac-ring-pulse {
+  0%, 100% { filter: drop-shadow(0 0 4px currentColor); }
+  50% { filter: drop-shadow(0 0 14px currentColor); }
+}
+@keyframes ac-drift-a {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(6vw, -4vh, 0) scale(1.12); }
+}
+@keyframes ac-drift-b {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1.05); }
+  50% { transform: translate3d(-5vw, 5vh, 0) scale(0.95); }
+}
+@keyframes ac-shimmer {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(220%); }
+}
+@keyframes ac-shakeX {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-7px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(3px); }
+}
+@keyframes ac-overlay-in {
+  0% { opacity: 0; backdrop-filter: blur(0); }
+  100% { opacity: 1; }
+}
+@keyframes ac-num-bump {
+  0% { transform: scale(0.5); opacity: 0; }
+  60% { transform: scale(1.25); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

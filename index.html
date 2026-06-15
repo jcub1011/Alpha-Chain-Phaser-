@@ -8,53 +8,27 @@
     />
     <meta name="theme-color" content="#06080f" />
     <title>Alpha Chain</title>
-    <style>
-      :root {
-        color-scheme: dark;
-      }
-      html,
-      body {
-        margin: 0;
-        padding: 0;
-        height: 100%;
-        background: #06080f;
-        overflow: hidden;
-        font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-        -webkit-tap-highlight-color: transparent;
-        overscroll-behavior: none;
-      }
-      #game {
-        width: 100%;
-        height: 100%;
-      }
-      /* The word-input DOM element injected by Phaser's DOM layer. */
-      .ac-word-input {
-        font-family: "Courier New", ui-monospace, monospace;
-        font-weight: 700;
-        letter-spacing: 0.12em;
-        text-transform: lowercase;
-        text-align: center;
-        color: #eaf2ff;
-        background: rgba(10, 14, 28, 0.92);
-        border: 3px solid #00e5ff;
-        border-radius: 10px;
-        outline: none;
-        box-shadow: 0 0 18px rgba(0, 229, 255, 0.45), 5px 5px 0 #000;
-        caret-color: #00e5ff;
-      }
-      .ac-word-input::placeholder {
-        color: rgba(234, 242, 255, 0.32);
-        letter-spacing: 0.08em;
-      }
-      /* Blindfold: hide the glyphs but keep the caret. */
-      .ac-word-input.ac-blindfold {
-        color: transparent;
-        text-shadow: none;
-      }
-    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=JetBrains+Mono:wght@500;700;800&display=swap"
+      rel="stylesheet"
+    />
   </head>
   <body>
-    <div id="game"></div>
+    <!-- Phaser FX canvas: a full-window overlay ABOVE the UI, click-through. -->
+    <div id="fx" aria-hidden="true"></div>
+
+    <!-- The DOM UI (Lit, light DOM). -->
+    <ac-app></ac-app>
+
+    <!-- First-paint loading screen; removed by main.ts once the lexicon loads. -->
+    <div id="boot">
+      <div class="boot-mark">ALPHA<span>CHAIN</span></div>
+      <div class="boot-sub">loading lexicon…</div>
+      <div class="boot-bar"><i></i></div>
+    </div>
+
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

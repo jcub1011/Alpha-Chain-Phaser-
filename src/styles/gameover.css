@@ -1,0 +1,61 @@
+/* Game-over overlay — final standings. */
+
+.go-card {
+  width: min(92vw, 520px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-5) var(--sp-4);
+  text-align: center;
+  animation: ac-rise 0.45s ease-out both;
+}
+.go-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(2.4rem, 9vw, 4rem);
+  letter-spacing: 0.08em;
+  color: var(--ac-ink-soft);
+}
+.go-title.is-win {
+  color: var(--ac-mint);
+  text-shadow: var(--ac-glow-mint);
+  animation: ac-num-bump 0.6s ease-out both;
+}
+.go-winner { margin: 0; color: var(--ac-ink-soft); }
+
+.go-standings {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.go-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: var(--r-sm);
+  background: rgba(255, 255, 255, 0.03);
+  border-left: 4px solid var(--accent);
+}
+.go-row.is-first {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.go-row.is-me .go-name { color: var(--accent); font-weight: 800; }
+.go-rank {
+  font-family: var(--font-mono);
+  font-weight: 800;
+  min-width: 1.4rem;
+  color: var(--ac-ink-faint);
+}
+.go-row.is-first .go-rank { color: var(--accent); }
+.go-name { flex: 1; text-align: left; font-weight: 600; }
+.go-name i { color: var(--ac-ink-faint); font-style: normal; font-size: 0.7em; }
+.go-score { font-family: var(--font-mono); font-weight: 800; font-variant-numeric: tabular-nums; }
+.go-return { margin-top: var(--sp-2); min-width: 220px; }

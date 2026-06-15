@@ -12,6 +12,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "lit": "^3.3.3",
     "phaser": "^4.1.0"
   },
   "devDependencies": {

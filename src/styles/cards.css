@@ -1,0 +1,141 @@
+/* Engine cards + the bay that holds them. Card size is driven by --gc-w/--gc-h
+   set on the bay, so the same markup renders large (your bay) or small (foes). */
+
+ac-engine-bay {
+  --gc-w: 132px;
+  --gc-h: 168px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+ac-engine-bay[compact] {
+  --gc-w: 76px;
+  --gc-h: 98px;
+}
+
+.bay-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+.bay-flow {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  color: var(--ac-ink-faint);
+  white-space: nowrap;
+}
+.bay-slots {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: var(--sp-2);
+  overflow-x: auto;
+  padding-bottom: 0.3rem;
+  scroll-snap-type: x proximity;
+}
+
+.bay-empty {
+  flex: 0 0 auto;
+  width: var(--gc-w);
+  height: var(--gc-h);
+  border-radius: var(--r-md);
+  border: 1.5px dashed var(--ac-ink-ghost);
+  background: rgba(255, 255, 255, 0.015);
+}
+
+/* ── Card ──────────────────────────────────────────────────────────────── */
+ac-card {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+}
+.gc {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--gc-h) * 0.05);
+  width: var(--gc-w);
+  height: var(--gc-h);
+  padding: calc(var(--gc-h) * 0.08) calc(var(--gc-w) * 0.09);
+  border: 2.5px solid var(--gc-accent);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  isolation: isolate;
+  background:
+    linear-gradient(
+      157deg,
+      color-mix(in srgb, var(--gc-accent) 22%, transparent),
+      color-mix(in srgb, var(--gc-accent) 5%, transparent) 60%
+    ),
+    var(--ac-panel-solid);
+  box-shadow: var(--ac-drop-sm), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease,
+    filter 0.16s ease;
+}
+.gc-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.3rem;
+}
+.gc-ico {
+  width: calc(var(--gc-h) * 0.26);
+  height: calc(var(--gc-h) * 0.26);
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--gc-accent) 55%, transparent));
+}
+.gc-mag {
+  font-family: var(--font-mono);
+  font-weight: 800;
+  font-size: calc(var(--gc-h) * 0.115);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  text-shadow: 0 0 10px color-mix(in srgb, currentColor 60%, transparent);
+}
+.gc-name {
+  margin-top: auto;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: calc(var(--gc-h) * 0.092);
+  line-height: 1.05;
+  letter-spacing: 0.01em;
+  color: var(--ac-ink);
+  text-wrap: balance;
+}
+.gc-new-badge {
+  position: absolute;
+  top: calc(var(--gc-h) * 0.05);
+  right: calc(var(--gc-w) * -0.01);
+  transform: rotate(8deg);
+  padding: 0.12em 0.5em;
+  border-radius: 99px;
+  background: var(--ac-magenta);
+  color: #1a0410;
+  font-family: var(--font-mono);
+  font-weight: 800;
+  font-size: calc(var(--gc-h) * 0.07);
+  letter-spacing: 0.1em;
+  box-shadow: var(--ac-glow-mag);
+}
+
+ac-engine-bay:not([compact]) ac-card:hover .gc {
+  transform: translateY(-5px);
+  box-shadow:
+    var(--ac-drop),
+    0 0 22px color-mix(in srgb, var(--gc-accent) 45%, transparent);
+}
+
+/* States toggled by the score replay. */
+ac-card[dimmed] .gc {
+  opacity: 0.4;
+  filter: saturate(0.5);
+}
+ac-card[triggered] .gc {
+  transform: translateY(-10px) scale(1.05);
+  box-shadow:
+    var(--ac-drop),
+    0 0 30px color-mix(in srgb, var(--gc-accent) 80%, transparent);
+  border-color: color-mix(in srgb, var(--gc-accent) 100%, #fff 25%);
+}
+.gc-new-badge { animation: ac-pop 0.4s ease-out both; }

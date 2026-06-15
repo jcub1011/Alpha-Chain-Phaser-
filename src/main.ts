@@ -1,27 +1,60 @@
-import Phaser from "phaser";
-import { BootScene } from "./scenes/BootScene";
-import { LobbyScene } from "./scenes/LobbyScene";
-import { GameScene } from "./scenes/GameScene";
-import { IntermissionScene } from "./scenes/IntermissionScene";
-import { GameOverScene } from "./scenes/GameOverScene";
+/*
+ * Bootstrap. Loads the bundled lexicon + card sprite, mounts the DOM UI, and
+ * boots the Phaser FX overlay. No Phaser scenes drive gameplay any more — the
+ * game loop runs from <ac-app>, and the FX canvas is purely decorative.
+ */
 
-const config: Phaser.Types.Core.GameConfig = {
-  type: Phaser.AUTO,
-  parent: "game",
-  backgroundColor: "#06080f",
-  scale: {
-    // RESIZE: the canvas exactly fills the parent (viewport) — no scaling, no
-    // centering, no letterbox. gameSize is in CSS pixels so displayScale = 1 and
-    // pointer input maps 1:1 to game coordinates (bulletproof click alignment).
-    // The layout reflows between portrait (mobile) and wide (desktop).
-    mode: Phaser.Scale.RESIZE,
-    width: window.innerWidth,
-    height: window.innerHeight,
-  },
-  dom: { createContainer: true },
-  render: { antialias: true },
-  scene: [BootScene, LobbyScene, GameScene, IntermissionScene, GameOverScene],
-};
+import "./styles/index.css";
+import { Dictionary } from "./game/dictionary";
+import { DEFAULT_SETTINGS } from "./game/settings";
+import { fx } from "./ui/fx/fx";
+// Side-effect import registers <ac-app>; the type import is erased at build.
+import "./ui/app/ac-app";
+import type { AcApp } from "./ui/app/ac-app";
 
-const game = new Phaser.Game(config);
-if (import.meta.env.DEV) (window as unknown as { __game?: unknown }).__game = game;
+async function boot(): Promise<void> {
+  // 1. Lexicon (the large download) + card icon sprite, in parallel.
+  const [wordsRes, spriteRes] = await Promise.all([
+    fetch("assets/words.txt"),
+    fetch("assets/cards.svg"),
+  ]);
+  const [wordsText, spriteText] = await Promise.all([wordsRes.text(), spriteRes.text()]);
+
+  const dict = new Dictionary(
+    wordsText
+      .split(/\r?\n/)
+      .map((w) => w.trim().toLowerCase())
+      .filter((w) => w.length > 0),
+  );
+
+  // 2. Inject the SVG <symbol> sprite once so <use href="#id"> resolves anywhere.
+  const sprite = document.createElement("div");
+  sprite.id = "ac-sprite";
+  sprite.style.display = "none";
+  sprite.setAttribute("aria-hidden", "true");
+  sprite.innerHTML = spriteText;
+  document.body.appendChild(sprite);
+
+  // 3. Boot the Phaser FX overlay into #fx.
+  fx.init("fx");
+
+  // 4. Hand the dictionary + settings to the app shell.
+  const app = document.querySelector("ac-app") as AcApp;
+  app.dict = dict;
+  app.settings = { ...DEFAULT_SETTINGS };
+  fx.setShakeTarget(app);
+
+  // 5. Dismiss the loading screen.
+  const bootEl = document.getElementById("boot");
+  if (bootEl) {
+    bootEl.classList.add("is-done");
+    window.setTimeout(() => bootEl.remove(), 600);
+  }
+
+  if (import.meta.env.DEV) {
+    (window as unknown as { __fx?: unknown; __app?: unknown }).__fx = fx;
+    (window as unknown as { __fx?: unknown; __app?: unknown }).__app = app;
+  }
+}
+
+void boot();

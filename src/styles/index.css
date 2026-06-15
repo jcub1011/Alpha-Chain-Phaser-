@@ -1,0 +1,9 @@
+/* Global stylesheet entry — imported once from main.ts. Order matters:
+   tokens first, then base shell, then per-surface layout sheets. */
+@import "./tokens.css";
+@import "./base.css";
+@import "./cards.css";
+@import "./hud.css";
+@import "./lobby.css";
+@import "./intermission.css";
+@import "./gameover.css";

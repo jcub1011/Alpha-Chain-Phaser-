@@ -1,0 +1,126 @@
+/* Intermission overlay — optimize (reorder/discard) + sniper-ban picker. */
+
+.im-card {
+  width: min(94vw, 760px);
+  max-height: 88vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  animation: ac-rise 0.4s ease-out both;
+}
+.im-head { position: relative; display: flex; flex-direction: column; gap: 0.3rem; }
+.im-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(1.4rem, 4vw, 2rem);
+  letter-spacing: 0.02em;
+}
+.im-sub { margin: 0; font-size: 0.82rem; line-height: 1.45; color: var(--ac-ink-soft); }
+.im-timer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  font-family: var(--font-mono);
+  font-weight: 800;
+  font-size: 1.4rem;
+  color: var(--ac-amber);
+  font-variant-numeric: tabular-nums;
+}
+
+.im-bay {
+  --gc-w: 116px;
+  --gc-h: 150px;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  overflow-x: auto;
+  padding: var(--sp-2) 0;
+  min-height: calc(var(--gc-h) + 3rem);
+}
+.im-slot {
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  cursor: grab;
+}
+.im-slot:active { cursor: grabbing; }
+.im-slot.is-discard { opacity: 0.45; }
+.im-slot.is-discard ac-card { filter: grayscale(0.6); }
+.im-slot-no {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 0.8rem;
+  color: var(--ac-ink-faint);
+}
+.im-slot.is-discard .im-slot-no { color: var(--ac-danger); }
+.im-nudge { display: flex; gap: 0.3rem; }
+.im-nudge button {
+  appearance: none;
+  width: 1.8rem;
+  height: 1.6rem;
+  border: 1px solid var(--ac-border-strong);
+  border-radius: var(--r-xs);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--ac-ink);
+  cursor: pointer;
+  font-size: 0.7rem;
+}
+.im-nudge button:hover { border-color: var(--ac-cyan); }
+.im-divider {
+  flex: 0 0 auto;
+  align-self: stretch;
+  width: 2px;
+  margin: 0 0.3rem;
+  background: repeating-linear-gradient(
+    to bottom,
+    var(--ac-danger) 0 6px,
+    transparent 6px 12px
+  );
+  border-radius: 2px;
+}
+.im-empty { color: var(--ac-ink-faint); font-size: 0.85rem; padding: 1rem; }
+.im-lock { align-self: center; min-width: 200px; }
+
+/* Sniper-ban grid. */
+.ban-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(2.6rem, 1fr));
+  gap: 0.5rem;
+}
+.ban-key {
+  appearance: none;
+  aspect-ratio: 1;
+  border: 1px solid var(--ac-border-strong);
+  border-radius: var(--r-sm);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--ac-ink);
+  font-family: var(--font-mono);
+  font-weight: 800;
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.ban-key:hover {
+  border-color: var(--ac-danger);
+  background: color-mix(in srgb, var(--ac-danger) 20%, transparent);
+  color: var(--ac-danger);
+  transform: translateY(-2px);
+}
+
+/* Waiting on a bot to ban. */
+.im-wait { align-items: center; text-align: center; }
+.im-spinner {
+  width: 3rem;
+  height: 3rem;
+  border: 4px solid rgba(255, 255, 255, 0.12);
+  border-top-color: var(--ac-cyan);
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
