@@ -26,11 +26,27 @@ ac-engine-bay[compact] {
   color: var(--ac-ink-faint);
   white-space: nowrap;
 }
+/* Live running total shown in an opponent bay's head while its engine replays. */
+.bay-total {
+  font-family: var(--font-mono);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.95rem;
+  color: var(--ac-mint);
+  text-shadow: var(--ac-glow-mint);
+}
+.bay-total.is-taxed {
+  color: var(--ac-danger);
+  text-shadow: var(--ac-glow-danger);
+}
 .bay-slots {
   display: flex;
   flex-wrap: nowrap;
   gap: var(--sp-2);
   overflow-x: auto;
+  /* overflow-x:auto forces overflow-y to clip, so reserve headroom for the
+     triggered/hover card lift (translateY up to -10px) and the NEW badge. */
+  padding-top: 16px;
   padding-bottom: 0.3rem;
   scroll-snap-type: x proximity;
 }
@@ -48,19 +64,34 @@ ac-engine-bay[compact] {
 ac-card {
   flex: 0 0 auto;
   scroll-snap-align: start;
+  perspective: 1100px;
+}
+/* The flip container holds the front + back faces and rotates between them. */
+.gc-flip {
+  position: relative;
+  width: var(--gc-w);
+  height: var(--gc-h);
+  transform-style: preserve-3d;
+  transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+ac-card:not([compact]) .gc-flip {
+  cursor: pointer;
+}
+ac-card[flipped] .gc-flip {
+  transform: rotateY(180deg);
 }
 .gc {
-  position: relative;
+  position: absolute;
+  inset: 0;
   display: flex;
   flex-direction: column;
   gap: calc(var(--gc-h) * 0.05);
-  width: var(--gc-w);
-  height: var(--gc-h);
   padding: calc(var(--gc-h) * 0.08) calc(var(--gc-w) * 0.09);
   border: 2.5px solid var(--gc-accent);
   border-radius: var(--r-md);
   overflow: hidden;
   isolation: isolate;
+  backface-visibility: hidden;
   background:
     linear-gradient(
       157deg,
@@ -70,9 +101,30 @@ ac-card {
     var(--ac-panel-solid);
   box-shadow: var(--ac-drop-sm), inset 0 1px 0 rgba(255, 255, 255, 0.08);
   transition:
-    transform 0.16s ease,
     box-shadow 0.16s ease,
     filter 0.16s ease;
+}
+
+/* Back face: the card's rules text. */
+.gc-back {
+  transform: rotateY(180deg);
+  justify-content: flex-start;
+  gap: calc(var(--gc-h) * 0.04);
+}
+.gc-back-name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: calc(var(--gc-h) * 0.1);
+  line-height: 1.05;
+  letter-spacing: 0.01em;
+  color: var(--ac-ink);
+}
+.gc-desc {
+  margin: 0;
+  font-size: calc(var(--gc-h) * 0.078);
+  line-height: 1.32;
+  color: var(--ac-ink-soft);
+  overflow-y: auto;
 }
 .gc-top {
   display: flex;
@@ -119,8 +171,12 @@ ac-card {
   box-shadow: var(--ac-glow-mag);
 }
 
-ac-engine-bay:not([compact]) ac-card:hover .gc {
+/* Lift transforms live on .gc-flip so they don't clobber the faces' 3D rotation;
+   guarded with :not([flipped]) so hovering a flipped card never un-flips it. */
+ac-engine-bay:not([compact]) ac-card:not([flipped]):hover .gc-flip {
   transform: translateY(-5px);
+}
+ac-engine-bay:not([compact]) ac-card:hover .gc {
   box-shadow:
     var(--ac-drop),
     0 0 22px color-mix(in srgb, var(--gc-accent) 45%, transparent);
@@ -131,11 +187,27 @@ ac-card[dimmed] .gc {
   opacity: 0.4;
   filter: saturate(0.5);
 }
-ac-card[triggered] .gc {
+ac-card[triggered]:not([flipped]) .gc-flip {
   transform: translateY(-10px) scale(1.05);
+}
+ac-card[triggered] .gc {
   box-shadow:
     var(--ac-drop),
     0 0 30px color-mix(in srgb, var(--gc-accent) 80%, transparent);
   border-color: color-mix(in srgb, var(--gc-accent) 100%, #fff 25%);
 }
 .gc-new-badge { animation: ac-pop 0.4s ease-out both; }
+
+/* Compact cards (opponent bays) don't flip — hovering fades the rules text in
+   as an overlay over the front, staying inside the bay's scroll container. */
+ac-card[compact] .gc-flip { cursor: default; }
+ac-card[compact] .gc-back {
+  transform: none;
+  backface-visibility: visible;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.16s ease;
+}
+ac-card[compact] .gc-back-name { font-size: 0.7rem; }
+ac-card[compact] .gc-desc { font-size: 0.62rem; line-height: 1.28; }
+ac-card[compact] .gc-flip:hover .gc-back { opacity: 1; }

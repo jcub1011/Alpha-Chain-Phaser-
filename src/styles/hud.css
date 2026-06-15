@@ -58,6 +58,23 @@
   color: var(--ac-ink-faint);
   text-shadow: none;
 }
+.cmd-banned.is-exempt {
+  color: var(--ac-mint);
+  text-shadow: var(--ac-glow-mint);
+}
+.cmd-exempt {
+  margin-top: 0.15rem;
+  padding: 0.1em 0.5em;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--ac-mint) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ac-mint) 55%, transparent);
+  color: var(--ac-mint);
+  font-family: var(--font-mono);
+  font-weight: 800;
+  font-size: 0.6rem;
+  letter-spacing: 0.14em;
+  animation: ac-pulse 1.8s ease-in-out infinite;
+}
 
 /* ── Shot clock ────────────────────────────────────────────────────────── */
 .clock {
@@ -153,17 +170,24 @@
 }
 .sr-num.is-taxed { color: var(--ac-danger); text-shadow: var(--ac-glow-danger); }
 
-/* Floating value chip popped off a card (appended to <body>, fixed). */
+/* Floating contribution chip popped off a card (appended to <body>, fixed):
+   the point delta as the headline, the operator (×3 / +12 / FX) beneath it. */
 .sr-chip {
   position: fixed;
   z-index: 60;
   transform: translate(-50%, 0);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1;
   font-family: var(--font-mono);
-  font-weight: 800;
-  font-size: 1.5rem;
   text-shadow: 0 0 14px currentColor;
   pointer-events: none;
 }
+.sr-chip-delta { font-weight: 800; font-size: 1.5rem; }
+.sr-chip-op { margin-top: 0.1em; font-weight: 700; font-size: 0.78rem; opacity: 0.82; }
+.sr-chip.is-compact .sr-chip-delta { font-size: 1.05rem; }
+.sr-chip.is-compact .sr-chip-op { font-size: 0.6rem; }
 
 /* ── Word entry ────────────────────────────────────────────────────────── */
 .we {

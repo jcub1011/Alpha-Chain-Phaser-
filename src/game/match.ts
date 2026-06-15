@@ -132,31 +132,35 @@ export class MatchController {
 
   private beginEra(first: boolean): void {
     this.setPhase("Round");
-    this.state.roundInEra = 0;
+    // A "round" is one full cycle of all players (GDD §4); the era runs for
+    // `eraInterval` such rounds. roundInEra is 1-based and starts at the first
+    // round of the era; the player who the wrap left active opens each new era.
+    this.state.roundInEra = 1;
+    this.state.round++;
     if (first) {
       this.state.currentPlayerIndex = 0;
       this.state.requiredLetter = "";
-      this.armNextTurn(false);
-    } else {
-      this.armNextTurn(true);
     }
+    this.armCurrentTurn();
   }
 
-  private advanceIndex(): void {
+  /** Advance to the next active player; returns true if the turn order wrapped
+   *  (i.e. every player has now had a turn this round). */
+  private advanceIndex(): boolean {
     const n = this.state.players.length;
-    for (let i = 1; i <= n; i++) {
-      const idx = (this.state.currentPlayerIndex + i) % n;
-      if (!this.state.players[idx].eliminated) {
-        this.state.currentPlayerIndex = idx;
-        return;
-      }
+    let wrapped = false;
+    for (let i = 0; i < n; i++) {
+      const next = (this.state.currentPlayerIndex + 1) % n;
+      if (next <= this.state.currentPlayerIndex) wrapped = true;
+      this.state.currentPlayerIndex = next;
+      if (!this.state.players[next].eliminated) break;
     }
+    return wrapped;
   }
 
-  private armNextTurn(advance: boolean): void {
-    if (advance) this.advanceIndex();
-    this.state.roundInEra++;
-    this.state.round++;
+  /** Arm the shot clock for the current player and announce the turn. Does not
+   *  advance the turn order or touch the round counters. */
+  private armCurrentTurn(): void {
     const p = this.current;
     this.state.clockTotal = armedClockSeconds(
       this.state.settings.shotClockSeconds,
@@ -176,19 +180,26 @@ export class MatchController {
       this.gameOver();
       return;
     }
-    if (this.state.roundInEra >= this.state.settings.eraInterval) {
-      if (this.state.era >= this.state.settings.eraCount) this.gameOver();
-      else this.enterIntermission();
-    } else {
-      this.armNextTurn(true);
+    const wrapped = this.advanceIndex();
+    if (wrapped) {
+      this.state.round++;
+      // The era ends once `eraInterval` full rounds have been completed.
+      if (this.state.roundInEra >= this.state.settings.eraInterval) {
+        if (this.state.era >= this.state.settings.eraCount) this.gameOver();
+        else this.enterIntermission();
+        return;
+      }
+      this.state.roundInEra++;
     }
+    this.armCurrentTurn();
   }
 
   // ── Turn resolution ──────────────────────────────────────────────────────────
-  /** Whether the era banned letter is currently waived for `player` (last place). */
-  private isExempt(player: PlayerState): boolean {
-    const min = Math.min(...this.activePlayers.map((p) => p.score));
-    return player.score === min;
+  /** Whether the era banned letter is currently waived for `player`. Only the
+   *  single current last-place player (the ban's picker) is exempt — not every
+   *  player tied at the lowest score. Tracks live standings (GDD §2.2). */
+  isExempt(player: PlayerState): boolean {
+    return this.computeLastPlaceId() === player.id;
   }
 
   submitWord(playerId: string, rawWord: string): SubmitResult {

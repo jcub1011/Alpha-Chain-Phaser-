@@ -3,7 +3,7 @@
  * Big ticking number, the era, and the banned letter callout for the new era.
  */
 
-import { html, nothing, type TemplateResult } from "lit";
+import { html, nothing, type PropertyValues, type TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type { GameController } from "../../net/controller";
 import { AcElement } from "../app/AcElement";
@@ -13,9 +13,13 @@ export class AcCountdown extends AcElement {
   @property({ attribute: false }) controller!: GameController;
   @state() private n = 0;
 
-  override updated(changed: Map<string, unknown>): void {
+  override willUpdate(changed: PropertyValues): void {
     if (changed.has("controller") && this.controller) {
       this.clearSubs();
+      // The first countdownTick fires synchronously inside start()/era-advance,
+      // before this element subscribes — so seed from the full count now rather
+      // than flashing 0 until the next per-second tick.
+      this.n = Math.ceil(this.controller.match.state.settings.preRoundCountdownSeconds);
       this.listen(this.controller.events, "countdownTick", (n) => (this.n = n));
     }
   }

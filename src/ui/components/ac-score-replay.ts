@@ -1,31 +1,22 @@
 /*
  * <ac-score-replay> — the signature moment. On a human submission it walks the
- * score breakdown left→right over the real bay cards: each triggered card lifts
- * and bursts, a value chip pops off it, and the running total ramps up; skipped
- * cards dim. A taxed word slams to zero; a clean word erupts (+ confetti scaled
- * to magnitude). The whole run is a cancelable async sequencer — a new
- * submission or phase change aborts it and snaps the cards back to rest.
+ * score breakdown left→right over the real bay cards (via the shared
+ * runEngineReplay): each triggered card lifts and bursts, a chip pops off it
+ * showing its point contribution, and the running total ramps up; skipped cards
+ * dim. A taxed word slams to zero; a clean word erupts (+ confetti scaled to
+ * magnitude). The whole run is a cancelable async sequencer — a new submission
+ * or phase change aborts it and snaps the cards back to rest.
  */
 
 import { html, type TemplateResult } from "lit";
 import { customElement, property, query, state } from "lit/decorators.js";
 import type { GameController } from "../../net/controller";
 import type { Submission } from "../../game/types";
-import { familyAccentColor, fmtScore } from "../app/util";
-import { getCard } from "../../game/cards/library";
+import { fmtScore } from "../app/util";
 import { prefersReducedMotion } from "../../theme";
 import { fx } from "../fx/fx";
 import { AcElement } from "../app/AcElement";
-
-const sleep = (ms: number, signal: AbortSignal): Promise<void> =>
-  new Promise((resolve) => {
-    if (signal.aborted) return resolve();
-    const t = window.setTimeout(resolve, ms);
-    signal.addEventListener("abort", () => {
-      window.clearTimeout(t);
-      resolve();
-    }, { once: true });
-  });
+import { resetBayCards, runEngineReplay, sleep } from "./engine-replay";
 
 @customElement("ac-score-replay")
 export class AcScoreReplay extends AcElement {
@@ -60,16 +51,13 @@ export class AcScoreReplay extends AcElement {
     this.active = false;
   }
 
-  private cards(): HTMLElement[] {
-    const bay = document.querySelector("ac-engine-bay.mine");
-    return bay ? Array.from(bay.querySelectorAll("ac-card")) : [];
+  private bay(): Element | null {
+    return document.querySelector("ac-engine-bay.mine");
   }
 
   private resetCards(): void {
-    for (const c of this.cards()) {
-      c.removeAttribute("triggered");
-      c.removeAttribute("dimmed");
-    }
+    const bay = this.bay();
+    if (bay) resetBayCards(bay);
   }
 
   /** Tween the big readout from `from` to `to` over `ms`, abortable. */
@@ -92,27 +80,6 @@ export class AcScoreReplay extends AcElement {
     });
   }
 
-  /** Pop a value chip off a card's center, floating up and fading. */
-  private chip(rect: DOMRect, text: string, color: string): void {
-    if (prefersReducedMotion()) return;
-    const el = document.createElement("span");
-    el.className = "sr-chip";
-    el.textContent = text;
-    el.style.left = `${rect.left + rect.width / 2}px`;
-    el.style.top = `${rect.top + rect.height * 0.3}px`;
-    el.style.color = color;
-    document.body.appendChild(el);
-    const anim = el.animate(
-      [
-        { transform: "translate(-50%, 0) scale(0.6)", opacity: 0 },
-        { transform: "translate(-50%, -10px) scale(1.15)", opacity: 1, offset: 0.25 },
-        { transform: "translate(-50%, -46px) scale(1)", opacity: 0 },
-      ],
-      { duration: 900, easing: "cubic-bezier(0.2,0.8,0.2,1)" },
-    );
-    anim.onfinish = () => el.remove();
-  }
-
   private async run(sub: Submission): Promise<void> {
     this.abort?.abort();
     const ac = new AbortController();
@@ -132,41 +99,22 @@ export class AcScoreReplay extends AcElement {
       return;
     }
 
-    const cards = this.cards();
-    const steps = sub.breakdown.steps;
-    const total = Math.max(sub.breakdown.finalScore, sub.breakdown.finalBeforeTax, 1);
-    const stepMs = Math.max(180, (this.controller.match.state.settings.engineAnimationSeconds * 1000) / Math.max(1, steps.length));
+    const steps = sub.breakdown.steps.length;
+    const stepMs = Math.max(
+      180,
+      (this.controller.match.state.settings.engineAnimationSeconds * 1000) / Math.max(1, steps),
+    );
 
-    let prev = sub.breakdown.seed;
     await sleep(260, signal);
 
-    for (let i = 0; i < steps.length; i++) {
-      if (signal.aborted) return;
-      const step = steps[i];
-      const card = cards[i];
-      const def = getCard(step.cardId);
-      const color = def ? `var(--ac-accent-${def.family})` : "var(--ac-accent-neutral)";
-      const colorNum = familyAccentColor(def?.family ?? "neutral");
-
-      if (!step.triggered) {
-        card?.setAttribute("dimmed", "");
-        await sleep(stepMs * 0.5, signal);
-        continue;
-      }
-
-      card?.setAttribute("triggered", "");
-      const rect = card?.getBoundingClientRect();
-      const delta = step.runningScore - prev;
-      const intensity = Math.min(1, 0.3 + Math.abs(delta) / Math.max(40, total));
-      if (rect) {
-        this.chip(rect, step.valueText, color);
-        fx.burstAt(rect, intensity, colorNum);
-      }
-      if (delta >= 60) fx.shake(Math.min(1, delta / 200));
-      await this.ramp(prev, step.runningScore, Math.min(stepMs * 0.7, 520), signal);
-      prev = step.runningScore;
-      await sleep(stepMs * 0.3, signal);
-      card?.removeAttribute("triggered");
+    const bay = this.bay();
+    if (bay) {
+      await runEngineReplay(bay, sub, {
+        signal,
+        stepMs,
+        onStep: (step, prevRunning) =>
+          this.ramp(prevRunning, step.runningScore, Math.min(stepMs * 0.7, 520), signal),
+      });
     }
 
     if (signal.aborted) return;
@@ -174,11 +122,12 @@ export class AcScoreReplay extends AcElement {
     if (sub.taxed) {
       // Crash the pre-tax total down to zero.
       this.numEl?.classList.add("is-taxed");
-      await this.ramp(prev, 0, 420, signal);
+      await this.ramp(sub.breakdown.finalBeforeTax, 0, 420, signal);
       fx.shake(0.8);
       await sleep(700, signal);
       this.numEl?.classList.remove("is-taxed");
     } else {
+      if (this.numEl) this.numEl.textContent = fmtScore(sub.score);
       this.numEl?.classList.add("is-final");
       if (this.numEl) {
         const r = this.numEl.getBoundingClientRect();

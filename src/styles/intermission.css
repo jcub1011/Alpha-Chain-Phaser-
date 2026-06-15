@@ -37,7 +37,8 @@
   align-items: flex-start;
   gap: var(--sp-2);
   overflow-x: auto;
-  padding: var(--sp-2) 0;
+  /* Headroom so the NEW badge / any card lift isn't cropped by the scroll box. */
+  padding: 16px 0 var(--sp-2);
   min-height: calc(var(--gc-h) + 3rem);
 }
 .im-slot {

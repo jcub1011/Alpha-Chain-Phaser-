@@ -83,8 +83,12 @@ export class AcIntermission extends AcElement {
 
   private onDrop(targetId: string): void {
     if (!this.dragId || this.dragId === targetId) return;
+    const from = this.order.indexOf(this.dragId);
+    const to = this.order.indexOf(targetId);
     const next = this.order.filter((x) => x !== this.dragId);
-    const idx = next.indexOf(targetId);
+    // Insert after the target when dragging rightward, before it otherwise —
+    // so a card dragged onto the last slot lands at the very end of the list.
+    const idx = next.indexOf(targetId) + (from < to ? 1 : 0);
     next.splice(idx, 0, this.dragId);
     this.order = next;
     this.dragId = null;

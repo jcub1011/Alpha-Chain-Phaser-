@@ -63,14 +63,18 @@ describe("MatchController", () => {
   });
 
   it("ends the match after the configured eras and picks the high scorer", () => {
+    // A round is one full cycle of both players; eraInterval 2, eraCount 1 → 2
+    // rounds (= 4 turns) then game over.
+    const m2 = makeMatch({ preRoundCountdownSeconds: 3, eraInterval: 2, eraCount: 1 });
+    m2.start();
+    m2.tick(3);
     let winner: string | null = "unset";
-    m.events.on("gameOver", (e) => (winner = e.winnerId));
-    // eraInterval 4, eraCount 1 → 4 turns then game over.
-    m.submitWord("p1", "cat"); // p1 +3, req t
-    m.submitWord("p2", "tiger"); // p2 +5, req r
-    m.submitWord("p1", "rabbit"); // p1 +6 (total 9), req t
-    m.submitWord("p2", "torch"); // p2 +5 (total 10), req h
-    expect(m.state.phase).toBe("GameOver");
+    m2.events.on("gameOver", (e) => (winner = e.winnerId));
+    m2.submitWord("p1", "cat"); // round 1: p1 +3, req t
+    m2.submitWord("p2", "tiger"); // round 1 wraps: p2 +5, req r
+    m2.submitWord("p1", "rabbit"); // round 2: p1 +6 (total 9), req t
+    m2.submitWord("p2", "torch"); // round 2 wraps → game over: p2 +5 (total 10), req h
+    expect(m2.state.phase).toBe("GameOver");
     expect(winner).toBe("p2"); // 10 vs 9
   });
 

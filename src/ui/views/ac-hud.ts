@@ -31,6 +31,7 @@ export class AcHud extends AcElement {
   @state() private roundInEra = 0;
   @state() private currentName = "";
   @state() private isHumanTurn = false;
+  @state() private humanExempt = false;
   @state() private humanBay: BayCard[] = [];
   @state() private humanSlots = 3;
   @state() private opponents: PlayerState[] = [];
@@ -64,6 +65,9 @@ export class AcHud extends AcElement {
     this.humanBay = me ? [...me.bay] : [];
     this.humanSlots = me?.slots ?? 3;
     this.opponents = s.players.filter((p) => p.id !== human);
+    // The last-place player is exempt from the banned-letter tax (they picked
+    // it). Surface it so keeping points on a banned word never reads as a bug.
+    this.humanExempt = !!me && !!s.bannedLetter && m.isExempt(me);
   }
 
   override render(): TemplateResult {
@@ -84,8 +88,15 @@ export class AcHud extends AcElement {
             <div class="cmd-cell cmd-right">
               <span class="ac-eyebrow">banned</span>
               ${this.bannedLetter
-                ? html`<span class="cmd-banned">${this.bannedLetter.toUpperCase()}</span>`
+                ? html`<span class="cmd-banned ${this.humanExempt ? "is-exempt" : ""}"
+                    >${this.bannedLetter.toUpperCase()}</span
+                  >`
                 : html`<span class="cmd-banned is-none">—</span>`}
+              ${this.humanExempt
+                ? html`<span class="cmd-exempt" title="You're in last place — the banned letter won't tax you."
+                    >EXEMPT</span
+                  >`
+                : nothing}
             </div>
           </section>
 
@@ -119,9 +130,12 @@ export class AcHud extends AcElement {
                     <div class="foe" style="--accent:${playerAccentVar(p.accentIndex)};">
                       <ac-engine-bay
                         compact
+                        live
                         label=${p.name}
                         .cards=${p.bay}
                         .slots=${p.slots}
+                        .controller=${c}
+                        playerId=${p.id}
                       ></ac-engine-bay>
                     </div>
                   `,
