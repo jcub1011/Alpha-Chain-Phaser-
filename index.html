@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#06080f" />
+    <title>Alpha Chain</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        background: #06080f;
+        overflow: hidden;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        -webkit-tap-highlight-color: transparent;
+        overscroll-behavior: none;
+      }
+      #game {
+        width: 100%;
+        height: 100%;
+      }
+      /* The word-input DOM element injected by Phaser's DOM layer. */
+      .ac-word-input {
+        font-family: "Courier New", ui-monospace, monospace;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: lowercase;
+        text-align: center;
+        color: #eaf2ff;
+        background: rgba(10, 14, 28, 0.92);
+        border: 3px solid #00e5ff;
+        border-radius: 10px;
+        outline: none;
+        box-shadow: 0 0 18px rgba(0, 229, 255, 0.45), 5px 5px 0 #000;
+        caret-color: #00e5ff;
+      }
+      .ac-word-input::placeholder {
+        color: rgba(234, 242, 255, 0.32);
+        letter-spacing: 0.08em;
+      }
+      /* Blindfold: hide the glyphs but keep the caret. */
+      .ac-word-input.ac-blindfold {
+        color: transparent;
+        text-shadow: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="game"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

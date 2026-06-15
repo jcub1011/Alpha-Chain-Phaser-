@@ -1,0 +1,261 @@
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+  <!-- Symbol ids MUST equal the corresponding ModifierId member name exactly (CardIcon.razor
+       references them via ModifierId.ToString()). Rename an enum member -> rename its symbol here.
+       Geometry is copied verbatim from the former @switch in CardIcon.razor. No stroke/fill/
+       stroke-width here: the symbols inherit those from the using <svg> so currentColor still tints. -->
+  <symbol id="TheAnchor" viewBox="0 0 24 24">
+    <circle cx="12" cy="5" r="2.3" />
+    <line x1="12" y1="7.3" x2="12" y2="20" />
+    <line x1="8" y1="11" x2="16" y2="11" />
+    <path d="M4 13a8 8 0 0 0 16 0" />
+  </symbol>
+  <!-- Vanilla — a scoop on a cone (+1 per letter, the plain staple). -->
+  <symbol id="Vanilla" viewBox="0 0 24 24">
+    <circle cx="12" cy="8" r="4" />
+    <path d="M8 10.5 L12 21 L16 10.5" />
+  </symbol>
+  <!-- Crunch — a jagged saw line. -->
+  <symbol id="ConsonantCrunch" viewBox="0 0 24 24">
+    <polyline points="3,8 7,8 9.5,16 13,8 16,16 21,8" />
+  </symbol>
+  <!-- Vocal Vowels — a speech bubble with vowel dots (+3 per vowel). -->
+  <symbol id="VocalVowels" viewBox="0 0 24 24">
+    <path d="M5 5h14a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H10l-4 3v-3H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z" />
+    <circle cx="9" cy="10" r="0.6" />
+    <circle cx="12" cy="10" r="0.6" />
+    <circle cx="15" cy="10" r="0.6" />
+  </symbol>
+  <!-- Vowel surge — a rolling wave. -->
+  <symbol id="VowelSurge" viewBox="0 0 24 24">
+    <path d="M3 13c2.2 0 2.2-5 4.5-5s2.3 5 4.5 5 2.2-5 4.5-5 2.3 5 4.5 5" />
+  </symbol>
+  <!-- Roof + crossbeam. -->
+  <symbol id="TheArchitect" viewBox="0 0 24 24">
+    <polyline points="4,18 12,5 20,18" />
+    <line x1="7.2" y1="13" x2="16.8" y2="13" />
+  </symbol>
+  <symbol id="BrickLayer" viewBox="0 0 24 24">
+    <rect x="3.5" y="6" width="17" height="12" rx="0.5" />
+    <line x1="3.5" y1="12" x2="20.5" y2="12" />
+    <line x1="12" y1="6" x2="12" y2="12" />
+    <line x1="7.7" y1="12" x2="7.7" y2="18" />
+    <line x1="16.3" y1="12" x2="16.3" y2="18" />
+  </symbol>
+  <!-- Lightning bolt — speed. -->
+  <symbol id="Speedracer" viewBox="0 0 24 24">
+    <polygon points="13,2 6,13 11,13 10,22 18,9 12,9" />
+  </symbol>
+  <!-- Stacked coins. -->
+  <symbol id="LetterHoarder" viewBox="0 0 24 24">
+    <ellipse cx="12" cy="7" rx="7" ry="2.6" />
+    <path d="M5 7v4c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6V7" />
+    <path d="M5 11v4c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6v-4" />
+  </symbol>
+  <!-- Percent sign. -->
+  <symbol id="TaxCollector" viewBox="0 0 24 24">
+    <circle cx="7" cy="7" r="2.4" />
+    <circle cx="17" cy="17" r="2.4" />
+    <line x1="6" y1="18" x2="18" y2="6" />
+  </symbol>
+  <!-- Sesquipedalian — a tall, many-storey tower. -->
+  <symbol id="Sesquipedalian" viewBox="0 0 24 24">
+    <rect x="8" y="3" width="8" height="18" rx="0.6" />
+    <line x1="8" y1="8" x2="16" y2="8" />
+    <line x1="8" y1="12" x2="16" y2="12" />
+    <line x1="8" y1="16" x2="16" y2="16" />
+  </symbol>
+  <!-- Guttural Roar — sound waves bursting out. -->
+  <symbol id="GutturalRoar" viewBox="0 0 24 24">
+    <path d="M5 9v6" />
+    <path d="M9 6.5c2 2 2 9 0 11" />
+    <path d="M13 4.5c3 3 3 12 0 15" />
+    <path d="M17 7c1.6 1.6 1.6 8.4 0 10" />
+  </symbol>
+  <!-- High Roller — a die showing five pips. -->
+  <symbol id="HighRoller" viewBox="0 0 24 24">
+    <rect x="4" y="4" width="16" height="16" rx="2.5" />
+    <circle cx="8.5" cy="8.5" r="0.6" />
+    <circle cx="15.5" cy="8.5" r="0.6" />
+    <circle cx="12" cy="12" r="0.6" />
+    <circle cx="8.5" cy="15.5" r="0.6" />
+    <circle cx="15.5" cy="15.5" r="0.6" />
+  </symbol>
+  <!-- Perfect Link — two interlocking chain links. -->
+  <symbol id="PerfectLink" viewBox="0 0 24 24">
+    <rect x="3" y="9" width="11" height="6" rx="3" />
+    <rect x="10" y="9" width="11" height="6" rx="3" />
+  </symbol>
+  <!-- The Vault — a safe door with a dial. -->
+  <symbol id="TheVault" viewBox="0 0 24 24">
+    <rect x="3.5" y="4" width="17" height="16" rx="1.5" />
+    <circle cx="12" cy="12" r="4" />
+    <line x1="12" y1="12" x2="12" y2="8.5" />
+    <line x1="12" y1="12" x2="14.5" y2="13.5" />
+  </symbol>
+  <!-- Redline — a tachometer pushed past the line. -->
+  <symbol id="Redline" viewBox="0 0 24 24">
+    <path d="M4 16a8 8 0 0 1 16 0" />
+    <line x1="12" y1="16" x2="17" y2="11" />
+    <line x1="18.5" y1="6.5" x2="20.5" y2="4.5" />
+  </symbol>
+  <!-- Panic Button — a big round button. -->
+  <symbol id="PanicButton" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="9" />
+    <circle cx="12" cy="12" r="4.2" />
+  </symbol>
+  <!-- Hyper-Drive — fast-forward double chevron. -->
+  <symbol id="HyperDrive" viewBox="0 0 24 24">
+    <polyline points="4,6 11,12 4,18" />
+    <polyline points="12,6 19,12 12,18" />
+  </symbol>
+  <!-- IRS — a stamped document. -->
+  <symbol id="IrsAgent" viewBox="0 0 24 24">
+    <rect x="5.5" y="3.5" width="13" height="17" rx="1" />
+    <line x1="8.5" y1="8" x2="15.5" y2="8" />
+    <line x1="8.5" y1="11.5" x2="15.5" y2="11.5" />
+    <line x1="8.5" y1="15" x2="13" y2="15" />
+  </symbol>
+  <!-- The Roulette Wheel — a spoked wheel. -->
+  <symbol id="RouletteWheel" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="8.5" />
+    <circle cx="12" cy="12" r="2" />
+    <line x1="12" y1="3.5" x2="12" y2="20.5" />
+    <line x1="3.5" y1="12" x2="20.5" y2="12" />
+    <line x1="6" y1="6" x2="18" y2="18" />
+    <line x1="18" y1="6" x2="6" y2="18" />
+  </symbol>
+  <!-- The Toll Booth — a tied sack. -->
+  <symbol id="TollBooth" viewBox="0 0 24 24">
+    <path d="M9 7c-3 2-4 6-4 8a7 7 0 0 0 14 0c0-2-1-6-4-8z" />
+    <path d="M9 7l1.5-3h3L15 7z" />
+  </symbol>
+  <!-- Bait & Switch — two swapping arrows. -->
+  <symbol id="BaitAndSwitch" viewBox="0 0 24 24">
+    <polyline points="7,8 4,8 4,5" />
+    <path d="M4 8c3-3 9-3 12 0" />
+    <polyline points="17,16 20,16 20,19" />
+    <path d="M20 16c-3 3-9 3-12 0" />
+  </symbol>
+  <!-- The Blindfold — a band across closed eyes. -->
+  <symbol id="Blindfold" viewBox="0 0 24 24">
+    <path d="M3 12c3-4 15-4 18 0" />
+    <line x1="3" y1="11" x2="21" y2="13" />
+    <line x1="8" y1="11.4" x2="7" y2="15" />
+    <line x1="16" y1="11.4" x2="17" y2="15" />
+  </symbol>
+  <!-- The Double Down — two stacked chevrons (×2). -->
+  <symbol id="DoubleDown" viewBox="0 0 24 24">
+    <polyline points="6,5 12,11 18,5" />
+    <polyline points="6,12 12,18 18,12" />
+  </symbol>
+  <!-- The Anchor Chain — an anchor wrapped in a chain link. -->
+  <symbol id="AnchorChain" viewBox="0 0 24 24">
+    <circle cx="12" cy="5" r="2.2" />
+    <line x1="12" y1="7.2" x2="12" y2="19" />
+    <path d="M5 13a7 7 0 0 0 14 0" />
+    <rect x="9.5" y="10" width="5" height="3.4" rx="1.7" />
+  </symbol>
+  <!-- Flak Cannon — a burst / explosion star. -->
+  <symbol id="FlakCannon" viewBox="0 0 24 24">
+    <polygon points="12,3 14,9 20,7 16,12 20,17 14,15 12,21 10,15 4,17 8,12 4,7 10,9" />
+  </symbol>
+  <!-- The Bounty Hunter — a target crosshair. -->
+  <symbol id="BountyHunter" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="8" />
+    <circle cx="12" cy="12" r="3.2" />
+    <line x1="12" y1="2.5" x2="12" y2="6" />
+    <line x1="12" y1="18" x2="12" y2="21.5" />
+    <line x1="2.5" y1="12" x2="6" y2="12" />
+    <line x1="18" y1="12" x2="21.5" y2="12" />
+  </symbol>
+  <!-- The Titanium Mirror — a reflective shield. -->
+  <symbol id="TitaniumMirror" viewBox="0 0 24 24">
+    <path d="M12 3l7 3v4.6c0 4.8-3.4 7.7-7 8.9-3.6-1.2-7-4.1-7-8.9V6z" />
+    <line x1="9.5" y1="7.5" x2="7.5" y2="13" />
+    <line x1="13.5" y1="7" x2="9.5" y2="16" />
+  </symbol>
+  <!-- The Heat Sink — finned radiator. -->
+  <symbol id="HeatSink" viewBox="0 0 24 24">
+    <rect x="4" y="6" width="16" height="5" rx="1" />
+    <line x1="7" y1="11" x2="7" y2="19" />
+    <line x1="10.3" y1="11" x2="10.3" y2="19" />
+    <line x1="13.7" y1="11" x2="13.7" y2="19" />
+    <line x1="17" y1="11" x2="17" y2="19" />
+  </symbol>
+  <!-- The Prism — a triangle splitting a beam. -->
+  <symbol id="Prism" viewBox="0 0 24 24">
+    <polygon points="12,4 20,18 4,18" />
+    <line x1="2" y1="11" x2="9" y2="11" />
+    <line x1="14" y1="13" x2="22" y2="10" />
+    <line x1="14" y1="14.5" x2="22" y2="15" />
+  </symbol>
+  <!-- The Wildcard — a star (any letter goes). -->
+  <symbol id="Wildcard" viewBox="0 0 24 24">
+    <polygon points="12,3 14.6,9.3 21,9.6 16,13.7 17.7,20 12,16.3 6.3,20 8,13.7 3,9.6 9.4,9.3" />
+  </symbol>
+  <!-- The Catalyst — an Erlenmeyer flask. -->
+  <symbol id="Catalyst" viewBox="0 0 24 24">
+    <path d="M9 3v6L4.5 18a1.5 1.5 0 0 0 1.4 2.1h12.2A1.5 1.5 0 0 0 19.5 18L15 9V3" />
+    <line x1="8" y1="3" x2="16" y2="3" />
+    <line x1="7" y1="14" x2="17" y2="14" />
+  </symbol>
+  <!-- The Blueprint — a drafting sheet with a baseline. -->
+  <symbol id="TheBlueprint" viewBox="0 0 24 24">
+    <rect x="4" y="4" width="16" height="16" rx="1" />
+    <line x1="4" y1="16" x2="20" y2="16" />
+    <polyline points="7,16 7,11 11,11 11,8 15,8" />
+  </symbol>
+  <!-- Slow Burn — a candle flame over a long taper. -->
+  <symbol id="SlowBurn" viewBox="0 0 24 24">
+    <path d="M12 3c2.5 3 3.5 5 3.5 7a3.5 3.5 0 0 1-7 0c0-1 .4-2 1.2-3" />
+    <line x1="12" y1="13.5" x2="12" y2="21" />
+  </symbol>
+  <!-- Try Hard — an upward bar trend (more letters, more push). -->
+  <symbol id="TryHard" viewBox="0 0 24 24">
+    <line x1="4" y1="20" x2="20" y2="20" />
+    <rect x="5" y="14" width="3" height="6" />
+    <rect x="10.5" y="10" width="3" height="10" />
+    <rect x="16" y="5" width="3" height="15" />
+  </symbol>
+  <!-- Chrono Syphon — a clock with a draining arrow. -->
+  <symbol id="ChronoSyphon" viewBox="0 0 24 24">
+    <circle cx="11" cy="11" r="7" />
+    <polyline points="11,7 11,11 14,13" />
+    <polyline points="18,16 20,20 16,20" />
+  </symbol>
+  <!-- Forgery — a stamp / duplicate mark. -->
+  <symbol id="Forgery" viewBox="0 0 24 24">
+    <rect x="5" y="5" width="11" height="11" rx="1" />
+    <path d="M8 19h11a1 1 0 0 0 1-1V8" />
+  </symbol>
+  <!-- Tax Write-Off — a receipt with a strike-through. -->
+  <symbol id="TaxWriteOff" viewBox="0 0 24 24">
+    <path d="M7 3h10v18l-2.5-1.5L12 21l-2.5-1.5L7 21z" />
+    <line x1="9" y1="9" x2="15" y2="9" />
+    <line x1="6" y1="13" x2="18" y2="11" />
+  </symbol>
+  <!-- Booster Pack — a gift/loot pack. -->
+  <symbol id="BoosterPack" viewBox="0 0 24 24">
+    <rect x="4" y="8" width="16" height="12" rx="1" />
+    <line x1="4" y1="12" x2="20" y2="12" />
+    <line x1="12" y1="8" x2="12" y2="20" />
+    <path d="M12 8c-1-3-5-3-5-1s4 1 5 1zM12 8c1-3 5-3 5-1s-4 1-5 1z" />
+  </symbol>
+  <!-- Scavenger — a magnifying glass over finds. -->
+  <symbol id="Scavenger" viewBox="0 0 24 24">
+    <circle cx="10" cy="10" r="6" />
+    <line x1="14.5" y1="14.5" x2="20" y2="20" />
+    <circle cx="10" cy="10" r="0.6" />
+  </symbol>
+  <!-- Magnifying Glass — a lens with a + boost mark; magnifies its neighbor's effect. -->
+  <symbol id="MagnifyingGlass" viewBox="0 0 24 24">
+    <circle cx="10" cy="10" r="6" />
+    <line x1="14.5" y1="14.5" x2="20" y2="20" />
+    <line x1="10" y1="7" x2="10" y2="13" />
+    <line x1="7" y1="10" x2="13" y2="10" />
+  </symbol>
+  <!-- Fallback — the original default circle, used for Unknown / unmapped ids. -->
+  <symbol id="fallback" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="6" />
+  </symbol>
+</svg>
