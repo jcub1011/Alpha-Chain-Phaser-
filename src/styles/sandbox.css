@@ -1,23 +1,56 @@
-/* Testing Bay (developer sandbox) — reached with ?sandbox. Utilitarian on
-   purpose; reuses the neon-noir tokens but stays plain. */
+/* Testing Bay (developer / player sandbox) — reached with ?sandbox or the
+   lobby's "Testing Bay" button. Drives a live throwaway match; utilitarian on
+   purpose, but uses the neon-noir tokens. */
 
 .sandbox {
-  max-width: 1100px;
+  max-width: 1200px;
   margin: 0 auto;
   padding: 24px 20px 64px;
   display: grid;
   gap: 20px;
 }
+.sandbox-loading {
+  opacity: 0.7;
+  padding: 40px 0;
+  text-align: center;
+}
+.sandbox-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
 .sandbox-head h1 {
   margin: 0;
-  font-size: 1.5rem;
+  font-family: var(--font-display);
+  font-size: 1.6rem;
   letter-spacing: 0.04em;
-  color: var(--ac-ink, #eaf2ff);
+  color: var(--ac-ink);
 }
 .sandbox-head p {
   margin: 4px 0 0;
   opacity: 0.7;
+  font-size: 0.85rem;
 }
+
+/* Shared small pill button (back / skip / palette toggle). */
+.sandbox .chip {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--ac-border-strong);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--ac-ink);
+  cursor: pointer;
+  font-size: 12px;
+  white-space: nowrap;
+  transition: border-color 0.15s, background 0.15s;
+}
+.sandbox .chip:hover {
+  border-color: var(--ac-cyan);
+  background: color-mix(in srgb, var(--ac-cyan) 12%, transparent);
+}
+
+/* ── Scenario controls ── */
 .sandbox-controls {
   display: flex;
   flex-wrap: wrap;
@@ -32,46 +65,184 @@
   text-transform: uppercase;
   opacity: 0.85;
 }
-.sandbox-controls input[type="text"],
-.sandbox-controls input:not([type]),
-.sandbox-controls input[type="number"] {
+.sandbox-controls input,
+.sandbox-controls select,
+.sandbox-submit input {
   padding: 8px 10px;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  border: 1px solid var(--ac-border-strong);
   background: rgba(255, 255, 255, 0.05);
-  color: var(--ac-ink, #eaf2ff);
+  color: var(--ac-ink);
   font-size: 14px;
 }
-.sandbox-check {
-  flex-direction: row;
-  align-items: center;
-  gap: 6px;
+.sandbox-controls input[maxlength="1"] {
+  width: 3rem;
+  text-align: center;
+  text-transform: uppercase;
 }
-.sandbox-bay-actions {
+.sandbox-turn {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.sandbox-turn-label,
+.sandbox-controls label {
+  color: var(--ac-ink-soft);
+}
+.sandbox-turn-label {
+  font: 600 11px/1.4 system-ui, sans-serif;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.sandbox-turn strong {
+  color: var(--ac-cyan);
+  font-family: var(--font-display);
+}
+.sandbox-req {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+/* ── Player columns ── */
+.sandbox-players {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 8px;
+  gap: 14px;
 }
-.sandbox .chip {
-  padding: 5px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--ac-ink, #eaf2ff);
+.sandbox-player {
+  flex: 1 1 16rem;
+  min-width: 14rem;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--ac-border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+}
+.sandbox-player.is-current {
+  border-color: var(--p-accent, var(--ac-cyan));
+  box-shadow: 0 0 0 1px var(--p-accent, var(--ac-cyan));
+}
+.sandbox-player.is-target {
+  background: color-mix(in srgb, var(--p-accent, var(--ac-cyan)) 10%, transparent);
+}
+.sandbox-player-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.sandbox-player-name {
+  appearance: none;
+  border: 0;
+  background: none;
   cursor: pointer;
+  color: var(--p-accent, var(--ac-ink));
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.95rem;
+  text-align: left;
+}
+.sandbox-player-score {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: 600 10px/1 system-ui, sans-serif;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+.sandbox-player-score input {
+  width: 4.5rem;
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--ac-border-strong);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--ac-ink);
+  font-size: 13px;
+}
+.sandbox-empty {
+  margin: 0;
   font-size: 12px;
+  opacity: 0.55;
 }
-.sandbox .chip.danger {
-  border-color: rgba(255, 80, 80, 0.6);
-  color: #ff8a8a;
+.sandbox-slots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-start;
 }
+.sandbox-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+/* Standalone <ac-card>s get no size var (those live on ac-engine-bay), so the
+   bench sizes its cards explicitly. */
+.sandbox-slot ac-card {
+  --gc-w: 84px;
+  --gc-h: 112px;
+}
+.sandbox-slot-ops {
+  display: flex;
+  gap: 3px;
+}
+.sandbox-slot-ops button {
+  width: 1.5rem;
+  height: 1.5rem;
+  display: grid;
+  place-content: center;
+  border: 1px solid var(--ac-border-strong);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--ac-ink);
+  font-size: 11px;
+  cursor: pointer;
+}
+.sandbox-slot-ops button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.sandbox-slot-ops button:not(:disabled):hover {
+  border-color: var(--ac-cyan);
+}
+
+/* ── Word submission ── */
+.sandbox-submit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px;
+}
+.sandbox-submit label {
+  display: grid;
+  gap: 4px;
+  font: 600 11px/1.4 system-ui, sans-serif;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ac-ink-soft);
+}
+.sandbox-word {
+  flex: 1 1 16rem;
+}
+.sandbox-submit .ac-btn {
+  padding: 0.7rem 1.4rem;
+}
+.sandbox-msg {
+  color: var(--ac-amber, #ffb454);
+  font-size: 13px;
+  align-self: center;
+}
+
+/* ── Latest breakdown ── */
 .sandbox-total {
   display: flex;
   flex-wrap: wrap;
   gap: 18px;
   align-items: baseline;
-  padding: 12px 0;
+  padding: 12px 0 4px;
   font-size: 14px;
 }
 .sandbox-total .big {
@@ -79,6 +250,9 @@
 }
 .sandbox-total b {
   color: var(--ac-accent-mint, #14f195);
+}
+.sandbox-total .big.taxed b {
+  color: var(--ac-magenta, #ff2e8b);
 }
 .sandbox-steps {
   list-style: none;
@@ -92,12 +266,18 @@
   grid-template-columns: 1fr auto auto;
   gap: 12px;
   padding: 6px 10px;
-  border-radius: 6px;
+  border-left: 3px solid var(--step-accent, var(--ac-border-strong));
+  border-radius: 4px;
   background: rgba(255, 255, 255, 0.04);
   font: 13px/1.4 system-ui, sans-serif;
 }
 .sandbox-steps li.off {
   opacity: 0.4;
+  border-left-color: transparent;
+}
+.sandbox-steps .step-val {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
 }
 .sandbox-steps .step-run {
   font-variant-numeric: tabular-nums;
@@ -105,25 +285,131 @@
   min-width: 56px;
   text-align: right;
 }
-.sandbox-palette h2 {
+.sandbox-steal {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--ac-accent-mint, #14f195);
+}
+.sandbox-effects {
+  margin-top: 10px;
+  display: grid;
+  gap: 4px;
+}
+.sandbox-effect {
+  font-size: 12px;
+  opacity: 0.85;
+}
+.sandbox-effect.reflected {
+  color: var(--ac-accent-clock, #8ad);
+}
+
+/* ── Submission history ── */
+.sandbox-history {
+  display: grid;
+  gap: 6px;
+}
+.sandbox-history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 3px;
+}
+.sandbox-history-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 13px;
+}
+.sandbox-history-num {
+  opacity: 0.5;
+  font-variant-numeric: tabular-nums;
+}
+.sandbox-history-who {
+  color: var(--ac-cyan);
+  font-weight: 700;
+  min-width: 4rem;
+}
+.sandbox-history-word {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  flex: 1 1 auto;
+}
+.sandbox-history-score {
+  color: var(--ac-accent-mint, #14f195);
+  font-weight: 700;
+}
+.sandbox-history-tax {
+  color: var(--ac-magenta, #ff2e8b);
+  font-weight: 700;
+}
+.sandbox-history-bounty {
+  opacity: 0.7;
+  font-size: 12px;
+}
+
+/* ── Card palette ── */
+.sandbox-palette-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.sandbox-palette-head h2 {
   font-size: 0.95rem;
   letter-spacing: 0.05em;
   opacity: 0.85;
+  margin: 0;
 }
 .palette-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 14px;
+  margin-top: 12px;
+  justify-items: center;
+}
+.palette-grid ac-card {
+  --gc-w: 132px;
+  --gc-h: 188px;
+}
+.palette-grid.is-small {
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
   gap: 10px;
 }
-.palette-card {
-  padding: 0;
-  border: 0;
-  background: none;
+.palette-grid.is-small ac-card {
+  --gc-w: 88px;
+  --gc-h: 118px;
+}
+.palette-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.palette-add {
+  appearance: none;
+  padding: 4px 12px;
+  border: 1px solid var(--ac-border-strong);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--ac-accent-mint, #14f195) 18%, transparent);
+  color: var(--ac-ink);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 12px;
   cursor: pointer;
-  text-align: left;
+  transition: background 0.15s, border-color 0.15s;
+}
+.palette-add:hover {
+  border-color: var(--ac-accent-mint, #14f195);
+  background: color-mix(in srgb, var(--ac-accent-mint, #14f195) 30%, transparent);
 }
 
-/* Multiplayer lobby roster */
+/* Multiplayer lobby roster (kept here; shared stylesheet). */
 .net-roster {
   list-style: none;
   margin: 4px 0 12px;

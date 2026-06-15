@@ -169,7 +169,7 @@ export class AcApp extends AcElement {
 
   // ── Render ───────────────────────────────────────────────────────────────
   override render(): TemplateResult {
-    if (this.sandbox) return html`<ac-sandbox></ac-sandbox>`;
+    if (this.sandbox) return html`<ac-sandbox .dict=${this.dict}></ac-sandbox>`;
     if (this.sessionEnded) {
       return html`
         <div class="overlay session-ended">

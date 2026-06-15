@@ -42,6 +42,11 @@ export class AcLobby extends AcElement {
     );
   }
 
+  /** Open the Testing Bay (sandbox). URL-driven so it stays bookmarkable. */
+  private openBay(): void {
+    location.search = "?sandbox";
+  }
+
   private stepper(
     label: string,
     value: string,
@@ -154,6 +159,7 @@ export class AcLobby extends AcElement {
         </div>
 
         <button class="ac-btn lobby-start" @click=${this.start}>START MATCH</button>
+        <button class="lobby-bay" @click=${this.openBay}>🧪 Testing Bay</button>
 
         <p class="lobby-rules">
           Chain words by their last letter. Build an engine of modifier cards.

@@ -646,10 +646,7 @@ export class MatchController {
     // Era boundary: reset the per-era guards (Prism/Wildcard re-arm, card/hijack
     // bans clear) BEFORE firing OnEraStart, so personal-ban cards roll fresh
     // letters for the new era (which dodge the just-set era ban).
-    for (const p of this.state.players) {
-      this.services.fireEraStarted(p);
-      fireBayHook(this.bayEval(p, "", false), "onEraStart");
-    }
+    for (const p of this.state.players) this.armPlayerForEra(p);
     this.state.intermissionPhase = null;
     this.state.currentTutorial = null;
     this.state.subTimerRemaining = 0;
@@ -660,6 +657,32 @@ export class MatchController {
   randomBanLetter(): string {
     const legal = legalBanLetters(this.state.settings.banMode);
     return legal[Math.floor(this.rng() * legal.length)];
+  }
+
+  /** Re-arm a player's per-era room state (Prism/Wildcard guards, card/hijack
+   *  bans) and fire each card's OnEraStart. Shared by era boundaries and the
+   *  testing bench's bay edits. */
+  private armPlayerForEra(p: PlayerState): void {
+    this.services.fireEraStarted(p);
+    fireBayHook(this.bayEval(p, "", false), "onEraStart");
+  }
+
+  // ── Bench / testing (Testing Bay only — never reached in real play) ──────────
+  /** Replace a player's bay with an arbitrary, uncapped set of cards, then re-arm
+   *  their per-era state so every card is functional (the bench builds bays
+   *  outside the deal flow that normally grants shields / arms guards). */
+  benchSetBay(playerId: string, orderedIds: string[]): void {
+    const p = this.state.players.find((x) => x.id === playerId);
+    if (!p) return;
+    p.bay = orderedIds.filter((id) => getCard(id)).map((id) => ({ id }));
+    // A fresh Titanium Mirror grants its ×1.0 shield (normally done on deal).
+    for (const b of p.bay) if (b.id === "TitaniumMirror") this.services.shield.grantFresh(p.id);
+    this.armPlayerForEra(p);
+  }
+
+  /** Advance to the next player without scoring (bench "skip turn"). */
+  benchSkipTurn(): void {
+    if (this.state.phase === "Round") this.endTurn();
   }
 
   // ── End ────────────────────────────────────────────────────────────────────

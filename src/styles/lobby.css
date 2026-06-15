@@ -132,6 +132,26 @@
   padding: 1rem;
   animation: ac-rise 0.5s 0.1s ease-out both;
 }
+.lobby-bay {
+  appearance: none;
+  margin-top: -0.4rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--ac-border-strong);
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--ac-ink-soft);
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.lobby-bay:hover {
+  border-color: var(--ac-cyan);
+  color: var(--ac-ink);
+  background: color-mix(in srgb, var(--ac-cyan) 12%, transparent);
+}
+
 .lobby-rules {
   max-width: 460px;
   text-align: center;

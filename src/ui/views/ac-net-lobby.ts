@@ -43,6 +43,11 @@ export class AcNetLobby extends AcElement {
     );
   }
 
+  /** Open the Testing Bay (sandbox). URL-driven so it stays bookmarkable. */
+  private openBay(): void {
+    location.search = "?sandbox";
+  }
+
   private stepper(label: string, value: string, lo: () => void, hi: () => void): TemplateResult {
     return html`
       <div class="set-row">
@@ -160,7 +165,10 @@ export class AcNetLobby extends AcElement {
         </div>
 
         ${isHost
-          ? html`<button class="ac-btn lobby-start" @click=${this.start}>START MATCH</button>`
+          ? html`
+              <button class="ac-btn lobby-start" @click=${this.start}>START MATCH</button>
+              <button class="lobby-bay" @click=${this.openBay}>🧪 Testing Bay</button>
+            `
           : html`<p class="lobby-rules">Waiting for the host to start…</p>`}
       </div>
     `;
