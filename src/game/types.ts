@@ -24,9 +24,19 @@ export interface AlphaChainSettings {
   survivalMode: boolean;
   modifiersDealtPerEra: number;
   engineAnimationSeconds: number; // score-replay duration
+  /** Show the scripted Shiritori/Engine/Tax tutorials at their cue points. */
+  enableTutorials: boolean;
+  /** Host joins as a player (true) vs. a shared display / spectator (false). */
+  hostPlays: boolean;
   botCount: number; // 1–5 (local single-player only)
   botDifficulty: BotDifficulty;
 }
+
+/** Sub-phase of the Intermission (mirrors the Blazor IntermissionSubPhase). */
+export type IntermissionPhase = "deal" | "optimize" | "sniperBan" | "tutorial" | null;
+
+/** A scripted tutorial overlay shown once at its cue point. */
+export type TutorialKind = "shiritori" | "engine" | "tax";
 
 export type BotDifficulty = "easy" | "medium" | "hard";
 
@@ -79,6 +89,18 @@ export interface ScoreBreakdown {
   finalScore: number;
 }
 
+/** A single automated-effect notice (for the "engine effect" overlay/replay). */
+export interface EngineEffectNotice {
+  /** Card / effect name that fired, e.g. "Flak Cannon". */
+  source: string;
+  /** Player the effect ultimately landed on. */
+  targetId: string;
+  /** Human-readable summary, e.g. "−2s shot clock". */
+  text: string;
+  /** True when a Titanium Mirror reflected the hit back at its caster. */
+  reflected?: boolean;
+}
+
 export interface Submission {
   playerId: string;
   displayName: string;
@@ -88,6 +110,31 @@ export interface Submission {
   taxed: boolean;
   taxBounty: number;
   breakdown: ScoreBreakdown;
+  /** Automated effects that fired as this word resolved (UI overlay). */
+  effects?: EngineEffectNotice[];
+  /** Ids of players who siphoned points from this submission (tax/toll/chrono). */
+  siphonedBy?: string[];
+}
+
+/**
+ * The resolved facts of an accepted word, passed to lifecycle hooks
+ * (onWordAccepted / onOpponentWordResolved / onTurnEnded). Ports the C#
+ * WordResolution thread between scoring and the reactive economy.
+ */
+export interface WordResolution {
+  submitterId: string;
+  word: string;
+  taxed: boolean;
+  /** Pre-tax score — the amount a Tax Collector siphons half of. */
+  wouldBeScore: number;
+  /** Points actually credited to the submitter (0 when taxed, unless salvaged). */
+  earnedScore: number;
+  /** The banned/personal letter that taxed the word, or null. */
+  offendingLetter: string | null;
+  /** True when an IRS Agent suppressed opponents' tax-collector bounties. */
+  siphonSuppressed: boolean;
+  /** Whole seconds left on the submitter's shot clock (Chrono Syphon). */
+  remainingSeconds: number;
 }
 
 /** The live, observable state the presentation layer renders from. */
@@ -108,6 +155,10 @@ export interface MatchState {
   clockRemaining: number;
   /** Total seconds the active clock was armed with (for ring fraction). */
   clockTotal: number;
+  /** Current intermission sub-phase (null outside an intermission). */
+  intermissionPhase: IntermissionPhase;
+  /** Tutorials already shown this match (so each fires once). */
+  shownTutorials: TutorialKind[];
   settings: AlphaChainSettings;
   winnerId: string | null;
 }

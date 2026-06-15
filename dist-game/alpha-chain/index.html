@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#06080f" />
+    <title>Alpha Chain</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=JetBrains+Mono:wght@500;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <script type="module" crossorigin src="./assets/index-pFOVKrla.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-BOkWZ0se.css">
+  </head>
+  <body>
+    <!-- Phaser FX canvas: a full-window overlay ABOVE the UI, click-through. -->
+    <div id="fx" aria-hidden="true"></div>
+
+    <!-- The DOM UI (Lit, light DOM). -->
+    <ac-app></ac-app>
+
+    <!-- First-paint loading screen; removed by main.ts once the lexicon loads. -->
+    <div id="boot">
+      <div class="boot-mark">ALPHA<span>CHAIN</span></div>
+      <div class="boot-sub">loading lexicon…</div>
+      <div class="boot-bar"><i></i></div>
+    </div>
+
+  </body>
+</html>

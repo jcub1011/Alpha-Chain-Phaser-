@@ -10,10 +10,27 @@
  */
 
 import { DEALABLE_CARD_IDS, getCard } from "./cards/library";
+import type { ModifierCard } from "./cards/card";
+import {
+  BanLetterService,
+  EngineEffects,
+  RoomServices,
+} from "./cards/roomServices";
 import { Emitter } from "./emitter";
-import { armedClockSeconds, scoreWord } from "./scoring";
+import {
+  armedClockSeconds,
+  bayOwnTaxPolicy,
+  bayViolatesLegality,
+  bayWriteOffBonus,
+  baySuccessionExempt,
+  fireBayHook,
+  makeBayEvaluator,
+  scoreWord,
+  type BayEvaluator,
+} from "./scoring";
 import {
   legalBanLetters,
+  MIN_SHOT_CLOCK_SECONDS,
   MODIFIER_SLOTS_START,
   isVowel,
 } from "./settings";
@@ -25,6 +42,8 @@ import type {
   PlayerState,
   Submission,
   SubmitResult,
+  TutorialKind,
+  WordResolution,
 } from "./types";
 
 export interface PlayerSeed {
@@ -59,7 +78,21 @@ export class MatchController {
 
   private countdownRemaining = 0;
   private prevWordLength = 0;
+  /** Leader the Bounty Hunter watches; fixed at each round's start (not live). */
+  private roundLeaderId = "";
   readonly state: MatchState;
+
+  /** Card-contributed, player-keyed room state (shield, guards, bans, penalties). */
+  readonly services: RoomServices;
+  /** Routes automated attacks (time shave / drain / hijack) through interceptors. */
+  readonly effects: EngineEffects;
+  /** Live clock controller a card hook can refill (The Prism on a typo). */
+  private readonly clockController = {
+    refillToFull: (): void => {
+      this.state.clockRemaining = this.state.clockTotal;
+      this.events.emit("clockTick", this.state.clockRemaining);
+    },
+  };
 
   constructor(seeds: PlayerSeed[], settings: AlphaChainSettings, deps: MatchDeps) {
     this.isWord = deps.isWord;
@@ -87,9 +120,64 @@ export class MatchController {
       history: [],
       clockRemaining: 0,
       clockTotal: 0,
+      intermissionPhase: null,
+      shownTutorials: [],
       settings,
       winnerId: null,
     };
+    this.services = new RoomServices(
+      new BanLetterService(
+        this.rng,
+        () => this.state.settings.banMode,
+        () => this.state.bannedLetter,
+      ),
+    );
+    this.effects = new EngineEffects(this.services, {
+      cardsOf: (p) =>
+        p.bay
+          .map((b) => getCard(b.id))
+          .filter((c): c is ModifierCard => c !== undefined),
+      activePlayers: () => this.turnOrderedActive(),
+      leaderId: () => this.roundLeaderId,
+      armedClockOf: (p) => armedClockSeconds(this.state.settings.shotClockSeconds, p.bay),
+    });
+  }
+
+  /** Active players in turn order (index-aligned with how turns advance). */
+  private turnOrderedActive(): PlayerState[] {
+    return this.state.players.filter((p) => !p.eliminated);
+  }
+
+  /** The current leader's id (highest score; earliest turn order breaks ties). */
+  computeLeaderId(): string {
+    const active = this.turnOrderedActive();
+    let lead = active[0];
+    for (const p of active) if (p.score > lead.score) lead = p;
+    return lead?.id ?? "";
+  }
+
+  /** Build the shared bay evaluator + hook context for `player` scoring `word`. */
+  private bayEval(player: PlayerState, word: string, taxed: boolean): BayEvaluator {
+    return makeBayEvaluator(word, player.bay, {
+      prevWordLength: this.prevWordLength,
+      clockRemaining: this.state.clockRemaining,
+      clockTotal: this.state.clockTotal,
+      taxed,
+      baseClockSeconds: this.state.settings.shotClockSeconds,
+      history: this.state.history,
+      services: this.services,
+      effects: this.effects,
+      player,
+      players: this.state.players,
+      clock: this.clockController,
+    });
+  }
+
+  /** Whether `playerId` should currently have their input hidden (Blindfold). */
+  hidesInput(playerId: string): boolean {
+    const p = this.state.players.find((x) => x.id === playerId);
+    if (!p) return false;
+    return p.bay.some((b) => getCard(b.id)?.hidesInput?.(this.bayEval(p, "", false).ctxFor(0)) ?? false);
   }
 
   // ── Accessors ──────────────────────────────────────────────────────────────
@@ -141,6 +229,7 @@ export class MatchController {
       this.state.currentPlayerIndex = 0;
       this.state.requiredLetter = "";
     }
+    this.roundLeaderId = this.computeLeaderId();
     this.armCurrentTurn();
   }
 
@@ -162,10 +251,13 @@ export class MatchController {
    *  advance the turn order or touch the round counters. */
   private armCurrentTurn(): void {
     const p = this.current;
-    this.state.clockTotal = armedClockSeconds(
-      this.state.settings.shotClockSeconds,
-      p.bay,
-    );
+    // Per-turn room state re-arms (currently a no-op seam; A5 uses it).
+    this.services.fireTurnStarted(p);
+    let armed = armedClockSeconds(this.state.settings.shotClockSeconds, p.bay);
+    // Flak Cannon queued a shave onto this player's next clock.
+    const penalty = this.services.timePenalty.consumeFor(p.id);
+    if (penalty > 0) armed = Math.max(MIN_SHOT_CLOCK_SECONDS, armed - penalty);
+    this.state.clockTotal = armed;
     this.state.clockRemaining = this.state.clockTotal;
     this.events.emit("turnArmed", {
       playerIndex: this.state.currentPlayerIndex,
@@ -190,6 +282,8 @@ export class MatchController {
         return;
       }
       this.state.roundInEra++;
+      // New round → re-mark the leader the Bounty Hunter watches.
+      this.roundLeaderId = this.computeLeaderId();
     }
     this.armCurrentTurn();
   }
@@ -208,71 +302,142 @@ export class MatchController {
       return { accepted: false };
     }
     const word = rawWord.trim().toLowerCase();
+    const player = this.current;
     const reject = (reason: NonNullable<SubmitResult["reason"]>): SubmitResult => {
       this.events.emit("rejected", { playerId, reason });
       return { accepted: false, reason };
     };
 
-    if (word.length < 2 || !/^[a-z]+$/.test(word) || !this.isWord(word)) {
+    // Degenerate input (empty / non-alpha / single letter) is never a word.
+    if (word.length < 2 || !/^[a-z]+$/.test(word)) return reject("not-a-word");
+
+    // 4. Succession — a held Wildcard exempts the owner once per era. The bypass
+    //    is only recorded here; it's consumed once the word is fully accepted, so
+    //    a duplicate/typo rejection below never burns the era's charge.
+    let usedWildcard = false;
+    if (s.requiredLetter && word[0] !== s.requiredLetter) {
+      if (!baySuccessionExempt(this.bayEval(player, word, false))) {
+        return reject("wrong-start-letter");
+      }
+      usedWildcard = true;
+    }
+
+    // 5. Uniqueness.
+    if (s.usedWords.has(word)) return reject("already-used");
+
+    // 6. Dictionary — a typo fires the owner's Prism (clock refill), turn unchanged.
+    if (!this.isWord(word)) {
+      fireBayHook(this.bayEval(player, word, false), "onValidationFailed");
       return reject("not-a-word");
     }
-    if (s.usedWords.has(word)) return reject("already-used");
-    if (s.requiredLetter && word[0] !== s.requiredLetter) {
-      return reject("wrong-start-letter");
+
+    // 7. Zero-Point Tax — era ban (unless last-place exempt), personal hijack ban,
+    //    era-rolled card bans, or a card legality rule (Slow Burn's 6-letter floor).
+    const exempt = this.isExempt(player);
+    const eraBan = !exempt && s.bannedLetter ? s.bannedLetter : "";
+    const hijack = this.services.hijackBan.peek(player.id) ?? "";
+    const cardBans = this.services.cardBan.bansFor(player.id);
+    const evCheck = this.bayEval(player, word, false);
+    const taxed =
+      (eraBan !== "" && word.includes(eraBan)) ||
+      (hijack !== "" && word.includes(hijack)) ||
+      cardBans.some((b) => word.includes(b)) ||
+      bayViolatesLegality(evCheck);
+
+    // The banned letter the word used (era → hijack → card ban); null when only a
+    // legality rule taxed it. Backs Bait & Switch's "that exact letter".
+    let offendingLetter: string | null = null;
+    if (taxed) {
+      if (eraBan !== "" && word.includes(eraBan)) offendingLetter = eraBan;
+      else if (hijack !== "" && word.includes(hijack)) offendingLetter = hijack;
+      else offendingLetter = cardBans.find((b) => word.includes(b)) ?? null;
     }
 
-    const player = this.current;
-    const taxed =
-      s.bannedLetter.length > 0 &&
-      word.includes(s.bannedLetter) &&
-      !this.isExempt(player);
-
-    const breakdown = scoreWord(word, player.bay, {
+    // 8. Score, then the two owner-side tax rules (IRS Agent flat override +
+    //    bounty suppression, then Tax Write-Off's first-letter salvage on top).
+    const scoreOpts = {
       prevWordLength: this.prevWordLength,
       clockRemaining: s.clockRemaining,
       clockTotal: s.clockTotal,
-      taxed,
-    });
-
-    // Tax Collector siphon: each opponent holding one takes half the would-be score.
-    const bounties: { playerId: string; amount: number }[] = [];
+      baseClockSeconds: s.settings.shotClockSeconds,
+      history: s.history,
+    };
+    const breakdown = scoreWord(word, player.bay, { ...scoreOpts, taxed });
+    let finalScore = breakdown.finalScore;
+    let suppressBounty = false;
     if (taxed) {
-      const half = Math.floor(breakdown.finalBeforeTax / 2);
-      if (half > 0) {
-        for (const opp of s.players) {
-          if (opp.id === player.id) continue;
-          if (opp.bay.some((b) => getCard(b.id)?.reactive === "tax-collector")) {
-            opp.score += half;
-            bounties.push({ playerId: opp.id, amount: half });
-          }
-        }
+      const irs = bayOwnTaxPolicy(evCheck);
+      if (irs) {
+        finalScore = irs.score(breakdown.finalBeforeTax);
+        suppressBounty = irs.suppress;
       }
+      const bonus = bayWriteOffBonus(evCheck, (w) =>
+        scoreWord(w, player.bay, { ...scoreOpts, taxed: false }).finalScore,
+      );
+      if (bonus > 0) finalScore += bonus;
+      breakdown.finalScore = finalScore;
     }
 
-    player.score += breakdown.finalScore;
+    // 9. Consume the one-shot hijack ban (read above) + the era's Wildcard charge.
+    this.services.hijackBan.consumeFor(player.id);
+    if (usedWildcard) this.services.wildcardGuard.tryConsume(player.id);
+
+    // 10–11. Record + credit, then advance the chain's required letter.
+    player.score += finalScore;
     s.usedWords.add(word);
     this.prevWordLength = word.length;
+    const last = word[word.length - 1];
+    s.requiredLetter = s.bannedLetter && last === s.bannedLetter ? "" : last;
+
+    // 11a–c. Fire the card lifecycle hooks: owner OnWordAccepted, every other
+    //        active player's OnOpponentWordResolved (reactive economy), then the
+    //        owner's OnTurnEnded (automated aggression — wired in A5).
+    const resolution: WordResolution = {
+      submitterId: player.id,
+      word,
+      taxed,
+      wouldBeScore: breakdown.finalBeforeTax,
+      earnedScore: finalScore,
+      offendingLetter,
+      siphonSuppressed: suppressBounty,
+      remainingSeconds: Math.floor(s.clockRemaining),
+    };
+    this.fireReactions(player, word, taxed, resolution);
+    const bounties = this.effects.takeSiphons();
+    const notices = this.effects.takeNotices();
 
     const submission: Submission = {
       playerId: player.id,
       displayName: player.name,
       accentIndex: player.accentIndex,
       word,
-      score: breakdown.finalScore,
+      score: finalScore,
       taxed,
       taxBounty: bounties.reduce((a, b) => a + b.amount, 0),
       breakdown,
+      siphonedBy: bounties.map((b) => b.playerId),
+      effects: notices.length ? notices : undefined,
     };
     s.history.push(submission);
-
-    // Chain succession: next word starts with this word's last letter, unless
-    // that last letter is the banned letter (then the next player is free).
-    const last = word[word.length - 1];
-    s.requiredLetter = s.bannedLetter && last === s.bannedLetter ? "" : last;
 
     this.events.emit("submission", { submission, bounties });
     this.endTurn();
     return { accepted: true, submission };
+  }
+
+  /** Fire the accepted-word lifecycle hooks in the canonical order (RoundState.FireReactions). */
+  private fireReactions(
+    owner: PlayerState,
+    word: string,
+    taxed: boolean,
+    res: WordResolution,
+  ): void {
+    fireBayHook(this.bayEval(owner, word, taxed), "onWordAccepted", { resolution: res });
+    for (const opp of this.state.players) {
+      if (opp.id === owner.id || opp.eliminated) continue;
+      fireBayHook(this.bayEval(opp, word, false), "onOpponentWordResolved", { resolution: res });
+    }
+    fireBayHook(this.bayEval(owner, word, taxed), "onTurnEnded", { resolution: res });
   }
 
   private timeoutCurrent(): void {
@@ -286,6 +451,7 @@ export class MatchController {
   // ── Intermission ─────────────────────────────────────────────────────────────
   private enterIntermission(): void {
     this.setPhase("Intermission");
+    this.state.intermissionPhase = "optimize";
     const dealt: Record<string, string[]> = {};
     for (const p of this.state.players) {
       const newIds = this.dealCards(p, this.state.settings.modifiersDealtPerEra);
@@ -294,6 +460,11 @@ export class MatchController {
     }
     const lastPlaceId = this.computeLastPlaceId();
     this.events.emit("intermission", { lastPlaceId, dealt });
+  }
+
+  /** Record that a tutorial has been shown (so each fires at most once). */
+  markTutorialShown(kind: TutorialKind): void {
+    if (!this.state.shownTutorials.includes(kind)) this.state.shownTutorials.push(kind);
   }
 
   private dealCards(player: PlayerState, count: number): string[] {
@@ -305,6 +476,8 @@ export class MatchController {
       const [id] = pool.splice(idx, 1);
       dealt.push(id);
       player.bay.push({ id, isNew: true });
+      // A fresh Titanium Mirror resets the player's shield to ×1.0 (GDD §3.7).
+      if (id === "TitaniumMirror") this.services.shield.grantFresh(player.id);
     }
     return dealt;
   }
@@ -344,6 +517,14 @@ export class MatchController {
     this.state.bannedLetter = choice;
     for (const p of this.state.players) p.bay.forEach((b) => (b.isNew = false));
     this.state.era += 1;
+    // Era boundary: reset the per-era guards (Prism/Wildcard re-arm, card/hijack
+    // bans clear) BEFORE firing OnEraStart, so personal-ban cards roll fresh
+    // letters for the new era (which dodge the just-set era ban).
+    for (const p of this.state.players) {
+      this.services.fireEraStarted(p);
+      fireBayHook(this.bayEval(p, "", false), "onEraStart");
+    }
+    this.state.intermissionPhase = null;
     this.setPhase("Countdown");
     this.countdownRemaining = this.state.settings.preRoundCountdownSeconds;
     this.events.emit("countdownTick", Math.ceil(this.countdownRemaining));

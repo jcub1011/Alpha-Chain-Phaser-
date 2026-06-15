@@ -1,0 +1,144 @@
+/* Testing Bay (developer sandbox) — reached with ?sandbox. Utilitarian on
+   purpose; reuses the neon-noir tokens but stays plain. */
+
+.sandbox {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 24px 20px 64px;
+  display: grid;
+  gap: 20px;
+}
+.sandbox-head h1 {
+  margin: 0;
+  font-size: 1.5rem;
+  letter-spacing: 0.04em;
+  color: var(--ac-ink, #eaf2ff);
+}
+.sandbox-head p {
+  margin: 4px 0 0;
+  opacity: 0.7;
+}
+.sandbox-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: end;
+}
+.sandbox-controls label {
+  display: grid;
+  gap: 4px;
+  font: 600 11px/1.4 system-ui, sans-serif;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+.sandbox-controls input[type="text"],
+.sandbox-controls input:not([type]),
+.sandbox-controls input[type="number"] {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--ac-ink, #eaf2ff);
+  font-size: 14px;
+}
+.sandbox-check {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+.sandbox-bay-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.sandbox .chip {
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--ac-ink, #eaf2ff);
+  cursor: pointer;
+  font-size: 12px;
+}
+.sandbox .chip.danger {
+  border-color: rgba(255, 80, 80, 0.6);
+  color: #ff8a8a;
+}
+.sandbox-total {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  align-items: baseline;
+  padding: 12px 0;
+  font-size: 14px;
+}
+.sandbox-total .big {
+  font-size: 20px;
+}
+.sandbox-total b {
+  color: var(--ac-accent-mint, #14f195);
+}
+.sandbox-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.sandbox-steps li {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 12px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  font: 13px/1.4 system-ui, sans-serif;
+}
+.sandbox-steps li.off {
+  opacity: 0.4;
+}
+.sandbox-steps .step-run {
+  font-variant-numeric: tabular-nums;
+  color: var(--ac-accent-cyan, #00e5ff);
+  min-width: 56px;
+  text-align: right;
+}
+.sandbox-palette h2 {
+  font-size: 0.95rem;
+  letter-spacing: 0.05em;
+  opacity: 0.85;
+}
+.palette-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px;
+}
+.palette-card {
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+/* Multiplayer lobby roster */
+.net-roster {
+  list-style: none;
+  margin: 4px 0 12px;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.net-roster li {
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 14px;
+}
+.net-roster em {
+  opacity: 0.6;
+  font-style: normal;
+  font-size: 12px;
+}

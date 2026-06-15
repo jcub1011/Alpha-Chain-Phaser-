@@ -9,7 +9,9 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "export:game": "node scripts/export-game.mjs",
+    "export:game:install": "node scripts/export-game.mjs --out ../../KnockBox-Games/games"
   },
   "dependencies": {
     "lit": "^3.3.3",

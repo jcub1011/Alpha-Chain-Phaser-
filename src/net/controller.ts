@@ -1,19 +1,38 @@
 /*
- * The seam between gameplay and transport. The Phaser scenes talk only to a
+ * The seam between gameplay and transport. The Phaser/Lit scenes talk only to a
  * GameController; they never touch the MatchController or the network directly.
- * Today the only implementation is LocalController (solo vs bots). A future
- * KnockBoxController will implement the same interface on top of the addon in
- * addons/knockbox/ (KBAuthority, perRecipient fog-of-war) without changing any
- * scene code.
+ * LocalController (solo vs bots) drives a real MatchController; KnockBoxController
+ * drives it host-authoritatively over the KnockBox network. Both expose the same
+ * surface — and the scenes read `controller.match`, which on a guest is a
+ * read-only mirror, so `match` is typed as the structural `MatchLike` supertype
+ * both the real MatchController and the mirror satisfy.
  */
 
 import type { Emitter } from "../game/emitter";
 import type { MatchController, MatchEvents } from "../game/match";
-import type { SubmitResult } from "../game/types";
+import type { MatchState, PlayerState, SubmitResult } from "../game/types";
+
+/** The subset of MatchController the presentation layer reads + mutates. The
+ *  real MatchController satisfies this structurally; the guest mirror implements
+ *  it explicitly (routing mutators to host intents). */
+export interface MatchLike {
+  readonly state: MatchState;
+  readonly events: Emitter<MatchEvents>;
+  readonly current: PlayerState;
+  standings(): PlayerState[];
+  computeLastPlaceId(): string;
+  isExempt(player: PlayerState): boolean;
+  setPlayerBay(playerId: string, orderedIds: string[]): void;
+  applySniperBanAndAdvance(letter: string): void;
+  randomBanLetter(): string;
+}
+
+// Compile-time assertion that MatchController is a MatchLike (no runtime cost).
+export type _AssertMatchControllerIsMatchLike = MatchController extends MatchLike ? true : never;
 
 export interface GameController {
   /** The authoritative match state + rules (read-only access for scenes). */
-  readonly match: MatchController;
+  readonly match: MatchLike;
   /** Networking events the scenes subscribe to (re-exposed from the match). */
   readonly events: Emitter<MatchEvents>;
   /** The local human player's id. */

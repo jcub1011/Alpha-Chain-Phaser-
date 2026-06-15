@@ -7,6 +7,7 @@
 import "./styles/index.css";
 import { Dictionary } from "./game/dictionary";
 import { DEFAULT_SETTINGS } from "./game/settings";
+import { detectLaunch } from "./net/launch";
 import { fx } from "./ui/fx/fx";
 // Side-effect import registers <ac-app>; the type import is erased at build.
 import "./ui/app/ac-app";
@@ -35,8 +36,9 @@ async function boot(): Promise<void> {
   sprite.innerHTML = spriteText;
   document.body.appendChild(sprite);
 
-  // 3. Boot the Phaser FX overlay into #fx.
-  fx.init("fx");
+  // 3. Boot the Phaser FX overlay into #fx, registering the KnockBox networking
+  //    plugin when launched for multiplayer (platform ticket or ?kbLocal=tab).
+  fx.init("fx", detectLaunch());
 
   // 4. Hand the dictionary + settings to the app shell.
   const app = document.querySelector("ac-app") as AcApp;

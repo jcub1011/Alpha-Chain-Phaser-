@@ -12,6 +12,8 @@ export const DEFAULT_SETTINGS: AlphaChainSettings = {
   survivalMode: false,
   modifiersDealtPerEra: 3,
   engineAnimationSeconds: 1.0,
+  enableTutorials: true,
+  hostPlays: true,
   botCount: 2,
   botDifficulty: "medium",
 };

@@ -8,6 +8,9 @@
 
 import Phaser from "phaser";
 import { COLORS, prefersReducedMotion } from "../../theme";
+import type { LaunchMode } from "../../net/launch";
+import { knockboxPluginConfig } from "../../net/knockboxPlugin";
+import type { NetPeer } from "../../net/knockBoxController";
 import { FxScene } from "./FxScene";
 
 export interface Rectish {
@@ -22,15 +25,19 @@ class Fx {
   private scene?: FxScene;
   private shakeTarget?: HTMLElement;
 
-  /** Boot the Phaser FX game into the given parent element. */
-  init(parentId: string): void {
+  /** Boot the Phaser FX game into the given parent element. The KnockBox global
+   *  plugin (real or local-tab) is registered here when launched for multiplayer;
+   *  in solo mode no plugin is added. */
+  init(parentId: string, mode: LaunchMode = "solo"): void {
     if (this.game) return;
+    const net = knockboxPluginConfig(mode);
     this.game = new Phaser.Game({
       type: Phaser.AUTO,
       parent: parentId,
       transparent: true,
       scale: { mode: Phaser.Scale.RESIZE, width: window.innerWidth, height: window.innerHeight },
       scene: [FxScene],
+      ...(net ? { plugins: { global: [net] } } : {}),
       // The canvas must never eat pointer events; the wrapper handles that too.
       input: { mouse: { preventDefaultWheel: false } },
       fps: { target: 60 },
@@ -38,6 +45,14 @@ class Fx {
     this.game.events.once(Phaser.Core.Events.READY, () => {
       this.scene = this.game!.scene.getScene("Fx") as FxScene;
     });
+  }
+
+  /** The KnockBox networking peer (the registered global plugin), if any. */
+  knockbox(): NetPeer | undefined {
+    const plugins = this.game?.plugins as unknown as
+      | { get(key: string): unknown }
+      | undefined;
+    return (plugins?.get("KnockBox") as NetPeer | undefined) ?? undefined;
   }
 
   /** Element whose transform is nudged for screen-shake (the UI root). */
