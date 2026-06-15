@@ -18,6 +18,9 @@ npm run build      # type-check + production bundle
 npm test           # vitest unit + integration tests
 ```
 
+To package the game as a drop-in folder for the KnockBox-Games platform, run
+`npm run export:game:install`. See [EXPORT.md](EXPORT.md) for details.
+
 ## Architecture
 
 Pure game logic is fully decoupled from Phaser, so it is deterministic and unit-testable
