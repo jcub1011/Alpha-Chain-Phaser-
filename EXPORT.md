@@ -1,9 +1,11 @@
 # Exporting to KnockBox-Games
 
-This game ships with a one-command exporter that assembles a **drop-in folder** for
-the [KnockBox-Games](../../KnockBox-Games) platform. The platform discovers games by
-scanning `games/*/GAME.json` and hot-reloads within ~1–2 seconds, so a fresh export
-appears in the lobby without restarting the server.
+This game exports as a **drop-in folder** for the [KnockBox-Games](../../KnockBox-Games)
+platform via the platform's shared, engine-agnostic packer
+([`tools/pack-game`](../../KnockBox-Games/tools/pack-game/README.md)). The packer
+validates `GAME.json` against the same rules the server enforces, then assembles the
+folder. The platform discovers games by scanning `games/*/GAME.json` and hot-reloads
+within ~1–2 seconds, so a fresh export appears in the lobby without restarting the server.
 
 ## TL;DR
 
@@ -20,17 +22,20 @@ That builds the game and writes `alpha-chain/` straight into the sibling
 
 | Command | What it does |
 | --- | --- |
-| `npm run export:game:install` | Builds, then installs into `../../KnockBox-Games/games/alpha-chain/`. Use this to deploy. |
+| `npm run export:game:install` | Builds, then installs into the platform's `games/alpha-chain/`. Use this to deploy. |
 | `npm run export:game` | Builds, then writes to a local `dist-game/alpha-chain/` for inspection (doesn't touch KnockBox-Games). |
-| `node scripts/export-game.mjs [--out <dir>] [--no-build]` | The underlying script. `--out` sets the target `games` dir; `--no-build` skips `vite build` and reuses the existing `dist/`. |
 
-`export:game:install` is just `node scripts/export-game.mjs --out ../../KnockBox-Games/games`.
-Because the two repos sit side by side under `…/source/repos/`, `../../KnockBox-Games/games`
-resolves to `…/source/repos/KnockBox-Games/games`. If your checkout layout differs,
-run the script directly with an explicit `--out` path.
+Both scripts delegate to the shared packer:
 
-The script wipes any existing `alpha-chain/` target before copying, so re-running it
-cleanly re-exports.
+```
+node ../../KnockBox-Games/tools/pack-game/pack-game.mjs --build "npm run build" --in dist --manifest export/GAME.json [--out <dir>]
+```
+
+`export:game:install` omits `--out`, so the packer defaults to the platform's own
+`games/` folder (it locates this relative to the tool, so no `../../` is needed). This
+assumes the two repos sit side by side under `…/source/repos/`. If your checkout layout
+differs, pass an explicit `--out`. The packer wipes any existing `alpha-chain/` target
+before copying, so re-running it cleanly re-exports.
 
 ## What gets produced
 
@@ -46,8 +51,8 @@ alpha-chain/
 └── assets/          # hashed JS/CSS bundles, words.txt, glyph SVGs
 ```
 
-`scripts/export-game.mjs` runs `vite build` (output → `dist/`), then copies `dist/`
-plus `export/GAME.json` and `export/thumb.svg` into the target folder. `vite.config.ts`
+The packer runs `vite build` (output → `dist/`), then copies `dist/` plus
+`export/GAME.json` and `export/thumb.svg` into the target folder. `vite.config.ts`
 sets `base: "./"`, so every asset path is relative and works correctly when the game
 is served from the `/games/alpha-chain/` subpath.
 
@@ -89,7 +94,7 @@ the exported folder genuinely plays in a lobby — it isn't just a catalog listi
 ## Verify the export
 
 1. Run `npm run export:game:install`. It should finish with
-   `✓ exported "Alpha Chain" → …\KnockBox-Games\games\alpha-chain`.
+   `✓ packed "Alpha Chain" → …\KnockBox-Games\games\alpha-chain`.
 2. Confirm `KnockBox-Games/games/alpha-chain/` contains `GAME.json`, `thumb.svg`,
    `index.html`, and `assets/`.
 3. Start the host (from the KnockBox-Games repo):

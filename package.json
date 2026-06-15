@@ -10,8 +10,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "export:game": "node scripts/export-game.mjs",
-    "export:game:install": "node scripts/export-game.mjs --out ../../KnockBox-Games/games"
+    "export:game": "node ../../KnockBox-Games/tools/pack-game/pack-game.mjs --build \"npm run build\" --in dist --manifest export/GAME.json --out dist-game",
+    "export:game:install": "node ../../KnockBox-Games/tools/pack-game/pack-game.mjs --build \"npm run build\" --in dist --manifest export/GAME.json"
   },
   "dependencies": {
     "lit": "^3.3.3",
