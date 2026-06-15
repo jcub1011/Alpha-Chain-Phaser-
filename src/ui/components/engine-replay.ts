@@ -1,10 +1,12 @@
 /*
- * Shared engine-replay walk. Animates a score breakdown left → right over the
- * real <ac-card> elements inside a bay: each triggered card lifts and bursts and
- * pops a value chip showing its actual point contribution; skipped cards dim.
- * Both the human spotlight (<ac-score-replay>) and each opponent bay
- * (<ac-engine-bay live>) drive this; callers layer their own number readout via
- * the onStep hook and handle the taxed slam / final flourish themselves.
+ * Engine-replay walk for the score theater. The engine's mini-cards sit in an
+ * overlapping fan on the LEFT and the running score on the RIGHT. The walk steps
+ * left → right, lighting up each card in place (the existing `triggered` lift +
+ * glow): as a card fires its point contribution pops off above it, a particle
+ * burst plays, and the caller ramps the running total. Skipped cards still take a
+ * beat but change nothing. Cards never move — the fan stays put and compresses to
+ * fit, so the replay reads the same on mobile and desktop. The whole run is a
+ * cancelable async sequencer — a new submission or phase change aborts it.
  */
 
 import type { ScoreStep, Submission } from "../../game/types";
@@ -12,6 +14,7 @@ import { getCard } from "../../game/cards/library";
 import { familyAccentColor, fmtScore } from "../app/util";
 import { prefersReducedMotion } from "../../theme";
 import { fx } from "../fx/fx";
+import type { Rectish } from "../fx/fx";
 
 export const sleep = (ms: number, signal: AbortSignal): Promise<void> =>
   new Promise((resolve) => {
@@ -27,30 +30,18 @@ export const sleep = (ms: number, signal: AbortSignal): Promise<void> =>
     );
   });
 
-/** The <ac-card> elements inside a bay (or `.bay-slots`) element, in order. */
-export const bayCards = (bayEl: Element): HTMLElement[] =>
-  Array.from(bayEl.querySelectorAll("ac-card"));
-
-/** Clear any triggered/dimmed replay states left on a bay's cards. */
-export function resetBayCards(bayEl: Element): void {
-  for (const c of bayEl.querySelectorAll("ac-card")) {
-    c.removeAttribute("triggered");
-    c.removeAttribute("dimmed");
-  }
-}
-
-/** Pop a contribution chip off a card's center — the point delta as the headline,
- *  the operator (×3 / +12 / FX) as a sub-label — floating up and fading. */
-function popChip(rect: DOMRect, delta: number, op: string, color: string, compact: boolean): void {
+/** Pop a contribution chip off the firing card — the point delta as the headline,
+ *  the operator (×3 / +12 / FX) as a sub-label — floating up off the card and fading. */
+function popChip(rect: Rectish, delta: number, op: string, color: string): void {
   if (prefersReducedMotion()) return;
   const headline = delta !== 0 ? `${delta > 0 ? "+" : ""}${fmtScore(delta)}` : op;
   // Only show the operator sub-label when it adds info (e.g. ×2 over a +54
   // headline); for additive cards the operator equals the delta, so skip it.
   const sub = delta !== 0 && op !== headline ? op : "";
   const el = document.createElement("div");
-  el.className = `sr-chip${compact ? " is-compact" : ""}`;
+  el.className = "sr-chip";
   el.style.left = `${rect.left + rect.width / 2}px`;
-  el.style.top = `${rect.top + rect.height * 0.3}px`;
+  el.style.top = `${rect.top + rect.height * 0.15}px`;
   el.style.color = color;
   el.innerHTML = `<span class="sr-chip-delta">${headline}</span>${
     sub ? `<span class="sr-chip-op">${sub}</span>` : ""
@@ -62,35 +53,52 @@ function popChip(rect: DOMRect, delta: number, op: string, color: string, compac
       { transform: "translate(-50%, -10px) scale(1.12)", opacity: 1, offset: 0.25 },
       { transform: "translate(-50%, -46px) scale(1)", opacity: 0 },
     ],
-    { duration: compact ? 760 : 900, easing: "cubic-bezier(0.2,0.8,0.2,1)" },
+    { duration: 900, easing: "cubic-bezier(0.2,0.8,0.2,1)" },
   );
   anim.onfinish = () => el.remove();
+}
+
+/** A quick side-to-side wobble on a card that didn't activate, so a skip reads as a
+ *  visible "nope" rather than only a gray-out. Plays on `.gc-flip` (where the lift /
+ *  hover transforms live) and leaves no residual transform. */
+function shakeCard(el: HTMLElement): void {
+  if (prefersReducedMotion()) return;
+  const target = el.querySelector<HTMLElement>(".gc-flip") ?? el;
+  target.animate(
+    [
+      { transform: "translateX(0)" },
+      { transform: "translateX(-4px)" },
+      { transform: "translateX(3px)" },
+      { transform: "translateX(-2px)" },
+      { transform: "translateX(2px)" },
+      { transform: "translateX(0)" },
+    ],
+    { duration: 360, easing: "ease-in-out" },
+  );
 }
 
 export interface EngineReplayOpts {
   signal: AbortSignal;
   /** Per-step duration budget; controls the pacing of the walk. */
   stepMs: number;
-  /** Compact opponent bays use lighter particle bursts and faster chips. */
-  compact?: boolean;
-  /** Element to jolt on a big step (the scoring-engine zone), so only that
-   *  region shakes rather than the whole UI. Omit to skip the per-step shake. */
+  /** The fan element holding the engine's mini-cards (one `<ac-card>` per step). */
+  fan: HTMLElement;
+  /** Element to jolt on a big step (the scoring zone). Omit to skip the shake. */
   shakeTarget?: HTMLElement;
-  /** Fired on each triggered step (after the chip/burst, before the rest beat)
-   *  so callers can ramp their own running-score readout from prev → step. */
+  /** Card `i` is now the active card — the caller lifts/glows it and raises it to
+   *  the front. Returns once the highlight has rendered (so the rect is measurable). */
+  onEnter: (index: number) => Promise<void> | void;
+  /** Fired as a triggered card fires so callers can ramp their own running-score
+   *  readout from prev → step. */
   onStep?: (step: ScoreStep, prevRunning: number, delta: number) => Promise<void> | void;
 }
 
-/** Walk the breakdown over `bayEl`'s cards. Returns once the walk finishes (the
- *  caller owns the taxed slam / final eruption). No-op under reduced motion. */
-export async function runEngineReplay(
-  bayEl: Element,
-  sub: Submission,
-  opts: EngineReplayOpts,
-): Promise<void> {
+/** Walk the breakdown, lighting each card left → right in place. Returns once the
+ *  last card has fired (the caller owns the taxed slam / final eruption). No-op
+ *  under reduced motion — the caller settles the readout directly. */
+export async function runEngineReplay(sub: Submission, opts: EngineReplayOpts): Promise<void> {
   if (prefersReducedMotion()) return;
-  const { signal, stepMs, compact = false, onStep, shakeTarget } = opts;
-  const cards = bayCards(bayEl);
+  const { signal, stepMs, fan, shakeTarget, onEnter, onStep } = opts;
   const steps = sub.breakdown.steps;
   const total = Math.max(sub.breakdown.finalScore, sub.breakdown.finalBeforeTax, 1);
   let prev = sub.breakdown.seed;
@@ -98,29 +106,32 @@ export async function runEngineReplay(
   for (let i = 0; i < steps.length; i++) {
     if (signal.aborted) return;
     const step = steps[i];
-    const card = cards[i];
     const def = getCard(step.cardId);
     const color = def ? `var(--ac-accent-${def.family})` : "var(--ac-accent-neutral)";
     const colorNum = familyAccentColor(def?.family ?? "neutral");
 
-    if (!step.triggered) {
-      card?.setAttribute("dimmed", "");
-      await sleep(stepMs * 0.5, signal);
-      continue;
-    }
+    // Light up the card and let the highlight render before we measure it.
+    await onEnter(i);
+    if (signal.aborted) return;
 
-    card?.setAttribute("triggered", "");
-    const rect = card?.getBoundingClientRect();
-    const delta = step.runningScore - prev;
-    const intensity = Math.min(1, 0.3 + Math.abs(delta) / Math.max(40, total));
-    if (rect) {
-      popChip(rect, delta, step.valueText, color, compact);
-      fx.burstAt(rect, intensity * (compact ? 0.6 : 1), colorNum);
+    if (step.triggered) {
+      const card = fan.querySelectorAll<HTMLElement>("ac-card")[i];
+      const at: Rectish = (card ?? fan).getBoundingClientRect();
+      const delta = step.runningScore - prev;
+      const intensity = Math.min(1, 0.3 + Math.abs(delta) / Math.max(40, total));
+      popChip(at, delta, step.valueText, color);
+      fx.burstAt(at, intensity, colorNum);
+      if (shakeTarget && delta >= 60) fx.shake(Math.min(0.7, delta / 220), shakeTarget);
+      // Ramp the score across the step rather than before it, so an activated card
+      // takes the same wall-clock beat as a skipped one.
+      await Promise.all([onStep?.(step, prev, delta), sleep(stepMs, signal)]);
+      prev = step.runningScore;
+    } else {
+      // A skipped card still consumes a full step so the pacing stays uniform;
+      // a small shake makes the non-activation read as a deliberate "nope".
+      const card = fan.querySelectorAll<HTMLElement>("ac-card")[i];
+      if (card) shakeCard(card);
+      await sleep(stepMs, signal);
     }
-    if (!compact && shakeTarget && delta >= 60) fx.shake(Math.min(0.7, delta / 220), shakeTarget);
-    await onStep?.(step, prev, delta);
-    prev = step.runningScore;
-    await sleep(stepMs * 0.3, signal);
-    card?.removeAttribute("triggered");
   }
 }

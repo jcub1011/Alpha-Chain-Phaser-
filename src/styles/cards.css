@@ -3,7 +3,7 @@
 
 ac-engine-bay {
   --gc-w: 132px;
-  --gc-h: 168px;
+  --gc-h: 188px;
   display: flex;
   flex-direction: column;
   gap: var(--sp-2);
@@ -200,8 +200,8 @@ ac-card[flipped] .gc-flip {
   flex: 1 1 auto;
   display: -webkit-box;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 4;
-  line-clamp: 4;
+  -webkit-line-clamp: 5;
+  line-clamp: 5;
   overflow: hidden;
   font-size: calc(var(--gc-h) * 0.07);
   line-height: 1.3;
@@ -282,3 +282,20 @@ ac-card[compact] .gc-back {
 ac-card[compact] .gc-back-name { font-size: 0.7rem; }
 ac-card[compact] .gc-desc { font-size: 0.62rem; line-height: 1.28; }
 ac-card[compact] .gc-flip:hover .gc-back { opacity: 1; }
+
+/* Mini cards (the engine-replay piles) — size themselves standalone (no bay
+   wrapper) and keep only the icon + magnitude chip + name so a slim deck reads
+   at a glance. No description, flip hint, or back face. */
+ac-card[mini] {
+  --gc-w: 88px;
+  --gc-h: 112px;
+}
+ac-card[mini] .gc-flip { cursor: default; }
+ac-card[mini] .gc-front-desc,
+ac-card[mini] .gc-flip-hint,
+ac-card[mini] .gc-back,
+ac-card[mini] .gc-chip:not(:first-child) {
+  display: none;
+}
+ac-card[mini] .gc-name { font-size: calc(var(--gc-h) * 0.12); }
+ac-card[mini] .gc-chip { font-size: calc(var(--gc-h) * 0.1); }

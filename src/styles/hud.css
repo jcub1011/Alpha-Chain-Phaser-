@@ -183,17 +183,58 @@
   color: var(--ac-ink-soft);
   font-size: clamp(0.85rem, 3vw, 1.15rem);
 }
-/* The theater's engine copy: drop the bay's own head, center the cards. */
-.sr-bay .bay-head { display: none; }
-.sr-bay .bay-slots { 
-  overflow: visible;
-  justify-content: center; 
+/* Two zones — an overlapping card fan on the LEFT, the running score on the RIGHT
+   — so the replay always fits one line (mobile or desktop) with no wrap/scroll. */
+.sr-stage {
+  --mini-w: 88px;
+  --mini-h: 112px;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: clamp(0.5rem, 3vw, 1.4rem);
+  width: 100%;
+}
+/* No engine cards yet (idle / fresh game) — center the score across the zone. */
+.sr-stage.is-empty {
+  justify-content: center;
+}
+/* The fan: mini-cards absolutely positioned at JS-computed offsets (--fan-w is the
+   total content width). Top headroom so the hover / triggered lift isn't clipped. */
+.sr-fan {
+  display: flex;
+  flex: auto;
+  position: relative;
+  height: calc(var(--mini-h) + 16px);
+}
+.sr-fan ac-card {
+  position: absolute;
+  top: 16px;
+  z-index: var(--z, 1);
+  transition:
+    transform 0.16s cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 0.16s ease;
+}
+/* Hover lifts a card and raises it to the front so a clustered card stays readable. */
+.sr-fan ac-card:hover {
+  z-index: 600;
+}
+.sr-fan ac-card:hover .gc-flip {
+  transform: translateY(-12px);
+}
+.sr-fan ac-card:hover .gc {
+  box-shadow:
+    var(--ac-drop),
+    0 0 22px color-mix(in srgb, var(--gc-accent) 50%, transparent);
 }
 .sr-num {
+  display: flex;
+  width: max-content;
+  padding: 0 12px;
+  text-align: center;
   font-family: var(--font-mono);
   font-weight: 800;
   font-variant-numeric: tabular-nums;
-  font-size: clamp(2.2rem, 7vw, 3.6rem);
+  font-size: clamp(1.9rem, 7vw, 3.6rem);
   line-height: 1;
   color: var(--ac-ink);
   transition: color 0.2s ease;
@@ -221,8 +262,6 @@
 }
 .sr-chip-delta { font-weight: 800; font-size: 1.5rem; }
 .sr-chip-op { margin-top: 0.1em; font-weight: 700; font-size: 0.78rem; opacity: 0.82; }
-.sr-chip.is-compact .sr-chip-delta { font-size: 1.05rem; }
-.sr-chip.is-compact .sr-chip-op { font-size: 0.6rem; }
 
 /* ── Word entry ────────────────────────────────────────────────────────── */
 .we {
@@ -390,11 +429,11 @@ ac-leaderboard[strip] .lb-pop { right: auto; left: 50%; transform: translateX(-5
   .rail { display: none; }
   .lb-strip { display: block; order: -1; }
   .command { position: sticky; top: 0; z-index: 5; }
-  ac-engine-bay:not([compact]) { --gc-w: 108px; --gc-h: 138px; }
+  ac-engine-bay:not([compact]) { --gc-w: 108px; --gc-h: 152px; }
 }
 @media (max-width: 30rem) {
   .hud { padding: var(--sp-2); gap: var(--sp-2); }
   .command { padding: var(--sp-2) var(--sp-3); gap: var(--sp-2); }
   .we-prefix { min-width: 2.4rem; font-size: 1.3rem; }
-  ac-engine-bay:not([compact]) { --gc-w: 92px; --gc-h: 118px; }
+  ac-engine-bay:not([compact]) { --gc-w: 92px; --gc-h: 132px; }
 }

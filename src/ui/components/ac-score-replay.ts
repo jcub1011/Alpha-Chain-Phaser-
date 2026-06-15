@@ -1,13 +1,18 @@
 /*
  * <ac-score-replay> — the shared "last play" theater above the word entry. On
- * ANY player's submission it renders a copy of that player's engine bay and
- * walks the score breakdown left→right over those cards (via runEngineReplay):
- * each triggered card lifts and bursts, a chip pops off it showing its point
- * contribution, the running total ramps; skipped cards dim. A taxed word slams
- * to zero; a clean word erupts (+ confetti) — both localized to this zone so the
- * rest of the UI stays still. The last play stays on screen until the next
- * submission replaces it; leaving the Round phase clears it. The whole run is a
- * cancelable async sequencer — a new submission or phase change aborts it.
+ * ANY player's submission it shows that player's engine as an overlapping fan of
+ * mini-cards on the LEFT with the running score on the RIGHT. The score breakdown
+ * then walks the fan left → right (via runEngineReplay): each card lights up in
+ * place (lift + glow), pops a chip with its point contribution, bursts particles,
+ * and ramps the running total; skipped cards take a beat but change nothing. The
+ * fan compresses its spacing so it always fits one line (mobile or desktop) — the
+ * left-most card sits on top, and hovering any card lifts it to the front so it can
+ * be read even when clustered. Cards that didn't activate gray out as the walk
+ * passes them; every card consumes the same beat whether it fired or not. A taxed
+ * word slams the total to zero; a clean word erupts (+ confetti) — both localized to
+ * this zone. The theater is always visible: between plays it shows the human's own
+ * engine (centered score when the bay is empty). The whole run is a cancelable async
+ * sequencer.
  */
 
 import { html, nothing, type TemplateResult } from "lit";
@@ -18,8 +23,15 @@ import { fmtScore, playerAccentVar } from "../app/util";
 import { prefersReducedMotion } from "../../theme";
 import { fx } from "../fx/fx";
 import { AcElement } from "../app/AcElement";
-import { resetBayCards, runEngineReplay, sleep } from "./engine-replay";
-import "./ac-engine-bay";
+import { runEngineReplay } from "./engine-replay";
+import "./ac-card";
+
+/** Mini-card footprint (keep in sync with `--mini-w` in hud.css). */
+const MINI_W = 88;
+/** Spread spacing when the fan has room: card width + a small gap. */
+const MAX_STEP = MINI_W + 10;
+/** Tightest spacing when compressed: still shows a readable sliver of each card. */
+const MIN_STEP = 24;
 
 @customElement("ac-score-replay")
 export class AcScoreReplay extends AcElement {
@@ -30,37 +42,85 @@ export class AcScoreReplay extends AcElement {
   @state() private accent = "";
   @state() private word = "";
   @state() private cards: BayCard[] = [];
-  @state() private slots = 3;
+  /** Index of the card currently firing (gets the lift + glow), or -1. */
+  @state() private current = -1;
+  /** Highest card index the walk has reached; cards ≤ this that didn't activate
+   *  gray out. -1 means nothing resolved yet (idle / pre-walk). */
+  @state() private revealed = -1;
+  /** Per-card activation flags for the play being replayed (by bay index). Empty
+   *  while idle, so the engine preview shows every card at full strength. */
+  @state() private activated: boolean[] = [];
+  /** Measured width of the fan, drives the overlap math. */
+  @state() private fanWidth = 0;
   @query(".sr-num") private numEl?: HTMLElement;
-  @query("ac-engine-bay") private bayEl?: HTMLElement & { updateComplete?: Promise<unknown> };
+  @query(".sr-fan") private fanEl?: HTMLElement;
 
   private abort?: AbortController;
+  private resizeObs?: ResizeObserver;
+
+  override firstUpdated(): void {
+    this.resizeObs = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect.width ?? 0;
+      if (w && Math.abs(w - this.fanWidth) > 0.5) this.fanWidth = w;
+    });
+    if (this.fanEl) this.resizeObs.observe(this.fanEl);
+  }
 
   override updated(changed: Map<string, unknown>): void {
+    // The fan element comes and goes with `active`; (re)observe it once present.
+    if (this.fanEl && this.resizeObs) {
+      this.resizeObs.disconnect();
+      this.resizeObs.observe(this.fanEl);
+      const w = this.fanEl.clientWidth;
+      if (w && Math.abs(w - this.fanWidth) > 0.5) this.fanWidth = w;
+    }
     if (changed.has("controller") && this.controller) {
       this.clearSubs();
       const human = this.controller.humanId;
       this.listen(this.controller.events, "submission", ({ submission }) => {
         void this.run(submission, submission.playerId === human);
       });
-      // Leaving the Round phase (intermission / countdown / game over) clears it.
-      this.listen(this.controller.events, "phaseChanged", () => this.hide());
+      // A phase change (intermission / countdown / game over) ends the current
+      // replay; the theater stays up showing the human's own engine.
+      this.listen(this.controller.events, "phaseChanged", () => this.showIdle());
+      this.showIdle();
     }
   }
 
   override disconnectedCallback(): void {
     super.disconnectedCallback();
     this.abort?.abort();
+    this.resizeObs?.disconnect();
   }
 
-  private hide(): void {
+  /** Drop back to the always-on idle view: the human's current engine, no
+   *  highlight or graying, score reset to zero. */
+  private showIdle(): void {
     this.abort?.abort();
-    this.resetCards();
-    this.active = false;
+    const human = this.controller?.match.state.players.find(
+      (p) => p.id === this.controller.humanId,
+    );
+    this.cards = human ? [...human.bay] : [];
+    this.activated = [];
+    this.current = -1;
+    this.revealed = -1;
+    this.heading = "YOUR ENGINE";
+    this.word = "";
+    this.accent = human ? playerAccentVar(human.accentIndex) : "";
+    this.active = true;
+    void this.updateComplete.then(() => {
+      this.numEl?.classList.remove("is-final", "is-taxed");
+      if (this.numEl) this.numEl.textContent = "0";
+    });
   }
 
-  private resetCards(): void {
-    if (this.bayEl) resetBayCards(this.bayEl);
+  /** Horizontal advance per card so the whole fan fits `fanWidth`: spread out when
+   *  there's room, compress (overlap) when there isn't. */
+  private step(): number {
+    const n = this.cards.length;
+    if (n <= 1 || this.fanWidth <= 0) return MAX_STEP;
+    const fit = (this.fanWidth - MINI_W) / (n - 1);
+    return Math.max(MIN_STEP, Math.min(MAX_STEP, fit));
   }
 
   /** Tween the big readout from `from` to `to` over `ms`, abortable. */
@@ -93,7 +153,9 @@ export class AcScoreReplay extends AcElement {
     // breakdown's step order — both flow from the same player state).
     const player = this.controller.match.state.players.find((p) => p.id === sub.playerId);
     this.cards = player ? [...player.bay] : [];
-    this.slots = player?.slots ?? this.cards.length;
+    this.activated = sub.breakdown.steps.map((s) => s.triggered);
+    this.current = -1;
+    this.revealed = -1;
     this.heading = isHuman ? "YOUR ENGINE" : `${sub.displayName}'s engine`;
     this.accent = playerAccentVar(sub.accentIndex);
     this.word = sub.word.toUpperCase();
@@ -101,12 +163,11 @@ export class AcScoreReplay extends AcElement {
     this.numEl?.classList.remove("is-final", "is-taxed");
 
     await this.updateComplete;
-    await this.bayEl?.updateComplete; // ensure the copied cards are in the DOM
     if (signal.aborted) return;
-    this.resetCards();
     if (this.numEl) this.numEl.textContent = fmtScore(sub.breakdown.seed);
 
     if (prefersReducedMotion()) {
+      this.revealed = this.cards.length - 1; // gray out every card that didn't fire
       if (this.numEl) this.numEl.textContent = fmtScore(sub.score);
       this.numEl?.classList.add(sub.taxed ? "is-taxed" : "is-final");
       return;
@@ -118,44 +179,50 @@ export class AcScoreReplay extends AcElement {
       (this.controller.match.state.settings.engineAnimationSeconds * 1000) / Math.max(1, steps),
     );
 
-    await sleep(260, signal);
-
     const theater = this.querySelector<HTMLElement>(".sr") ?? undefined;
-    if (this.bayEl) {
-      await runEngineReplay(this.bayEl, sub, {
+    if (this.fanEl) {
+      await runEngineReplay(sub, {
         signal,
         stepMs,
+        fan: this.fanEl,
         shakeTarget: theater,
+        onEnter: async (i) => {
+          this.current = i;
+          this.revealed = Math.max(this.revealed, i);
+          await this.updateComplete;
+        },
         onStep: (step, prevRunning) =>
-          this.ramp(prevRunning, step.runningScore, Math.min(stepMs * 0.7, 520), signal),
+          this.ramp(prevRunning, step.runningScore, Math.min(stepMs, 640), signal),
       });
     }
 
     if (signal.aborted) return;
+    this.current = -1;
+    this.revealed = this.cards.length - 1; // settle: non-activated cards stay gray
 
     if (sub.taxed) {
       // Crash the pre-tax total down to zero.
       this.numEl?.classList.add("is-taxed");
       await this.ramp(sub.breakdown.finalBeforeTax, 0, 420, signal);
       fx.shake(0.8, theater);
-      await sleep(500, signal);
+      await new Promise((r) => setTimeout(r, 500));
     } else {
       if (this.numEl) this.numEl.textContent = fmtScore(sub.score);
       this.numEl?.classList.add("is-final");
-      const r = (this.bayEl ?? this.numEl)?.getBoundingClientRect();
+      // Erupt from the score readout itself — not the whole stage, whose center
+      // drifts to the HUD middle once the engine fan takes up the left side.
+      const r = (this.numEl ?? this.querySelector(".sr-stage"))?.getBoundingClientRect();
       if (r) {
         fx.eruption(r, Math.min(1, sub.score / 300));
         if (sub.score >= 150) fx.confettiAt(r, Math.min(1, sub.score / 300));
         if (sub.score >= 120) fx.shake(Math.min(0.7, sub.score / 360), theater);
       }
     }
-
-    if (signal.aborted) return;
-    // Leave the finished play on screen (cards at rest) until the next one.
-    this.resetCards();
   }
 
   override render(): TemplateResult {
+    const n = this.cards.length;
+    const step = this.step();
     return html`
       <div class="sr ${this.active ? "is-active" : ""}" style="--sr-accent:${this.accent};">
         ${this.active
@@ -164,8 +231,26 @@ export class AcScoreReplay extends AcElement {
                 <span class="sr-who">${this.heading}</span>
                 <span class="sr-word">${this.word}</span>
               </div>
-              <ac-engine-bay class="sr-bay" .cards=${this.cards} .slots=${this.slots}></ac-engine-bay>
-              <div class="sr-total"><span class="sr-num">0</span></div>
+              <div class="sr-stage ${n === 0 ? "is-empty" : ""}">
+                ${n > 0
+                  ? html`<div class="sr-fan">
+                      ${this.cards.map((c, j) => {
+                        const fired = this.activated[j] === true;
+                        const isCurrent = j === this.current;
+                        return html`<ac-card
+                          mini
+                          .cardId=${c.id}
+                          ?triggered=${isCurrent && fired}
+                          ?dimmed=${j <= this.revealed && !fired}
+                          style="left:${Math.round(j * step)}px; --z:${isCurrent
+                            ? 500
+                            : n - j};"
+                        ></ac-card>`;
+                      })}
+                    </div>`
+                  : nothing}
+                <div class="sr-num">0</div>
+              </div>
             `
           : nothing}
       </div>

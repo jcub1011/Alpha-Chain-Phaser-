@@ -24,10 +24,6 @@ const chipVar = (op: string): string =>
       ? "var(--ac-multiplicative)"
       : "var(--ac-action)";
 
-/** Short type label shown as a chip, matching the Blazor card. */
-const opLabel = (op: string): string =>
-  op === "additive" ? "ADD" : op === "multiplicative" ? "MULT" : "FX";
-
 /** A compact "−20% ⏱" / "+5s ⏱" clock chip for glass-cannon / utility cards. */
 const clockText = (clock: ClockModifier): string => {
   const parts: string[] = [];
@@ -42,6 +38,8 @@ export class AcCard extends AcElement {
   @property({ type: Boolean }) isNew = false;
   /** Compact cards (opponent summaries) reveal their text on hover, not flip. */
   @property({ type: Boolean, reflect: true }) compact = false;
+  /** Mini cards (the engine-replay piles): icon + magnitude + name only, no flip. */
+  @property({ type: Boolean, reflect: true }) mini = false;
   /** Whether the card is showing its back (rules text). Full-size only. */
   @property({ type: Boolean, reflect: true }) flipped = false;
   /** Visual states used by the score replay. */
@@ -49,7 +47,7 @@ export class AcCard extends AcElement {
   @property({ type: Boolean, reflect: true }) triggered = false;
 
   private onFlip = (): void => {
-    if (this.compact) return;
+    if (this.compact || this.mini) return;
     this.flipped = !this.flipped;
   };
 
@@ -87,7 +85,6 @@ export class AcCard extends AcElement {
             </span>
             <div class="gc-chips">
               <span class="gc-chip" style="--chip:${chip};">${card.magnitudeText}</span>
-              <span class="gc-chip" style="--chip:${chip};">${opLabel(card.op)}</span>
               ${card.clock
                 ? html`<span class="gc-chip" style="--chip:var(--ac-accent-clock);"
                     >${clockText(card.clock)}</span
