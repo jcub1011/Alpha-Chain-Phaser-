@@ -31,8 +31,8 @@
   flex-direction: column;
   gap: 0.25rem;
 }
-.cmd-left { align-items: flex-start; }
-.cmd-right { align-items: flex-end; }
+.cmd-left { align-items: center; }
+.cmd-right { align-items: center; }
 .cmd-clock { align-items: center; }
 .cmd-letter {
   font-family: var(--font-mono);
@@ -138,6 +138,7 @@
    their engine, the walk over its cards, and the resulting score. ───────── */
 .sr {
   display: flex;
+  overflow: visible;
   flex-direction: column;
   align-items: center;
   gap: var(--sp-2);
@@ -184,7 +185,10 @@
 }
 /* The theater's engine copy: drop the bay's own head, center the cards. */
 .sr-bay .bay-head { display: none; }
-.sr-bay .bay-slots { justify-content: center; }
+.sr-bay .bay-slots { 
+  overflow: visible;
+  justify-content: center; 
+}
 .sr-num {
   font-family: var(--font-mono);
   font-weight: 800;
