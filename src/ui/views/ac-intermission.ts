@@ -12,6 +12,7 @@
 import { html, nothing, type PropertyValues, type TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type { GameController } from "../../net/controller";
+import { LocalController } from "../../net/localController";
 import { legalBanLetters } from "../../game/settings";
 import { AcElement } from "../app/AcElement";
 import "../components/ac-card";
@@ -31,6 +32,7 @@ export class AcIntermission extends AcElement {
   private dragId: string | null = null;
   private timer = 0;
   private deadline = 0;
+  private lastTick = 0;
 
   override willUpdate(changed: PropertyValues): void {
     if (changed.has("controller") && this.controller) {
@@ -51,15 +53,30 @@ export class AcIntermission extends AcElement {
   private startTimer(secs: number, onEnd: () => void): void {
     this.stopTimer();
     this.deadline = performance.now() + secs * 1000;
+    this.lastTick = performance.now();
     this.seconds = Math.ceil(secs);
     this.timer = window.setInterval(() => {
-      const left = Math.max(0, this.deadline - performance.now());
+      const now = performance.now();
+      // Debug pause (solo only): roll the deadline forward by the elapsed slice
+      // so the countdown freezes and the timeout default never fires.
+      if (this.isPaused()) {
+        this.deadline += now - this.lastTick;
+        this.lastTick = now;
+        return;
+      }
+      this.lastTick = now;
+      const left = Math.max(0, this.deadline - now);
       this.seconds = Math.ceil(left / 1000);
       if (left <= 0) {
         this.stopTimer();
         onEnd();
       }
     }, 200);
+  }
+
+  /** Debug pause state, read through the controller (solo/local only). */
+  private isPaused(): boolean {
+    return this.controller instanceof LocalController && this.controller.paused;
   }
 
   private stopTimer(): void {

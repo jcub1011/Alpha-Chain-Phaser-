@@ -35,11 +35,28 @@ export class AcApp extends AcElement {
   private raf = 0;
   private last = 0;
 
+  override connectedCallback(): void {
+    super.connectedCallback();
+    window.addEventListener("keydown", this.onKeyDown);
+  }
+
   override disconnectedCallback(): void {
     super.disconnectedCallback();
+    window.removeEventListener("keydown", this.onKeyDown);
     this.stopLoop();
     this.controller?.destroy();
   }
+
+  // Debug-only, undocumented: Esc freezes/unfreezes every timer so the UI can be
+  // inspected mid-match. Solo-only — gated on LocalController so it can never
+  // reach public/networked play.
+  private onKeyDown = (e: KeyboardEvent): void => {
+    if (e.key !== "Escape") return;
+    if (this.screen !== "match" || !(this.controller instanceof LocalController)) return;
+    e.preventDefault();
+    this.controller.togglePause();
+    this.requestUpdate();
+  };
 
   private onStart = (e: CustomEvent<AlphaChainSettings>): void => {
     this.settings = e.detail;
@@ -89,6 +106,7 @@ export class AcApp extends AcElement {
       return html`<ac-lobby .settings=${this.settings} @ac-start=${this.onStart}></ac-lobby>`;
     }
     const c = this.controller;
+    const paused = c instanceof LocalController && c.paused;
     return html`
       <ac-hud .controller=${c}></ac-hud>
       ${this.phase === "Countdown"
@@ -99,6 +117,13 @@ export class AcApp extends AcElement {
         : nothing}
       ${this.phase === "GameOver"
         ? html`<ac-game-over .controller=${c} @ac-return=${this.onReturnToLobby}></ac-game-over>`
+        : nothing}
+      ${paused
+        ? html`<div
+            style="position:fixed;top:12px;right:12px;z-index:9999;padding:4px 10px;border-radius:6px;background:rgba(0,0,0,.72);color:#fff;font:600 12px/1.4 system-ui,sans-serif;letter-spacing:.04em;pointer-events:none;"
+          >
+            ⏸ PAUSED
+          </div>`
         : nothing}
     `;
   }

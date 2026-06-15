@@ -20,6 +20,13 @@ export class LocalController implements GameController {
   private botCountdown: number | null = null;
   private botPlayerId: string | null = null;
 
+  /**
+   * Debug-only: freezes every gameplay timer (shot clock, countdown, bots) by
+   * short-circuiting tick(). Toggled from <ac-app> via Esc. Solo-only by design
+   * — it lives here, not on GameController, so networked play never gets it.
+   */
+  private _paused = false;
+
   constructor(settings: AlphaChainSettings, dict: Dictionary) {
     this.dict = dict;
     const seeds: PlayerSeed[] = [{ id: this.humanId, name: "You", isBot: false }];
@@ -56,7 +63,20 @@ export class LocalController implements GameController {
     this.match.start();
   }
 
+  /** Whether all timers are currently frozen (debug pause). */
+  get paused(): boolean {
+    return this._paused;
+  }
+
+  /** Flip the debug pause and report the new state. */
+  togglePause(): boolean {
+    this._paused = !this._paused;
+    return this._paused;
+  }
+
   tick(dt: number): void {
+    // Debug pause: freeze the shot clock, countdown, and bot thinking together.
+    if (this._paused) return;
     // Advance bot thinking before the shot clock, so a fast bot can still beat it.
     if (this.botCountdown !== null && this.botPlayerId) {
       this.botCountdown -= dt;
