@@ -40,6 +40,7 @@ export interface NetPeer {
 /** Match events the host broadcasts for replay (everything but the per-frame clock). */
 const REPLAYED_EVENTS: (keyof MatchEvents)[] = [
   "phaseChanged",
+  "subPhaseChanged",
   "countdownTick",
   "turnArmed",
   "submission",
@@ -56,6 +57,10 @@ export class KnockBoxController implements GameController {
   private pending: WireEvent[] = [];
   private startSettings?: AlphaChainSettings;
   private lobbyCbs: (() => void)[] = [];
+  private sessionEndedCbs: ((reason: string) => void)[] = [];
+  /** The host's player id (learned from snapshots), for host-departure detection. */
+  private hostId = "";
+  private ended = false;
 
   /** Subscribe to lobby/roster changes (ready, join, leave) for the waiting UI. */
   onLobbyChange(cb: () => void): () => void {
@@ -64,6 +69,17 @@ export class KnockBoxController implements GameController {
   }
   private notifyLobby(): void {
     this.lobbyCbs.slice().forEach((c) => c());
+  }
+
+  /** Subscribe to a terminal session end (host left / socket closed). */
+  onSessionEnded(cb: (reason: string) => void): () => void {
+    this.sessionEndedCbs.push(cb);
+    return () => (this.sessionEndedCbs = this.sessionEndedCbs.filter((c) => c !== cb));
+  }
+  private endSession(reason: string): void {
+    if (this.ended) return;
+    this.ended = true;
+    this.sessionEndedCbs.slice().forEach((c) => c(reason));
   }
 
   constructor(
@@ -76,6 +92,8 @@ export class KnockBoxController implements GameController {
     peer.events.on("message", this.onMessage);
     peer.events.on("player-joined", this.onRoster);
     peer.events.on("player-left", this.onLeft);
+    peer.events.on("closed", this.onClosed);
+    peer.events.on("resumed", this.onResumed);
   }
 
   get events(): MatchLike["events"] {
@@ -124,6 +142,8 @@ export class KnockBoxController implements GameController {
     this.peer.events.off("message", this.onMessage as never);
     this.peer.events.off("player-joined", this.onRoster as never);
     this.peer.events.off("player-left", this.onLeft as never);
+    this.peer.events.off("closed", this.onClosed as never);
+    this.peer.events.off("resumed", this.onResumed as never);
     this.pending = [];
   }
 
@@ -153,6 +173,26 @@ export class KnockBoxController implements GameController {
       const p = this.host.state.players.find((x) => x.id === leftId);
       if (p) p.eliminated = true;
       this.broadcast();
+    } else if (!this.peer.isHost && leftId && leftId === this.hostId) {
+      // The host left and there is no host migration — the session is over.
+      this.endSession("The host left — the session has ended.");
+    }
+    this.notifyLobby();
+  };
+
+  private onClosed = (...args: unknown[]): void => {
+    const info = args[0] as { terminal?: boolean } | undefined;
+    // Terminal close (bad ticket / ended membership) won't reconnect — end the
+    // session. A transient close resolves via the SDK's "resumed"/"ready".
+    if (info?.terminal) this.endSession("Connection closed — the session has ended.");
+  };
+
+  private onResumed = (): void => {
+    // Reconnected after a transient drop: host re-pushes, guest re-requests.
+    if (this.peer.isHost) {
+      if (this.host) this.broadcast();
+    } else {
+      this.peer.sendToHost({ t: "sync" } satisfies NetMessage);
     }
     this.notifyLobby();
   };
@@ -169,7 +209,10 @@ export class KnockBoxController implements GameController {
         break;
       case "snap":
         // The host already applied its own snapshot directly; ignore the echo.
-        if (!this.peer.isHost) this.mirror.applySnapshot(payload.state, payload.events);
+        if (!this.peer.isHost) {
+          this.hostId = payload.hostId;
+          this.mirror.applySnapshot(payload.state, payload.events);
+        }
         break;
     }
   };
@@ -188,11 +231,19 @@ export class KnockBoxController implements GameController {
         h.submitWord(fromId, action.word);
         break;
       case "reorderBay":
-        if (h.state.phase === "Intermission") h.setPlayerBay(fromId, action.order);
+        if (h.state.phase === "Intermission" && h.state.intermissionPhase === "optimize")
+          h.setPlayerBay(fromId, action.order);
         break;
       case "sniperBan":
-        if (h.state.phase === "Intermission" && h.computeLastPlaceId() === fromId)
+        if (
+          h.state.phase === "Intermission" &&
+          h.state.intermissionPhase === "sniperBan" &&
+          h.computeLastPlaceId() === fromId
+        )
           h.applySniperBanAndAdvance(action.letter);
+        break;
+      case "skipTutorial":
+        if (fromId === this.peer.playerId) h.skipTutorial(); // only the host may skip
         break;
     }
     this.flush();
@@ -239,6 +290,7 @@ export class KnockBoxController implements GameController {
       t: "snap",
       state: serializeState(s),
       events,
+      hostId: this.peer.playerId ?? "",
       serverClock: {
         currentPlayerIndex: s.currentPlayerIndex,
         clockTotal: s.clockTotal,

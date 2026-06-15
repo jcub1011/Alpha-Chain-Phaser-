@@ -38,6 +38,7 @@ import type {
   AlphaChainSettings,
   BayCard,
   GamePhase,
+  IntermissionPhase,
   MatchState,
   PlayerState,
   Submission,
@@ -45,6 +46,13 @@ import type {
   TutorialKind,
   WordResolution,
 } from "./types";
+
+/** Tutorial dwell durations in seconds (port of TutorialState.DurationFor). */
+const TUTORIAL_DWELL: Record<TutorialKind, number> = {
+  shiritori: 12,
+  engine: 14,
+  tax: 12,
+};
 
 export interface PlayerSeed {
   id: string;
@@ -61,6 +69,8 @@ export interface MatchDeps {
 
 export interface MatchEvents {
   phaseChanged: GamePhase;
+  /** Tutorial phase / intermission sub-phase changed (drives a host snapshot). */
+  subPhaseChanged: { intermissionPhase: IntermissionPhase; currentTutorial: TutorialKind | null };
   countdownTick: number; // seconds remaining
   turnArmed: { playerIndex: number; requiredLetter: string; clockTotal: number };
   clockTick: number; // shot-clock seconds remaining
@@ -121,6 +131,9 @@ export class MatchController {
       clockRemaining: 0,
       clockTotal: 0,
       intermissionPhase: null,
+      currentTutorial: null,
+      subTimerRemaining: 0,
+      subTimerTotal: 0,
       shownTutorials: [],
       settings,
       winnerId: null,
@@ -191,6 +204,12 @@ export class MatchController {
 
   // ── Lifecycle ────────────────────────────────────────────────────────────────
   start(): void {
+    // The Shiritori tutorial (if enabled) plays once before the very first round.
+    if (this.shouldShowTutorial("shiritori")) this.enterTutorialPhase("shiritori");
+    else this.beginCountdown();
+  }
+
+  private beginCountdown(): void {
     this.setPhase("Countdown");
     this.countdownRemaining = this.state.settings.preRoundCountdownSeconds;
     this.events.emit("countdownTick", Math.ceil(this.countdownRemaining));
@@ -200,7 +219,10 @@ export class MatchController {
   tick(dt: number): void {
     if (dt <= 0) return;
     const s = this.state;
-    if (s.phase === "Countdown") {
+    if (s.phase === "Tutorial") {
+      s.subTimerRemaining = Math.max(0, s.subTimerRemaining - dt);
+      if (s.subTimerRemaining <= 0) this.advanceTutorialPhase();
+    } else if (s.phase === "Countdown") {
       const prev = Math.ceil(this.countdownRemaining);
       this.countdownRemaining -= dt;
       const now = Math.ceil(Math.max(0, this.countdownRemaining));
@@ -210,12 +232,51 @@ export class MatchController {
       s.clockRemaining = Math.max(0, s.clockRemaining - dt);
       this.events.emit("clockTick", s.clockRemaining);
       if (s.clockRemaining <= 0) this.timeoutCurrent();
+    } else if (s.phase === "Intermission") {
+      this.tickIntermission(dt);
     }
   }
 
   private setPhase(phase: GamePhase): void {
     this.state.phase = phase;
     this.events.emit("phaseChanged", phase);
+  }
+
+  // ── Tutorials (host-authoritative dwell; guests interpolate for display) ──────
+  /** Whether `kind` is enabled and hasn't been shown yet this match. */
+  private shouldShowTutorial(kind: TutorialKind): boolean {
+    return this.state.settings.enableTutorials && !this.state.shownTutorials.includes(kind);
+  }
+
+  private armSubTimer(seconds: number): void {
+    this.state.subTimerTotal = seconds;
+    this.state.subTimerRemaining = seconds;
+  }
+
+  /** Enter the top-level Shiritori tutorial phase (before the first countdown). */
+  private enterTutorialPhase(kind: TutorialKind): void {
+    this.state.currentTutorial = kind;
+    this.markTutorialShown(kind);
+    this.armSubTimer(TUTORIAL_DWELL[kind]);
+    this.setPhase("Tutorial");
+  }
+
+  private advanceTutorialPhase(): void {
+    this.state.currentTutorial = null;
+    this.beginCountdown();
+  }
+
+  /** Skip the current tutorial (Shiritori phase or an intermission tutorial). */
+  skipTutorial(): void {
+    if (this.state.phase === "Tutorial") this.advanceTutorialPhase();
+    else if (this.state.phase === "Intermission" && this.state.intermissionPhase === "tutorial")
+      this.advanceIntermissionTutorial();
+  }
+
+  /** Fast-forward the optimize sub-phase (solo convenience; host shared display). */
+  skipOptimize(): void {
+    if (this.state.phase === "Intermission" && this.state.intermissionPhase === "optimize")
+      this.completeOptimize();
   }
 
   private beginEra(first: boolean): void {
@@ -449,9 +510,10 @@ export class MatchController {
   }
 
   // ── Intermission ─────────────────────────────────────────────────────────────
+  // Host-authoritative sub-phase walk (timers live here, not in the UI):
+  //   [tutorial(engine) — era 1] → optimize → [tutorial(tax) — era 1] → sniperBan
   private enterIntermission(): void {
     this.setPhase("Intermission");
-    this.state.intermissionPhase = "optimize";
     const dealt: Record<string, string[]> = {};
     for (const p of this.state.players) {
       const newIds = this.dealCards(p, this.state.settings.modifiersDealtPerEra);
@@ -460,6 +522,70 @@ export class MatchController {
     }
     const lastPlaceId = this.computeLastPlaceId();
     this.events.emit("intermission", { lastPlaceId, dealt });
+    this.beginIntermissionStage();
+  }
+
+  /** Announce a sub-phase change so the host re-broadcasts the new state. */
+  private setIntermissionPhase(phase: IntermissionPhase, tutorial: TutorialKind | null): void {
+    this.state.intermissionPhase = phase;
+    this.state.currentTutorial = tutorial;
+    this.events.emit("subPhaseChanged", { intermissionPhase: phase, currentTutorial: tutorial });
+  }
+
+  /** First sub-phase of an intermission: the Engine tutorial (era 1) or optimize. */
+  private beginIntermissionStage(): void {
+    if (this.shouldShowTutorial("engine")) this.enterIntermissionTutorial("engine");
+    else this.beginOptimize();
+  }
+
+  private enterIntermissionTutorial(kind: TutorialKind): void {
+    this.markTutorialShown(kind);
+    this.armSubTimer(TUTORIAL_DWELL[kind]);
+    this.setIntermissionPhase("tutorial", kind);
+  }
+
+  private advanceIntermissionTutorial(): void {
+    // Engine plays before optimize; Tax plays after it (just before the ban).
+    const kind = this.state.currentTutorial;
+    if (kind === "engine") this.beginOptimize();
+    else this.beginSniperBan();
+  }
+
+  private beginOptimize(): void {
+    this.armSubTimer(this.state.settings.intermissionCardSelectSeconds);
+    this.setIntermissionPhase("optimize", null);
+  }
+
+  /** Optimize timer elapsed (or was skipped): trim overflow, then ban (via Tax). */
+  private completeOptimize(): void {
+    for (const p of this.state.players) this.autoTrimBay(p.id);
+    if (this.shouldShowTutorial("tax")) this.enterIntermissionTutorial("tax");
+    else this.beginSniperBan();
+  }
+
+  private beginSniperBan(): void {
+    this.armSubTimer(this.state.settings.sniperBanSeconds);
+    this.setIntermissionPhase("sniperBan", null);
+  }
+
+  /** Drive the active intermission sub-phase's dwell/timer. */
+  private tickIntermission(dt: number): void {
+    const s = this.state;
+    if (s.intermissionPhase === null) return;
+    s.subTimerRemaining = Math.max(0, s.subTimerRemaining - dt);
+    if (s.subTimerRemaining > 0) return;
+    switch (s.intermissionPhase) {
+      case "tutorial":
+        this.advanceIntermissionTutorial();
+        break;
+      case "optimize":
+        this.completeOptimize();
+        break;
+      case "sniperBan":
+        // The last-place player ran out of time — apply a random legal ban.
+        this.applySniperBanAndAdvance(this.randomBanLetter());
+        break;
+    }
   }
 
   /** Record that a tutorial has been shown (so each fires at most once). */
@@ -525,9 +651,10 @@ export class MatchController {
       fireBayHook(this.bayEval(p, "", false), "onEraStart");
     }
     this.state.intermissionPhase = null;
-    this.setPhase("Countdown");
-    this.countdownRemaining = this.state.settings.preRoundCountdownSeconds;
-    this.events.emit("countdownTick", Math.ceil(this.countdownRemaining));
+    this.state.currentTutorial = null;
+    this.state.subTimerRemaining = 0;
+    this.state.subTimerTotal = 0;
+    this.beginCountdown();
   }
 
   randomBanLetter(): string {

@@ -12,7 +12,7 @@ const two: PlayerSeed[] = [
 const make = (overrides: Partial<AlphaChainSettings> = {}) => {
   const m = new MatchController(
     two,
-    { ...DEFAULT_SETTINGS, preRoundCountdownSeconds: 1, eraInterval: 9, eraCount: 1, shotClockSeconds: 20, ...overrides },
+    { ...DEFAULT_SETTINGS, enableTutorials: false, preRoundCountdownSeconds: 1, eraInterval: 9, eraCount: 1, shotClockSeconds: 20, ...overrides },
     { isWord: (w) => WORDS.has(w), rng: () => 0.5 },
   );
   m.start();

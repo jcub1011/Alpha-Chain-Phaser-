@@ -22,6 +22,7 @@ import "../views/ac-net-lobby";
 import "../views/ac-hud";
 import "../views/ac-countdown";
 import "../views/ac-intermission";
+import "../views/ac-tutorial";
 import "../views/ac-game-over";
 import "../views/ac-sandbox";
 
@@ -36,6 +37,8 @@ export class AcApp extends AcElement {
   @state() private controller?: GameController;
   @state() private phase: GamePhase = "Setup";
   @state() private screen: "lobby" | "netlobby" | "match" = "lobby";
+  /** Set when a networked session ends terminally (host left / socket closed). */
+  @state() private sessionEnded?: string;
 
   /** The multiplayer controller, when launched for the KnockBox network. */
   private net?: KnockBoxController;
@@ -78,6 +81,13 @@ export class AcApp extends AcElement {
       this.phase = p;
       if (p !== "Setup") this.screen = "match";
     });
+    // Intermission sub-phase / tutorial flips don't change `phase`; re-render so
+    // the right overlay (optimize vs. tutorial vs. sniper ban) mounts.
+    this.listen(net.events, "subPhaseChanged", () => this.requestUpdate());
+    net.onSessionEnded((reason) => {
+      this.sessionEnded = reason;
+      this.stopLoop();
+    });
     this.startLoop();
     this.requestUpdate();
   }
@@ -107,6 +117,7 @@ export class AcApp extends AcElement {
     this.phase = "Setup";
     this.screen = "match";
     this.listen(controller.events, "phaseChanged", (p) => (this.phase = p));
+    this.listen(controller.events, "subPhaseChanged", () => this.requestUpdate());
     controller.start();
     this.startLoop();
   };
@@ -150,9 +161,27 @@ export class AcApp extends AcElement {
     return new URLSearchParams(location.search).has("sandbox");
   }
 
+  private onSessionEndedDismiss = (): void => {
+    this.sessionEnded = undefined;
+    this.screen = "netlobby";
+    this.phase = "Setup";
+  };
+
   // ── Render ───────────────────────────────────────────────────────────────
   override render(): TemplateResult {
     if (this.sandbox) return html`<ac-sandbox></ac-sandbox>`;
+    if (this.sessionEnded) {
+      return html`
+        <div class="overlay session-ended">
+          <div class="se-card ac-panel">
+            <span class="ac-eyebrow">multiplayer</span>
+            <h2 class="se-title">Session ended</h2>
+            <p class="se-msg">${this.sessionEnded}</p>
+            <button class="ac-btn" @click=${this.onSessionEndedDismiss}>BACK TO LOBBY</button>
+          </div>
+        </div>
+      `;
+    }
     if (this.screen === "netlobby" && this.net) {
       return html`<ac-net-lobby .controller=${this.net} @ac-net-start=${this.onNetStart}></ac-net-lobby>`;
     }
@@ -161,6 +190,9 @@ export class AcApp extends AcElement {
     }
     const c = this.controller;
     const paused = c instanceof LocalController && c.paused;
+    const tutorialUp =
+      this.phase === "Tutorial" ||
+      (this.phase === "Intermission" && c.match.state.intermissionPhase === "tutorial");
     return html`
       <ac-hud .controller=${c}></ac-hud>
       ${this.phase === "Countdown"
@@ -169,6 +201,7 @@ export class AcApp extends AcElement {
       ${this.phase === "Intermission"
         ? html`<ac-intermission .controller=${c}></ac-intermission>`
         : nothing}
+      ${tutorialUp ? html`<ac-tutorial .controller=${c}></ac-tutorial>` : nothing}
       ${this.phase === "GameOver"
         ? html`<ac-game-over .controller=${c} @ac-return=${this.onReturnToLobby}></ac-game-over>`
         : nothing}

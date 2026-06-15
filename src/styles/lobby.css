@@ -5,7 +5,10 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  /* `safe` keeps the column centered when it fits, but falls back to top-aligned
+     when it overflows — otherwise centering pushes the top past the scroll origin
+     and the title/first settings become unreachable on short displays. */
+  justify-content: safe center;
   gap: var(--sp-4);
   padding: var(--sp-4);
   overflow-y: auto;
@@ -49,6 +52,31 @@
   border-bottom: 1px solid var(--ac-border);
 }
 .set-row:last-child { border-bottom: none; }
+
+/* Multiplayer lobby: the long settings list wraps into columns so it never
+   clips on short displays. The panel widens to fit two columns. */
+.net-panel { width: min(94vw, 760px); }
+.net-settings {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  column-gap: var(--sp-4);
+}
+/* Each cell owns its own divider; the auto-fit grid handles row breaks. */
+.net-settings .set-row { border-bottom: 1px solid var(--ac-border); }
+/* Segmented controls (2–3 options) can be wider than a column, so stack the
+   label above and let the buttons share the cell width instead of overflowing. */
+.net-settings .set-row--seg {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.4rem;
+}
+.net-settings .set-row--seg .seg { display: flex; gap: 0.25rem; }
+.net-settings .set-row--seg .seg-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  text-align: center;
+  padding: 0.4rem 0.3rem;
+}
 .set-label { font-weight: 600; color: var(--ac-ink); }
 .set-ctl { display: flex; align-items: center; gap: 0.6rem; }
 .set-value {

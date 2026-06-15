@@ -42,6 +42,7 @@ export type BotDifficulty = "easy" | "medium" | "hard";
 
 export type GamePhase =
   | "Setup"
+  | "Tutorial"
   | "Countdown"
   | "Round"
   | "Intermission"
@@ -157,6 +158,14 @@ export interface MatchState {
   clockTotal: number;
   /** Current intermission sub-phase (null outside an intermission). */
   intermissionPhase: IntermissionPhase;
+  /** Tutorial script on screen, for the "Tutorial" phase and the "tutorial"
+   *  intermission sub-phase (null when no tutorial is showing). */
+  currentTutorial: TutorialKind | null;
+  /** Host-authoritative dwell remaining for the Tutorial phase / intermission
+   *  sub-phases (optimize, tutorial, sniperBan). Guests interpolate for display. */
+  subTimerRemaining: number;
+  /** Total seconds the active sub-timer was armed with (for the progress ring). */
+  subTimerTotal: number;
   /** Tutorials already shown this match (so each fires once). */
   shownTutorials: TutorialKind[];
   settings: AlphaChainSettings;

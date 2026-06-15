@@ -27,8 +27,13 @@ export class AcLobby extends AcElement {
     min: number,
     max: number,
   ): void {
-    const next = Math.max(min, Math.min(max, (this.draft[key] as number) + delta));
+    const raw = (this.draft[key] as number) + delta;
+    const next = Math.round(Math.max(min, Math.min(max, raw)) * 10) / 10; // tame fp drift
     this.draft = { ...this.draft, [key]: next };
+  }
+
+  private set<K extends keyof AlphaChainSettings>(key: K, value: AlphaChainSettings[K]): void {
+    this.draft = { ...this.draft, [key]: value };
   }
 
   private start(): void {
@@ -55,6 +60,40 @@ export class AcLobby extends AcElement {
     `;
   }
 
+  /** A segmented control over a fixed set of options. */
+  private segmented<T extends string>(
+    label: string,
+    current: T,
+    options: { value: T; text: string }[],
+    onPick: (v: T) => void,
+  ): TemplateResult {
+    return html`
+      <div class="set-row set-row--seg">
+        <span class="set-label">${label}</span>
+        <div class="seg">
+          ${options.map(
+            (o) => html`<button
+              class="seg-btn ${current === o.value ? "is-on" : ""}"
+              @click=${() => onPick(o.value)}
+            >${o.text}</button>`,
+          )}
+        </div>
+      </div>
+    `;
+  }
+
+  private toggle(label: string, on: boolean, set: (v: boolean) => void): TemplateResult {
+    return this.segmented(
+      label,
+      on ? "on" : "off",
+      [
+        { value: "on", text: "on" },
+        { value: "off", text: "off" },
+      ],
+      (v) => set(v === "on"),
+    );
+  }
+
   override render(): TemplateResult {
     const d = this.draft;
     return html`
@@ -64,48 +103,54 @@ export class AcLobby extends AcElement {
           <p class="lobby-tag">word-chain × engine-builder</p>
         </header>
 
-        <div class="ac-panel lobby-panel">
-          ${this.stepper(
-            "Opponents",
-            String(d.botCount),
-            () => this.step("botCount", -1, 1, 5),
-            () => this.step("botCount", 1, 1, 5),
-          )}
-
-          <div class="set-row">
-            <span class="set-label">Difficulty</span>
-            <div class="seg">
-              ${DIFFS.map(
-                (diff) => html`
-                  <button
-                    class="seg-btn ${d.botDifficulty === diff ? "is-on" : ""}"
-                    @click=${() => (this.draft = { ...this.draft, botDifficulty: diff })}
-                  >
-                    ${diff}
-                  </button>
-                `,
-              )}
-            </div>
+        <div class="ac-panel lobby-panel net-panel">
+          <div class="net-settings">
+            ${this.stepper(
+              "Opponents",
+              String(d.botCount),
+              () => this.step("botCount", -1, 1, 5),
+              () => this.step("botCount", 1, 1, 5),
+            )}
+            ${this.segmented<BotDifficulty>(
+              "Difficulty",
+              d.botDifficulty,
+              DIFFS.map((diff) => ({ value: diff, text: diff })),
+              (v) => this.set("botDifficulty", v),
+            )}
+            ${this.segmented<AlphaChainSettings["banMode"]>("Ban mode", d.banMode,
+              [
+                { value: "All", text: "all" },
+                { value: "VowelsOnly", text: "vowels" },
+                { value: "ConsonantsOnly", text: "conson." },
+              ],
+              (v) => this.set("banMode", v))}
+            ${this.stepper("Shot clock", `${d.shotClockSeconds}s`,
+              () => this.step("shotClockSeconds", -5, 5, 60),
+              () => this.step("shotClockSeconds", 5, 5, 60))}
+            ${this.stepper("Eras", String(d.eraCount),
+              () => this.step("eraCount", -1, 1, 50),
+              () => this.step("eraCount", 1, 1, 50))}
+            ${this.stepper("Rounds / era", String(d.eraInterval),
+              () => this.step("eraInterval", -1, 1, 50),
+              () => this.step("eraInterval", 1, 1, 50))}
+            ${this.stepper("Cards / era", String(d.modifiersDealtPerEra),
+              () => this.step("modifiersDealtPerEra", -1, 0, 10),
+              () => this.step("modifiersDealtPerEra", 1, 0, 10))}
+            ${this.stepper("Card select", `${d.intermissionCardSelectSeconds}s`,
+              () => this.step("intermissionCardSelectSeconds", -10, 10, 180),
+              () => this.step("intermissionCardSelectSeconds", 10, 10, 180))}
+            ${this.stepper("Sniper ban", `${d.sniperBanSeconds}s`,
+              () => this.step("sniperBanSeconds", -5, 5, 120),
+              () => this.step("sniperBanSeconds", 5, 5, 120))}
+            ${this.stepper("Countdown", `${d.preRoundCountdownSeconds}s`,
+              () => this.step("preRoundCountdownSeconds", -1, 3, 15),
+              () => this.step("preRoundCountdownSeconds", 1, 3, 15))}
+            ${this.stepper("Engine anim", `${d.engineAnimationSeconds.toFixed(1)}s`,
+              () => this.step("engineAnimationSeconds", -0.5, 0.5, 10),
+              () => this.step("engineAnimationSeconds", 0.5, 0.5, 10))}
+            ${this.toggle("Survival", d.survivalMode, (v) => this.set("survivalMode", v))}
+            ${this.toggle("Tutorials", d.enableTutorials, (v) => this.set("enableTutorials", v))}
           </div>
-
-          ${this.stepper(
-            "Shot clock",
-            `${d.shotClockSeconds}s`,
-            () => this.step("shotClockSeconds", -5, 5, 60),
-            () => this.step("shotClockSeconds", 5, 5, 60),
-          )}
-          ${this.stepper(
-            "Eras",
-            String(d.eraCount),
-            () => this.step("eraCount", -1, 2, 6),
-            () => this.step("eraCount", 1, 2, 6),
-          )}
-          ${this.stepper(
-            "Rounds / era",
-            String(d.eraInterval),
-            () => this.step("eraInterval", -1, 2, 8),
-            () => this.step("eraInterval", 1, 2, 8),
-          )}
         </div>
 
         <button class="ac-btn lobby-start" @click=${this.start}>START MATCH</button>

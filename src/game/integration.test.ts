@@ -51,10 +51,16 @@ describe("full match (integration)", () => {
     });
 
     m.start();
-    // Drive the FSM until GameOver (or a generous iteration cap).
+    let sawTutorial = false;
+    // Drive the FSM until GameOver (or a generous iteration cap). Tutorials are
+    // ON (the default), so the loop also drives the Shiritori phase and the
+    // engine/tax intermission tutorial sub-phases.
     for (let i = 0; i < 5000 && !gameOver; i++) {
       const s = m.state;
-      if (s.phase === "Countdown") {
+      if (s.phase === "Tutorial") {
+        sawTutorial = true;
+        m.skipTutorial();
+      } else if (s.phase === "Countdown") {
         m.tick(1);
       } else if (s.phase === "Round") {
         const word = chooseBotWord(dict, {
@@ -73,11 +79,21 @@ describe("full match (integration)", () => {
           m.tick(s.clockTotal + 1); // no word available → let the clock run out
         }
       } else if (s.phase === "Intermission") {
-        for (const p of s.players) m.autoTrimBay(p.id);
-        m.applySniperBanAndAdvance(m.randomBanLetter());
+        if (s.intermissionPhase === "tutorial") {
+          sawTutorial = true;
+          m.skipTutorial();
+        } else if (s.intermissionPhase === "optimize") {
+          for (const p of s.players) m.autoTrimBay(p.id);
+          m.tick(s.subTimerRemaining + 1); // run out the optimize timer
+        } else if (s.intermissionPhase === "sniperBan") {
+          m.applySniperBanAndAdvance(m.randomBanLetter());
+        } else {
+          m.tick(1);
+        }
       }
     }
 
+    expect(sawTutorial).toBe(true);
     expect(gameOver).toBe(true);
     expect(winnerId).not.toBeNull();
     // 3 eras × 4 rounds = 12 turns; some may time out, but most should score.

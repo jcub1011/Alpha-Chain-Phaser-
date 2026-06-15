@@ -12,7 +12,7 @@ const seeds: PlayerSeed[] = [
 ];
 
 const makeMatch = (overrides: Partial<AlphaChainSettings> = {}) =>
-  new MatchController(seeds, { ...DEFAULT_SETTINGS, ...overrides }, {
+  new MatchController(seeds, { ...DEFAULT_SETTINGS, enableTutorials: false, ...overrides }, {
     isWord: (w) => WORDS.has(w),
     rng: () => 0.5,
   });

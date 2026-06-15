@@ -25,6 +25,10 @@ export interface MatchLike {
   setPlayerBay(playerId: string, orderedIds: string[]): void;
   applySniperBanAndAdvance(letter: string): void;
   randomBanLetter(): string;
+  /** Skip the on-screen tutorial dwell (host / solo). */
+  skipTutorial(): void;
+  /** Fast-forward the optimize sub-phase (solo; no-op for guests). */
+  skipOptimize(): void;
 }
 
 // Compile-time assertion that MatchController is a MatchLike (no runtime cost).

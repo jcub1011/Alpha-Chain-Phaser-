@@ -13,7 +13,8 @@ export type Intent =
   | { kind: "startMatch"; settings: AlphaChainSettings } // host's own start, looped through
   | { kind: "submit"; word: string }
   | { kind: "reorderBay"; order: string[] }
-  | { kind: "sniperBan"; letter: string };
+  | { kind: "sniperBan"; letter: string }
+  | { kind: "skipTutorial" }; // host-only: skip the on-screen tutorial dwell
 
 /** A match event serialized for replay on guests (payloads are already JSON-safe). */
 export interface WireEvent<K extends keyof MatchEvents = keyof MatchEvents> {
@@ -26,6 +27,8 @@ export interface SnapshotMsg {
   t: "snap";
   state: WireMatchState;
   events: WireEvent[];
+  /** The host's player id, so guests can detect a host departure authoritatively. */
+  hostId: string;
   /** Turn-clock anchor so guests run a smooth local countdown (see controller). */
   serverClock: { currentPlayerIndex: number; clockTotal: number; clockRemaining: number };
 }

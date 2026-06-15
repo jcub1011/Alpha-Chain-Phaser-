@@ -1,12 +1,14 @@
 /*
- * <ac-intermission> — between eras. Two sub-phases:
- *   1. optimize — reorder your engine (drag, or ◄/► nudges) and drop overflow
- *      past your slot capacity; lock in writes the order back via setPlayerBay.
- *   2. sniper ban — the last-place player taxes a letter for the next era. If
- *      that's you, pick from the legal grid; if it's a bot, it auto-picks.
- * Each sub-phase has a countdown that applies a sensible default on timeout.
- * State is derived from the match (the 'intermission' event fires before this
- * mounts), so we read computeLastPlaceId() / the bay directly.
+ * <ac-intermission> — between eras. The sub-phase walk (optimize → [tax tutorial]
+ * → sniper ban) and its timers are now host-authoritative in the MatchController;
+ * this view is a thin renderer of the synced `intermissionPhase`:
+ *   • optimize — reorder your engine (drag, or ◄/► nudges) and drop overflow past
+ *     your slot capacity; the order is committed to the host on every change.
+ *   • sniper ban — the last-place player taxes a letter for the next era. If
+ *     that's you, pick from the legal grid; otherwise you wait. The host applies a
+ *     random legal ban if the timer runs out.
+ * The tutorial sub-phases render the optimize bay underneath the <ac-tutorial>
+ * overlay (mounted by <ac-app>). The countdown shown is the synced sub-timer.
  */
 
 import { html, nothing, type PropertyValues, type TemplateResult } from "lit";
@@ -17,74 +19,47 @@ import { legalBanLetters } from "../../game/settings";
 import { AcElement } from "../app/AcElement";
 import "../components/ac-card";
 
-type Sub = "optimize" | "ban" | "ban-wait";
-
 @customElement("ac-intermission")
 export class AcIntermission extends AcElement {
   @property({ attribute: false }) controller!: GameController;
 
-  @state() private sub: Sub = "optimize";
   @state() private order: string[] = [];
   @state() private slots = 3;
-  @state() private seconds = 0;
-  @state() private bannerName = "";
+  /** Re-render tick (drives the countdown read from the synced sub-timer). */
+  @state() private refreshN = 0;
 
   private dragId: string | null = null;
   private timer = 0;
-  private deadline = 0;
-  private lastTick = 0;
 
   override willUpdate(changed: PropertyValues): void {
     if (changed.has("controller") && this.controller) {
-      const m = this.controller.match;
-      const me = m.state.players.find((p) => p.id === this.controller.humanId);
+      const me = this.controller.match.state.players.find((p) => p.id === this.controller.humanId);
       this.order = me ? me.bay.map((b) => b.id) : [];
       this.slots = me?.slots ?? 3;
-      this.startTimer(m.state.settings.intermissionCardSelectSeconds, () => this.lockIn());
     }
+  }
+
+  override connectedCallback(): void {
+    super.connectedCallback();
+    // Refresh the countdown display; the FSM owns the authoritative dwell.
+    this.timer = window.setInterval(() => (this.refreshN = (this.refreshN + 1) % 1000), 200);
   }
 
   override disconnectedCallback(): void {
     super.disconnectedCallback();
-    this.stopTimer();
-  }
-
-  // ── Timer ──────────────────────────────────────────────────────────────────
-  private startTimer(secs: number, onEnd: () => void): void {
-    this.stopTimer();
-    this.deadline = performance.now() + secs * 1000;
-    this.lastTick = performance.now();
-    this.seconds = Math.ceil(secs);
-    this.timer = window.setInterval(() => {
-      const now = performance.now();
-      // Debug pause (solo only): roll the deadline forward by the elapsed slice
-      // so the countdown freezes and the timeout default never fires.
-      if (this.isPaused()) {
-        this.deadline += now - this.lastTick;
-        this.lastTick = now;
-        return;
-      }
-      this.lastTick = now;
-      const left = Math.max(0, this.deadline - now);
-      this.seconds = Math.ceil(left / 1000);
-      if (left <= 0) {
-        this.stopTimer();
-        onEnd();
-      }
-    }, 200);
-  }
-
-  /** Debug pause state, read through the controller (solo/local only). */
-  private isPaused(): boolean {
-    return this.controller instanceof LocalController && this.controller.paused;
-  }
-
-  private stopTimer(): void {
     if (this.timer) window.clearInterval(this.timer);
     this.timer = 0;
   }
 
-  // ── Reorder ──────────────────────────────────────────────────────────────
+  private get seconds(): number {
+    return Math.ceil(this.controller.match.state.subTimerRemaining);
+  }
+
+  // ── Reorder (committed to the host on every change) ──────────────────────────
+  private commit(): void {
+    this.controller.match.setPlayerBay(this.controller.humanId, this.order);
+  }
+
   private move(id: string, dir: -1 | 1): void {
     const i = this.order.indexOf(id);
     const j = i + dir;
@@ -92,6 +67,7 @@ export class AcIntermission extends AcElement {
     const next = [...this.order];
     [next[i], next[j]] = [next[j], next[i]];
     this.order = next;
+    this.commit();
   }
 
   private onDragStart(id: string): void {
@@ -109,27 +85,16 @@ export class AcIntermission extends AcElement {
     next.splice(idx, 0, this.dragId);
     this.order = next;
     this.dragId = null;
+    this.commit();
   }
 
-  // ── Phase transitions ──────────────────────────────────────────────────────
+  /** LOCK IN: commit the order; in solo, fast-forward the optimize dwell. */
   private lockIn(): void {
-    this.stopTimer();
-    const m = this.controller.match;
-    m.setPlayerBay(this.controller.humanId, this.order);
-    const lastId = m.computeLastPlaceId();
-    if (lastId === this.controller.humanId) {
-      this.sub = "ban";
-      this.startTimer(m.state.settings.sniperBanSeconds, () => this.pickBan(m.randomBanLetter()));
-    } else {
-      this.bannerName = m.state.players.find((p) => p.id === lastId)?.name ?? "Opponent";
-      this.sub = "ban-wait";
-      const wait = Math.min(2.5, m.state.settings.sniperBanSeconds);
-      this.startTimer(wait, () => this.pickBan(m.randomBanLetter()));
-    }
+    this.commit();
+    if (this.controller instanceof LocalController) this.controller.match.skipOptimize();
   }
 
   private pickBan(letter: string): void {
-    this.stopTimer();
     this.controller.match.applySniperBanAndAdvance(letter);
   }
 
@@ -201,25 +166,29 @@ export class AcIntermission extends AcElement {
   }
 
   private renderBanWait(): TemplateResult {
+    const m = this.controller.match;
+    const lastId = m.computeLastPlaceId();
+    const name = m.state.players.find((p) => p.id === lastId)?.name ?? "Opponent";
     return html`
       <div class="im-card ac-panel im-wait">
         <span class="ac-eyebrow">intermission · sniper ban</span>
         <div class="im-spinner"></div>
-        <h2 class="im-title">${this.bannerName} is choosing a banned letter…</h2>
+        <h2 class="im-title">${name} is choosing a banned letter…</h2>
+        <span class="im-timer">${this.seconds}s</span>
       </div>
     `;
   }
 
   override render(): TemplateResult {
-    return html`
-      <div class="overlay intermission">
-        ${this.sub === "optimize"
-          ? this.renderOptimize()
-          : this.sub === "ban"
-            ? this.renderBan()
-            : this.renderBanWait()}
-      </div>
-    `;
+    const m = this.controller.match;
+    const sub = m.state.intermissionPhase;
+    let body: TemplateResult | typeof nothing = nothing;
+    if (sub === "optimize" || sub === "tutorial") {
+      body = this.renderOptimize();
+    } else if (sub === "sniperBan") {
+      body = m.computeLastPlaceId() === this.controller.humanId ? this.renderBan() : this.renderBanWait();
+    }
+    return html`<div class="overlay intermission">${body}</div>`;
   }
 }
 

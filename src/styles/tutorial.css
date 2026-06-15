@@ -1,0 +1,88 @@
+/* Tutorial overlay — scripted Shiritori / Engine / Tax cards with a host-owned
+   dwell bar. Sits above the intermission optimize panel during its sub-phase. */
+
+.overlay.tutorial {
+  /* Above the countdown/intermission layers, with its own dim backdrop. */
+  z-index: 40;
+  background: color-mix(in srgb, var(--ac-bg-0, #06080f) 78%, transparent);
+}
+
+.tut-card {
+  width: min(94vw, 560px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  animation: ac-rise 0.4s ease-out both;
+}
+.tut-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(1.4rem, 4vw, 2rem);
+  letter-spacing: 0.02em;
+}
+.tut-lines {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.tut-lines li {
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: var(--ac-ink-soft);
+}
+
+.tut-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-top: var(--sp-2);
+}
+.tut-bar {
+  flex: 1;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+.tut-bar-fill {
+  height: 100%;
+  width: 100%;
+  transform-origin: left center;
+  background: var(--ac-cyan);
+  transition: transform 0.1s linear;
+}
+.tut-secs {
+  font-family: var(--font-mono);
+  font-weight: 800;
+  font-size: 1.1rem;
+  color: var(--ac-amber);
+  font-variant-numeric: tabular-nums;
+  min-width: 2.5rem;
+  text-align: right;
+}
+.tut-skip { min-width: 96px; }
+.tut-wait { font-size: 0.8rem; color: var(--ac-ink-faint); }
+
+/* Terminal multiplayer end (host left / socket closed). */
+.overlay.session-ended { z-index: 60; }
+.se-card {
+  width: min(92vw, 440px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  text-align: center;
+  animation: ac-rise 0.4s ease-out both;
+}
+.se-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(1.4rem, 4vw, 2rem);
+}
+.se-msg { margin: 0; color: var(--ac-ink-soft); }
