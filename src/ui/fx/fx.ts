@@ -63,16 +63,27 @@ class Fx {
     this.scene.eruption(x, y, intensity);
   }
 
+  /** Full-screen confetti rain — reserved for the game-over win celebration. */
   confetti(durationMs?: number): void {
     if (!this.scene || prefersReducedMotion()) return;
     this.scene.confetti(durationMs);
   }
 
-  /** Screen-shake the UI root. intensity 0..1. */
-  shake(intensity = 0.5): void {
-    const el = this.shakeTarget;
+  /** Confetti chips exploding outward from a point or DOM rect (the scoring
+   *  engine), then tumbling down — not a full-screen rain. intensity 0..1. */
+  confettiAt(target: Rectish | [number, number], intensity = 1): void {
+    if (!this.scene || prefersReducedMotion()) return;
+    const [x, y] = Array.isArray(target) ? target : this.center(target);
+    this.scene.confettiBurst(x, y, intensity);
+  }
+
+  /** Shake an element. intensity 0..1. Defaults to the UI root, but callers
+   *  pass a specific element (e.g. the scoring-engine theater) so only that
+   *  region jolts. Softer range than a full-screen jolt. */
+  shake(intensity = 0.5, target?: HTMLElement): void {
+    const el = target ?? this.shakeTarget;
     if (!el || prefersReducedMotion()) return;
-    const px = Math.round(3 + intensity * 12);
+    const px = Math.round(2 + intensity * 7);
     el.style.setProperty("--shake", `${px}px`);
     el.classList.remove("is-shaking");
     // Force reflow so the animation can restart if shakes stack.

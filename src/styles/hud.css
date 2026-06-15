@@ -134,18 +134,46 @@
   animation: ac-pulse 1.6s ease-in-out infinite;
 }
 
-/* ── Score replay (the signature) ──────────────────────────────────────── */
+/* ── Last-play theater (the signature) — a copy of whoever last submitted:
+   their engine, the walk over its cards, and the resulting score. ───────── */
 .sr {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.1rem;
-  min-height: 4.4rem;
-  justify-content: center;
+  gap: var(--sp-2);
+  min-height: 0;
   opacity: 0;
   transition: opacity 0.3s ease;
 }
-.sr.is-active { opacity: 1; }
+.sr.is-active {
+  opacity: 1;
+  padding: var(--sp-2) var(--sp-2) 0.6rem;
+  border-radius: var(--r-md);
+  border: 1px solid color-mix(in srgb, var(--sr-accent, var(--ac-cyan)) 32%, transparent);
+  border-top-width: 3px;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--sr-accent, var(--ac-cyan)) 9%, transparent),
+      transparent 60%
+    ),
+    var(--ac-panel);
+}
+.sr-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.8rem;
+}
+.sr-who {
+  font-family: var(--font-mono);
+  font-weight: 800;
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--sr-accent, var(--ac-cyan));
+  text-shadow: 0 0 12px color-mix(in srgb, var(--sr-accent, var(--ac-cyan)) 60%, transparent);
+}
 .sr-word {
   font-family: var(--font-mono);
   font-weight: 700;
@@ -154,11 +182,14 @@
   color: var(--ac-ink-soft);
   font-size: clamp(0.85rem, 3vw, 1.15rem);
 }
+/* The theater's engine copy: drop the bay's own head, center the cards. */
+.sr-bay .bay-head { display: none; }
+.sr-bay .bay-slots { justify-content: center; }
 .sr-num {
   font-family: var(--font-mono);
   font-weight: 800;
   font-variant-numeric: tabular-nums;
-  font-size: clamp(2.6rem, 9vw, 4.4rem);
+  font-size: clamp(2.2rem, 7vw, 3.6rem);
   line-height: 1;
   color: var(--ac-ink);
   transition: color 0.2s ease;

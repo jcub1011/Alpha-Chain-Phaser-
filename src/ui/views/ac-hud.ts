@@ -130,12 +130,9 @@ export class AcHud extends AcElement {
                     <div class="foe" style="--accent:${playerAccentVar(p.accentIndex)};">
                       <ac-engine-bay
                         compact
-                        live
                         label=${p.name}
                         .cards=${p.bay}
                         .slots=${p.slots}
-                        .controller=${c}
-                        playerId=${p.id}
                       ></ac-engine-bay>
                     </div>
                   `,

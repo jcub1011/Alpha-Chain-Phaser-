@@ -95,8 +95,8 @@ ac-card[flipped] .gc-flip {
   background:
     linear-gradient(
       157deg,
-      color-mix(in srgb, var(--gc-accent) 22%, transparent),
-      color-mix(in srgb, var(--gc-accent) 5%, transparent) 60%
+      color-mix(in srgb, var(--gc-card-color, var(--gc-accent)) 22%, transparent),
+      color-mix(in srgb, var(--gc-card-color, var(--gc-accent)) 5%, transparent) 60%
     ),
     var(--ac-panel-solid);
   box-shadow: var(--ac-drop-sm), inset 0 1px 0 rgba(255, 255, 255, 0.08);
@@ -126,27 +126,67 @@ ac-card[flipped] .gc-flip {
   color: var(--ac-ink-soft);
   overflow-y: auto;
 }
+.gc-front {
+  gap: calc(var(--gc-h) * 0.04);
+}
+/* Faint full-bleed glyph behind the content for silhouette recognition.
+   .gc has `isolation: isolate`, so z-index:-1 stays behind the in-flow content
+   yet above the card's gradient background. */
+.gc-watermark {
+  position: absolute;
+  z-index: -1;
+  right: -14%;
+  bottom: -14%;
+  width: 92%;
+  height: 92%;
+  color: var(--gc-card-color, var(--gc-accent));
+  opacity: 0.1;
+  pointer-events: none;
+}
 .gc-top {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 0.3rem;
 }
-.gc-ico {
-  width: calc(var(--gc-h) * 0.26);
-  height: calc(var(--gc-h) * 0.26);
-  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--gc-accent) 55%, transparent));
+.gc-ico-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  padding: calc(var(--gc-h) * 0.03);
+  border-radius: calc(var(--gc-h) * 0.05);
+  border: 2px solid var(--gc-card-color, var(--gc-accent));
+  color: var(--gc-card-color, var(--gc-accent));
+  background: color-mix(in srgb, var(--gc-card-color, var(--gc-accent)) 16%, transparent);
 }
-.gc-mag {
+.gc-ico {
+  width: calc(var(--gc-h) * 0.2);
+  height: calc(var(--gc-h) * 0.2);
+}
+.gc-chips {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: calc(var(--gc-h) * 0.022);
+  margin-left: auto;
+  max-width: 62%;
+}
+.gc-chip {
+  padding: 0.08em 0.42em;
+  border-radius: 0.35rem;
   font-family: var(--font-mono);
   font-weight: 800;
-  font-size: calc(var(--gc-h) * 0.115);
-  line-height: 1;
-  letter-spacing: -0.02em;
-  text-shadow: 0 0 10px color-mix(in srgb, currentColor 60%, transparent);
+  font-size: calc(var(--gc-h) * 0.066);
+  letter-spacing: 0.03em;
+  line-height: 1.25;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  color: var(--chip, var(--gc-accent));
+  background: color-mix(in srgb, var(--chip, var(--gc-accent)) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--chip, var(--gc-accent)) 55%, transparent);
 }
 .gc-name {
-  margin-top: auto;
   font-family: var(--font-display);
   font-weight: 700;
   font-size: calc(var(--gc-h) * 0.092);
@@ -154,6 +194,27 @@ ac-card[flipped] .gc-flip {
   letter-spacing: 0.01em;
   color: var(--ac-ink);
   text-wrap: balance;
+}
+.gc-front-desc {
+  margin: 0;
+  flex: 1 1 auto;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  overflow: hidden;
+  font-size: calc(var(--gc-h) * 0.07);
+  line-height: 1.3;
+  color: var(--ac-ink-soft);
+}
+.gc-flip-hint {
+  margin-top: auto;
+  align-self: center;
+  font-family: var(--font-mono);
+  font-size: calc(var(--gc-h) * 0.055);
+  letter-spacing: 0.08em;
+  color: var(--ac-ink-faint);
+  text-transform: uppercase;
 }
 .gc-new-badge {
   position: absolute;
@@ -201,6 +262,16 @@ ac-card[triggered] .gc {
 /* Compact cards (opponent bays) don't flip — hovering fades the rules text in
    as an overlay over the front, staying inside the bay's scroll container. */
 ac-card[compact] .gc-flip { cursor: default; }
+/* The tiny foe card keeps only the icon + magnitude chip + name on its face;
+   the full text lives in the hover-reveal back. */
+ac-card[compact] .gc-front-desc,
+ac-card[compact] .gc-flip-hint,
+ac-card[compact] .gc-chip:not(:first-child) {
+  display: none;
+}
+ac-card[compact] .gc-chip {
+  font-size: 0.56rem;
+}
 ac-card[compact] .gc-back {
   transform: none;
   backface-visibility: visible;

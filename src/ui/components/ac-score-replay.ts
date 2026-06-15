@@ -1,30 +1,38 @@
 /*
- * <ac-score-replay> — the signature moment. On a human submission it walks the
- * score breakdown left→right over the real bay cards (via the shared
- * runEngineReplay): each triggered card lifts and bursts, a chip pops off it
- * showing its point contribution, and the running total ramps up; skipped cards
- * dim. A taxed word slams to zero; a clean word erupts (+ confetti scaled to
- * magnitude). The whole run is a cancelable async sequencer — a new submission
- * or phase change aborts it and snaps the cards back to rest.
+ * <ac-score-replay> — the shared "last play" theater above the word entry. On
+ * ANY player's submission it renders a copy of that player's engine bay and
+ * walks the score breakdown left→right over those cards (via runEngineReplay):
+ * each triggered card lifts and bursts, a chip pops off it showing its point
+ * contribution, the running total ramps; skipped cards dim. A taxed word slams
+ * to zero; a clean word erupts (+ confetti) — both localized to this zone so the
+ * rest of the UI stays still. The last play stays on screen until the next
+ * submission replaces it; leaving the Round phase clears it. The whole run is a
+ * cancelable async sequencer — a new submission or phase change aborts it.
  */
 
-import { html, type TemplateResult } from "lit";
+import { html, nothing, type TemplateResult } from "lit";
 import { customElement, property, query, state } from "lit/decorators.js";
 import type { GameController } from "../../net/controller";
-import type { Submission } from "../../game/types";
-import { fmtScore } from "../app/util";
+import type { BayCard, Submission } from "../../game/types";
+import { fmtScore, playerAccentVar } from "../app/util";
 import { prefersReducedMotion } from "../../theme";
 import { fx } from "../fx/fx";
 import { AcElement } from "../app/AcElement";
 import { resetBayCards, runEngineReplay, sleep } from "./engine-replay";
+import "./ac-engine-bay";
 
 @customElement("ac-score-replay")
 export class AcScoreReplay extends AcElement {
   @property({ attribute: false }) controller!: GameController;
 
   @state() private active = false;
+  @state() private heading = "";
+  @state() private accent = "";
   @state() private word = "";
+  @state() private cards: BayCard[] = [];
+  @state() private slots = 3;
   @query(".sr-num") private numEl?: HTMLElement;
+  @query("ac-engine-bay") private bayEl?: HTMLElement & { updateComplete?: Promise<unknown> };
 
   private abort?: AbortController;
 
@@ -33,31 +41,26 @@ export class AcScoreReplay extends AcElement {
       this.clearSubs();
       const human = this.controller.humanId;
       this.listen(this.controller.events, "submission", ({ submission }) => {
-        if (submission.playerId === human) void this.run(submission);
+        void this.run(submission, submission.playerId === human);
       });
-      // Any phase change (turn passing into intermission/over) ends a run.
-      this.listen(this.controller.events, "phaseChanged", () => this.cancel());
+      // Leaving the Round phase (intermission / countdown / game over) clears it.
+      this.listen(this.controller.events, "phaseChanged", () => this.hide());
     }
   }
 
   override disconnectedCallback(): void {
     super.disconnectedCallback();
-    this.cancel();
+    this.abort?.abort();
   }
 
-  private cancel(): void {
+  private hide(): void {
     this.abort?.abort();
     this.resetCards();
     this.active = false;
   }
 
-  private bay(): Element | null {
-    return document.querySelector("ac-engine-bay.mine");
-  }
-
   private resetCards(): void {
-    const bay = this.bay();
-    if (bay) resetBayCards(bay);
+    if (this.bayEl) resetBayCards(this.bayEl);
   }
 
   /** Tween the big readout from `from` to `to` over `ms`, abortable. */
@@ -80,22 +83,32 @@ export class AcScoreReplay extends AcElement {
     });
   }
 
-  private async run(sub: Submission): Promise<void> {
+  private async run(sub: Submission, isHuman: boolean): Promise<void> {
     this.abort?.abort();
     const ac = new AbortController();
     this.abort = ac;
     const signal = ac.signal;
 
-    this.resetCards();
+    // Render a copy of the submitter's engine (their current bay matches the
+    // breakdown's step order — both flow from the same player state).
+    const player = this.controller.match.state.players.find((p) => p.id === sub.playerId);
+    this.cards = player ? [...player.bay] : [];
+    this.slots = player?.slots ?? this.cards.length;
+    this.heading = isHuman ? "YOUR ENGINE" : `${sub.displayName}'s engine`;
+    this.accent = playerAccentVar(sub.accentIndex);
     this.word = sub.word.toUpperCase();
     this.active = true;
+    this.numEl?.classList.remove("is-final", "is-taxed");
+
     await this.updateComplete;
+    await this.bayEl?.updateComplete; // ensure the copied cards are in the DOM
+    if (signal.aborted) return;
+    this.resetCards();
     if (this.numEl) this.numEl.textContent = fmtScore(sub.breakdown.seed);
 
     if (prefersReducedMotion()) {
       if (this.numEl) this.numEl.textContent = fmtScore(sub.score);
-      await sleep(900, signal);
-      if (!signal.aborted) this.active = false;
+      this.numEl?.classList.add(sub.taxed ? "is-taxed" : "is-final");
       return;
     }
 
@@ -107,11 +120,12 @@ export class AcScoreReplay extends AcElement {
 
     await sleep(260, signal);
 
-    const bay = this.bay();
-    if (bay) {
-      await runEngineReplay(bay, sub, {
+    const theater = this.querySelector<HTMLElement>(".sr") ?? undefined;
+    if (this.bayEl) {
+      await runEngineReplay(this.bayEl, sub, {
         signal,
         stepMs,
+        shakeTarget: theater,
         onStep: (step, prevRunning) =>
           this.ramp(prevRunning, step.runningScore, Math.min(stepMs * 0.7, 520), signal),
       });
@@ -123,31 +137,37 @@ export class AcScoreReplay extends AcElement {
       // Crash the pre-tax total down to zero.
       this.numEl?.classList.add("is-taxed");
       await this.ramp(sub.breakdown.finalBeforeTax, 0, 420, signal);
-      fx.shake(0.8);
-      await sleep(700, signal);
-      this.numEl?.classList.remove("is-taxed");
+      fx.shake(0.8, theater);
+      await sleep(500, signal);
     } else {
       if (this.numEl) this.numEl.textContent = fmtScore(sub.score);
       this.numEl?.classList.add("is-final");
-      if (this.numEl) {
-        const r = this.numEl.getBoundingClientRect();
+      const r = (this.bayEl ?? this.numEl)?.getBoundingClientRect();
+      if (r) {
         fx.eruption(r, Math.min(1, sub.score / 300));
-        if (sub.score >= 150) fx.confetti(900);
+        if (sub.score >= 150) fx.confettiAt(r, Math.min(1, sub.score / 300));
+        if (sub.score >= 120) fx.shake(Math.min(0.7, sub.score / 360), theater);
       }
-      await sleep(900, signal);
-      this.numEl?.classList.remove("is-final");
     }
 
     if (signal.aborted) return;
+    // Leave the finished play on screen (cards at rest) until the next one.
     this.resetCards();
-    this.active = false;
   }
 
   override render(): TemplateResult {
     return html`
-      <div class="sr ${this.active ? "is-active" : ""}">
-        <div class="sr-word">${this.word}</div>
-        <div class="sr-total"><span class="sr-num">0</span></div>
+      <div class="sr ${this.active ? "is-active" : ""}" style="--sr-accent:${this.accent};">
+        ${this.active
+          ? html`
+              <div class="sr-head">
+                <span class="sr-who">${this.heading}</span>
+                <span class="sr-word">${this.word}</span>
+              </div>
+              <ac-engine-bay class="sr-bay" .cards=${this.cards} .slots=${this.slots}></ac-engine-bay>
+              <div class="sr-total"><span class="sr-num">0</span></div>
+            `
+          : nothing}
       </div>
     `;
   }

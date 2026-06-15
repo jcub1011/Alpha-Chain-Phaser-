@@ -73,6 +73,9 @@ export interface EngineReplayOpts {
   stepMs: number;
   /** Compact opponent bays use lighter particle bursts and faster chips. */
   compact?: boolean;
+  /** Element to jolt on a big step (the scoring-engine zone), so only that
+   *  region shakes rather than the whole UI. Omit to skip the per-step shake. */
+  shakeTarget?: HTMLElement;
   /** Fired on each triggered step (after the chip/burst, before the rest beat)
    *  so callers can ramp their own running-score readout from prev → step. */
   onStep?: (step: ScoreStep, prevRunning: number, delta: number) => Promise<void> | void;
@@ -86,7 +89,7 @@ export async function runEngineReplay(
   opts: EngineReplayOpts,
 ): Promise<void> {
   if (prefersReducedMotion()) return;
-  const { signal, stepMs, compact = false, onStep } = opts;
+  const { signal, stepMs, compact = false, onStep, shakeTarget } = opts;
   const cards = bayCards(bayEl);
   const steps = sub.breakdown.steps;
   const total = Math.max(sub.breakdown.finalScore, sub.breakdown.finalBeforeTax, 1);
@@ -114,7 +117,7 @@ export async function runEngineReplay(
       popChip(rect, delta, step.valueText, color, compact);
       fx.burstAt(rect, intensity * (compact ? 0.6 : 1), colorNum);
     }
-    if (!compact && delta >= 60) fx.shake(Math.min(1, delta / 200));
+    if (!compact && shakeTarget && delta >= 60) fx.shake(Math.min(0.7, delta / 220), shakeTarget);
     await onStep?.(step, prev, delta);
     prev = step.runningScore;
     await sleep(stepMs * 0.3, signal);

@@ -12,6 +12,7 @@ export const CARD_LIBRARY: Record<string, ModifierCard> = {
   TheAnchor: {
     id: "TheAnchor",
     name: "The Anchor",
+    color: "#4f9dff",
     family: "letter",
     op: "additive",
     magnitudeText: "+10",
@@ -22,6 +23,7 @@ export const CARD_LIBRARY: Record<string, ModifierCard> = {
   Vanilla: {
     id: "Vanilla",
     name: "Vanilla",
+    color: "#f2e2a8",
     family: "letter",
     op: "additive",
     magnitudeText: "+1/ltr",
@@ -32,6 +34,7 @@ export const CARD_LIBRARY: Record<string, ModifierCard> = {
   ConsonantCrunch: {
     id: "ConsonantCrunch",
     name: "Consonant Crunch",
+    color: "#ff7a59",
     family: "letter",
     op: "additive",
     magnitudeText: "+2/con",
@@ -42,6 +45,7 @@ export const CARD_LIBRARY: Record<string, ModifierCard> = {
   BrickLayer: {
     id: "BrickLayer",
     name: "Brick Layer",
+    color: "#d96a3c",
     family: "letter",
     op: "additive",
     magnitudeText: "+1/ltr",
@@ -52,6 +56,7 @@ export const CARD_LIBRARY: Record<string, ModifierCard> = {
   HighRoller: {
     id: "HighRoller",
     name: "High Roller",
+    color: "#ff5ca0",
     family: "economy",
     op: "additive",
     magnitudeText: "+20",
@@ -63,6 +68,7 @@ export const CARD_LIBRARY: Record<string, ModifierCard> = {
   TheArchitect: {
     id: "TheArchitect",
     name: "The Architect",
+    color: "#8f8cff",
     family: "letter",
     op: "multiplicative",
     magnitudeText: "×3",
@@ -73,6 +79,7 @@ export const CARD_LIBRARY: Record<string, ModifierCard> = {
   VowelSurge: {
     id: "VowelSurge",
     name: "Vowel Surge",
+    color: "#2ed6b6",
     family: "letter",
     op: "multiplicative",
     magnitudeText: "×3",
@@ -83,6 +90,7 @@ export const CARD_LIBRARY: Record<string, ModifierCard> = {
   PerfectLink: {
     id: "PerfectLink",
     name: "Perfect Link",
+    color: "#57e08a",
     family: "letter",
     op: "multiplicative",
     magnitudeText: "×1.5",
@@ -93,6 +101,7 @@ export const CARD_LIBRARY: Record<string, ModifierCard> = {
   Sesquipedalian: {
     id: "Sesquipedalian",
     name: "Sesquipedalian",
+    color: "#b06bff",
     family: "letter",
     op: "multiplicative",
     magnitudeText: "×5",
@@ -104,6 +113,7 @@ export const CARD_LIBRARY: Record<string, ModifierCard> = {
   TheVault: {
     id: "TheVault",
     name: "The Vault",
+    color: "#9fb3d6",
     family: "clock",
     op: "multiplicative",
     magnitudeText: "×1.5",
@@ -115,6 +125,7 @@ export const CARD_LIBRARY: Record<string, ModifierCard> = {
   Redline: {
     id: "Redline",
     name: "Redline",
+    color: "#ff4d4d",
     family: "clock",
     op: "multiplicative",
     magnitudeText: "×2",
@@ -127,6 +138,7 @@ export const CARD_LIBRARY: Record<string, ModifierCard> = {
   HeatSink: {
     id: "HeatSink",
     name: "The Heat Sink",
+    color: "#7fd8ff",
     family: "clock",
     op: "fx",
     magnitudeText: "FX",
@@ -138,6 +150,7 @@ export const CARD_LIBRARY: Record<string, ModifierCard> = {
   TaxCollector: {
     id: "TaxCollector",
     name: "Tax Collector",
+    color: "#2fa85a",
     family: "economy",
     op: "fx",
     magnitudeText: "FX",

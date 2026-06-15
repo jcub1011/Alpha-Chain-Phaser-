@@ -16,6 +16,7 @@ export class FxScene extends Phaser.Scene {
   private burst!: Emitter;
   private spark!: Emitter;
   private confettiEmitter!: Emitter;
+  private confettiPop!: Emitter;
 
   constructor() {
     super("Fx");
@@ -62,6 +63,21 @@ export class FxScene extends Phaser.Scene {
       emitting: false,
     });
     this.confettiEmitter.setDepth(9);
+
+    // Confetti chips exploding radially from a point, then tumbling down — the
+    // localized scoring-engine celebration (no full-window spread).
+    this.confettiPop = this.add.particles(0, 0, "fx-rect", {
+      speed: { min: 120, max: 380 },
+      angle: { min: 0, max: 360 },
+      gravityY: 520,
+      scale: { min: 0.6, max: 1.2 },
+      rotate: { start: 0, end: 360 },
+      alpha: { start: 1, end: 0 },
+      lifespan: { min: 900, max: 1600 },
+      tint: [0x00e5ff, 0xff2e8b, 0x14f195, 0xffd23a, 0xb97bff],
+      emitting: false,
+    });
+    this.confettiPop.setDepth(9);
   }
 
   /** Build the small particle textures procedurally (no asset loading). */
@@ -109,5 +125,13 @@ export class FxScene extends Phaser.Scene {
   confetti(durationMs = 1100): void {
     this.confettiEmitter.start();
     this.time.delayedCall(durationMs, () => this.confettiEmitter.stop());
+  }
+
+  /** A burst of confetti chips exploding radially from a point (the scoring
+   *  engine), then tumbling down under gravity — localized, not a full-screen
+   *  rain. Uses the same chip texture/tints as the rain emitter. */
+  confettiBurst(x: number, y: number, intensity: number): void {
+    const i = Phaser.Math.Clamp(intensity, 0, 1);
+    this.confettiPop.explode(Math.round(18 + i * 42), x, y);
   }
 }

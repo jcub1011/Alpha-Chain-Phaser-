@@ -49,6 +49,13 @@ export interface ModifierCard {
   /** Static chip shown on the card face, e.g. "+10", "×1.5", "FX". */
   magnitudeText: string;
   description: string;
+  /**
+   * Hand-tuned per-card identity color (the `--gc-card-color` that tints the
+   * gradient / icon box / watermark), distinct from the standardized family
+   * accent (the border). Ported from the Blazor `CardStyles.CardColor`. Falls
+   * back to the family accent when unset.
+   */
+  color?: string;
   /** Owner-clock modifier applied at turn arm (glass-cannon / utility cards). */
   clock?: ClockModifier;
   /** Reactive economy tag handled by match logic, not the scoring fold. */

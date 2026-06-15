@@ -85,7 +85,9 @@ ac-app {
   60% { transform: translate(calc(var(--shake) * -0.6), var(--shake)); }
   80% { transform: translate(calc(var(--shake) * 0.5), calc(var(--shake) * -0.4)); }
 }
-ac-app.is-shaking {
+/* Generic — fx.shake() targets the UI root by default, or a specific region
+   (e.g. the scoring-engine theater) so only that area jolts. */
+.is-shaking {
   animation: ac-shake 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97);
 }
 
