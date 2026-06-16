@@ -232,7 +232,7 @@ export class KnockBoxController implements GameController {
         break;
       case "reorderBay":
         if (h.state.phase === "Intermission" && h.state.intermissionPhase === "optimize") {
-          h.setPlayerBay(fromId, action.order);
+          h.setPlayerBay(fromId, action.engine, action.discard);
           // setPlayerBay emits no match event, so the trailing flush() would no-op
           // and clients would never see the reorder. Force a snapshot.
           this.flush(true);

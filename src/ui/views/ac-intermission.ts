@@ -23,15 +23,24 @@ import "../components/ac-card";
 export class AcIntermission extends AcElement {
   @property({ attribute: false }) controller!: GameController;
 
-  @state() private order: string[] = [];
+  @state() private engine: string[] = [];
+  @state() private discard: string[] = [];
   @state() private slots = 3;
 
   private dragId: string | null = null;
+  private dragFrom: "engine" | "discard" | null = null;
 
   override willUpdate(changed: PropertyValues): void {
     if (changed.has("controller") && this.controller) {
       const me = this.controller.match.state.players.find((p) => p.id === this.controller.humanId);
-      this.order = me ? me.bay.map((b) => b.id) : [];
+      // Split the bay into the two zones. Before any edit a card has no explicit
+      // flag, so newly-dealt cards (isNew) default into the discard bin; once the
+      // player commits, the stored `discarded` flag drives the split.
+      const engine: string[] = [];
+      const discard: string[] = [];
+      for (const b of me?.bay ?? []) ((b.discarded ?? !!b.isNew) ? discard : engine).push(b.id);
+      this.engine = engine;
+      this.discard = discard;
       this.slots = me?.slots ?? 3;
       // Re-render the countdown whenever the synced sub-timer ticks; the FSM owns
       // the authoritative dwell (per-frame event, never broadcast over the network).
@@ -44,36 +53,101 @@ export class AcIntermission extends AcElement {
     return Math.ceil(this.controller.match.state.subTimerRemaining);
   }
 
-  // ── Reorder (committed to the host on every change) ──────────────────────────
+  // ── Reorder / discard (committed to the host on every change) ────────────────
   private commit(): void {
-    this.controller.match.setPlayerBay(this.controller.humanId, this.order);
+    this.controller.match.setPlayerBay(this.controller.humanId, this.engine, this.discard);
   }
 
+  /** Nudge-swap a card with its neighbour, within the engine only. */
   private move(id: string, dir: -1 | 1): void {
-    const i = this.order.indexOf(id);
+    const next = [...this.engine];
+    const i = next.indexOf(id);
     const j = i + dir;
-    if (i < 0 || j < 0 || j >= this.order.length) return;
-    const next = [...this.order];
+    if (i < 0 || j < 0 || j >= next.length) return;
     [next[i], next[j]] = [next[j], next[i]];
-    this.order = next;
+    this.engine = next;
     this.commit();
   }
 
-  private onDragStart(id: string): void {
-    this.dragId = id;
+  /** ✕ — send an engine card to the discard bin. */
+  private discardCard(id: string): void {
+    if (!this.engine.includes(id)) return;
+    this.engine = this.engine.filter((x) => x !== id);
+    this.discard = [...this.discard, id];
+    this.commit();
   }
 
-  private onDrop(targetId: string): void {
-    if (!this.dragId || this.dragId === targetId) return;
-    const from = this.order.indexOf(this.dragId);
-    const to = this.order.indexOf(targetId);
-    const next = this.order.filter((x) => x !== this.dragId);
-    // Insert after the target when dragging rightward, before it otherwise —
-    // so a card dragged onto the last slot lands at the very end of the list.
-    const idx = next.indexOf(targetId) + (from < to ? 1 : 0);
-    next.splice(idx, 0, this.dragId);
-    this.order = next;
+  /** ＋ — pull a card back into the engine when there's a free slot. */
+  private restoreCard(id: string): void {
+    if (this.engine.length >= this.slots || !this.discard.includes(id)) return;
+    this.discard = this.discard.filter((x) => x !== id);
+    this.engine = [...this.engine, id];
+    this.commit();
+  }
+
+  private onDragStart(id: string, from: "engine" | "discard"): void {
+    this.dragId = id;
+    this.dragFrom = from;
+  }
+
+  private endDrag(): void {
     this.dragId = null;
+    this.dragFrom = null;
+  }
+
+  /** Drop onto a card: reorder within the same zone, or slide across zones. */
+  private onDropCard(e: DragEvent, targetId: string, targetZone: "engine" | "discard"): void {
+    e.preventDefault();
+    e.stopPropagation(); // don't also trigger the zone's empty-area drop
+    const id = this.dragId;
+    const from = this.dragFrom;
+    if (!id || !from || id === targetId) return this.endDrag();
+
+    if (from === targetZone) {
+      // Same zone: insert the dragged card at the target's position (others shift,
+      // but only within this zone — nothing spills across the boundary).
+      const list = [...(from === "engine" ? this.engine : this.discard)];
+      const fromIdx = list.indexOf(id);
+      const toIdx = list.indexOf(targetId);
+      if (fromIdx < 0 || toIdx < 0) return this.endDrag();
+      list.splice(fromIdx, 1);
+      list.splice(list.indexOf(targetId) + (fromIdx < toIdx ? 1 : 0), 0, id);
+      if (from === "engine") this.engine = list;
+      else this.discard = list;
+    } else if (targetZone === "engine") {
+      // Discard → engine: insert before the target; the rest slide right. If that
+      // overflows the engine, the last card slides out into the discard bin.
+      const engine = [...this.engine];
+      engine.splice(engine.indexOf(targetId), 0, id);
+      let discard = this.discard.filter((x) => x !== id);
+      while (engine.length > this.slots) discard = [engine.pop()!, ...discard];
+      this.engine = engine;
+      this.discard = discard;
+    } else {
+      // Engine → discard: insert before the target; the engine just shrinks.
+      const discard = [...this.discard];
+      discard.splice(discard.indexOf(targetId), 0, id);
+      this.discard = discard;
+      this.engine = this.engine.filter((x) => x !== id);
+    }
+    this.endDrag();
+    this.commit();
+  }
+
+  /** Drop onto a zone's empty area: move the card into that zone (no swap). */
+  private onDropZone(zone: "engine" | "discard"): void {
+    const id = this.dragId;
+    const from = this.dragFrom;
+    if (!id || !from || from === zone) return this.endDrag();
+    if (zone === "engine") {
+      if (this.engine.length >= this.slots) return this.endDrag(); // no free slot
+      this.discard = this.discard.filter((x) => x !== id);
+      this.engine = [...this.engine, id];
+    } else {
+      this.engine = this.engine.filter((x) => x !== id);
+      this.discard = [...this.discard, id];
+    }
+    this.endDrag();
     this.commit();
   }
 
@@ -88,45 +162,94 @@ export class AcIntermission extends AcElement {
   }
 
   // ── Render ───────────────────────────────────────────────────────────────
+  private renderEngineSlot(id: string, i: number): TemplateResult {
+    return html`
+      <div
+        class="im-slot"
+        draggable="true"
+        @dragstart=${() => this.onDragStart(id, "engine")}
+        @dragover=${(e: DragEvent) => e.preventDefault()}
+        @drop=${(e: DragEvent) => this.onDropCard(e, id, "engine")}
+      >
+        <span class="im-slot-no">${i + 1}</span>
+        <ac-card .cardId=${id}></ac-card>
+        <div class="im-actions">
+          <button @click=${() => this.move(id, -1)} aria-label="move left">◄</button>
+          <button @click=${() => this.move(id, 1)} aria-label="move right">►</button>
+          <button class="im-x" @click=${() => this.discardCard(id)} aria-label="discard">✕</button>
+        </div>
+      </div>
+    `;
+  }
+
+  private renderDiscardSlot(id: string): TemplateResult {
+    const full = this.engine.length >= this.slots;
+    return html`
+      <div
+        class="im-slot is-discard"
+        draggable="true"
+        @dragstart=${() => this.onDragStart(id, "discard")}
+        @dragover=${(e: DragEvent) => e.preventDefault()}
+        @drop=${(e: DragEvent) => this.onDropCard(e, id, "discard")}
+      >
+        <ac-card .cardId=${id}></ac-card>
+        <div class="im-actions">
+          <button
+            class="im-restore"
+            ?disabled=${full}
+            title=${full ? "Engine is full — swap a card out first" : "Keep in engine"}
+            @click=${() => this.restoreCard(id)}
+            aria-label="keep in engine"
+          >
+            ＋ keep
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
   private renderOptimize(): TemplateResult {
+    const free = Math.max(0, this.slots - this.engine.length);
     return html`
       <div class="im-card ac-panel">
         <header class="im-head">
           <span class="ac-eyebrow">intermission · optimize</span>
           <h2 class="im-title">Tune your engine</h2>
           <p class="im-sub">
-            Cards score left → right. Drag or use ◄ ► — anything past slot ${this.slots} is
-            discarded.
+            Cards score left → right. Drag within the engine to reorder, or use ◄ ►. New cards
+            start in the discard bin — drag one into the engine to slot it in (the rest slide
+            over), or press ＋. Anything left in the bin is discarded when the timer ends.
           </p>
           <span class="im-timer">${this.seconds}s</span>
         </header>
 
-        <div class="im-bay">
-          ${this.order.map((id, i) => {
-            const discard = i >= this.slots;
-            return html`
-              <div
-                class="im-slot ${discard ? "is-discard" : ""}"
-                draggable="true"
-                @dragstart=${() => this.onDragStart(id)}
-                @dragover=${(e: DragEvent) => e.preventDefault()}
-                @drop=${() => this.onDrop(id)}
-              >
-                <span class="im-slot-no">${discard ? "✕" : i + 1}</span>
-                <ac-card .cardId=${id}></ac-card>
-                <div class="im-nudge">
-                  <button @click=${() => this.move(id, -1)} aria-label="move left">◄</button>
-                  <button @click=${() => this.move(id, 1)} aria-label="move right">►</button>
-                </div>
-              </div>
-              ${i === this.slots - 1 && this.order.length > this.slots
-                ? html`<div class="im-divider" aria-hidden="true"></div>`
-                : nothing}
-            `;
-          })}
-          ${this.order.length === 0
-            ? html`<p class="im-empty">No cards yet — they're dealt at the next intermission.</p>`
-            : nothing}
+        <div
+          class="im-zone im-engine"
+          @dragover=${(e: DragEvent) => e.preventDefault()}
+          @drop=${() => this.onDropZone("engine")}
+        >
+          <span class="im-zone-label">Engine · ${this.engine.length}/${this.slots}</span>
+          <div class="im-zone-cards">
+            ${this.engine.map((id, i) => this.renderEngineSlot(id, i))}
+            ${Array.from(
+              { length: free },
+              () => html`<div class="im-empty-slot" aria-hidden="true">empty</div>`,
+            )}
+          </div>
+        </div>
+
+        <div
+          class="im-zone im-bin"
+          @dragover=${(e: DragEvent) => e.preventDefault()}
+          @drop=${() => this.onDropZone("discard")}
+        >
+          <span class="im-zone-label">Discard bin · removed when the timer ends</span>
+          <div class="im-zone-cards">
+            ${this.discard.map((id) => this.renderDiscardSlot(id))}
+            ${this.discard.length === 0
+              ? html`<p class="im-empty">Empty — drag a card here or press ✕ to discard it.</p>`
+              : nothing}
+          </div>
         </div>
 
         <button class="ac-btn im-lock" @click=${() => this.lockIn()}>LOCK IN</button>

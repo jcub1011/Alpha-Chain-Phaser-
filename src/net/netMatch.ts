@@ -102,8 +102,8 @@ export class NetMatch implements MatchLike {
   }
 
   // ── Mutators → host intents (guests never mutate authoritative state) ──
-  setPlayerBay(_playerId: string, orderedIds: string[]): void {
-    this.sendIntent({ kind: "reorderBay", order: orderedIds });
+  setPlayerBay(_playerId: string, engineIds: string[], discardIds: string[]): void {
+    this.sendIntent({ kind: "reorderBay", engine: engineIds, discard: discardIds });
   }
   applySniperBanAndAdvance(letter: string): void {
     this.sendIntent({ kind: "sniperBan", letter });

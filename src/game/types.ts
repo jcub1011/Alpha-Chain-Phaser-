@@ -115,6 +115,9 @@ export interface BayCard {
   id: string;
   /** Set true the era a card was dealt, for the "NEW" highlight. */
   isNew?: boolean;
+  /** True while the card sits in the optimize discard bin; the card is removed
+   *  when the optimize sub-phase completes. Absent outside optimize. */
+  discarded?: boolean;
 }
 
 export interface PlayerState {

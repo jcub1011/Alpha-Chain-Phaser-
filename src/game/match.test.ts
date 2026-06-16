@@ -99,7 +99,7 @@ describe("MatchController", () => {
     expect(m2.state.requiredLetter).toBe("");
   });
 
-  it("reorders the full bay (overflow included) and trims to the first slots on optimize", () => {
+  it("keeps the engine order and drops the discard bin on optimize", () => {
     const m2 = makeMatch({ preRoundCountdownSeconds: 1, eraInterval: 1, eraCount: 3 });
     m2.start();
     m2.tick(1);
@@ -112,15 +112,46 @@ describe("MatchController", () => {
     const p1 = m2.state.players[0];
     p1.slots = 2;
     p1.bay = [{ id: "A" }, { id: "B" }, { id: "C" }];
-    // Rescue the overflow card C to the front: the full order is retained (no
-    // premature slice), so the player can keep rearranging it during optimize.
-    m2.setPlayerBay("p1", ["C", "A", "B"]);
+    // Engine [C, A] in that order, B parked in the discard bin. The full set is
+    // retained (with flags) so the player can keep rearranging during optimize.
+    m2.setPlayerBay("p1", ["C", "A"], ["B"]);
     expect(p1.bay.map((b) => b.id)).toEqual(["C", "A", "B"]);
+    expect(p1.bay.map((b) => !!b.discarded)).toEqual([false, false, true]);
 
-    // Completing optimize keeps the FIRST `slots` cards (drops the rightmost),
-    // matching the optimize UI's "anything past slot N is discarded".
+    // Completing optimize drops the discarded card, keeping the engine order.
     m2.skipOptimize();
     expect(p1.bay.map((b) => b.id)).toEqual(["C", "A"]);
+  });
+
+  it("lets a player keep fewer cards than their slot capacity", () => {
+    const m2 = makeMatch({ preRoundCountdownSeconds: 1, eraInterval: 1, eraCount: 3 });
+    m2.start();
+    m2.tick(1);
+    m2.submitWord("p1", "cat");
+    m2.submitWord("p2", "tiger");
+    m2.tick(2.001);
+
+    const p1 = m2.state.players[0];
+    p1.slots = 3;
+    p1.bay = [{ id: "A" }, { id: "B" }, { id: "C" }];
+    m2.setPlayerBay("p1", ["B"], ["A", "C"]); // keep only one, discard the rest
+    m2.skipOptimize();
+    expect(p1.bay.map((b) => b.id)).toEqual(["B"]);
+  });
+
+  it("falls back to trimming the first slots when the player never edits", () => {
+    const m2 = makeMatch({ preRoundCountdownSeconds: 1, eraInterval: 1, eraCount: 3 });
+    m2.start();
+    m2.tick(1);
+    m2.submitWord("p1", "cat");
+    m2.submitWord("p2", "tiger");
+    m2.tick(2.001);
+
+    const p1 = m2.state.players[0];
+    p1.slots = 2;
+    p1.bay = [{ id: "A" }, { id: "B" }, { id: "C" }]; // no setPlayerBay → no flags
+    m2.skipOptimize();
+    expect(p1.bay.map((b) => b.id)).toEqual(["A", "B"]);
   });
 
   it("times out the current player and skips their turn (no score)", () => {

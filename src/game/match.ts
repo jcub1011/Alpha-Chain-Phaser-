@@ -594,12 +594,16 @@ export class MatchController {
     this.setIntermissionPhase("optimize", null);
   }
 
-  /** Optimize timer elapsed (or was skipped): trim overflow, then ban (via Tax). */
+  /** Optimize timer elapsed (or was skipped): drop the discard bin, then ban (via Tax). */
   private completeOptimize(): void {
-    // Drop overflow keeping the FIRST `slots` cards — matching the optimize UI
-    // ("anything past slot N is discarded"). Bots are already trimmed to capacity
-    // at the intermission event (autoTrimBay), so this is a no-op for them.
-    for (const p of this.state.players) if (p.bay.length > p.slots) p.bay = p.bay.slice(0, p.slots);
+    // Remove cards the player parked in the discard bin, then defensively trim to
+    // capacity. A player who never interacted has no `discarded` flags, so the
+    // filter is a no-op and the bay simply trims to the first `slots` (the AFK
+    // fallback). Bots are already trimmed at the intermission event (autoTrimBay).
+    for (const p of this.state.players) {
+      p.bay = p.bay.filter((b) => !b.discarded);
+      if (p.bay.length > p.slots) p.bay = p.bay.slice(0, p.slots);
+    }
     if (this.shouldShowTutorial("tax")) this.enterIntermissionTutorial("tax");
     else this.beginSniperBan();
   }
@@ -659,20 +663,32 @@ export class MatchController {
     return last?.id ?? "";
   }
 
-  /** Replace a player's bay with an explicit ordering (used by reorder/discard UI).
-   *  The full ordering is kept (overflow included) so the player can freely
-   *  rearrange cards past their slot capacity during optimize; the trim to `slots`
-   *  happens once, when the optimize sub-phase completes (completeOptimize). */
-  setPlayerBay(playerId: string, orderedIds: string[]): void {
+  /** Replace a player's bay with an explicit engine/discard split (the optimize UI).
+   *  The bay stores engine cards first (discarded: false) then the discard bin
+   *  (discarded: true); discarded cards are dropped once optimize completes
+   *  (completeOptimize). The full set is kept until then so the player can freely
+   *  move cards between the engine and the bin. */
+  setPlayerBay(playerId: string, engineIds: string[], discardIds: string[]): void {
     const p = this.state.players.find((x) => x.id === playerId);
     if (!p) return;
     const owned = new Map(p.bay.map((b) => [b.id, b] as const));
     const seen = new Set<string>();
-    const next = orderedIds
-      .filter((id) => owned.has(id) && !seen.has(id) && (seen.add(id), true))
-      .map((id) => owned.get(id)!);
-    // Defensive: append any owned card the caller omitted so cards are never lost.
-    for (const b of p.bay) if (!seen.has(b.id)) next.push(b);
+    const take = (id: string, discarded: boolean): BayCard | null => {
+      if (!owned.has(id) || seen.has(id)) return null;
+      seen.add(id);
+      return { ...owned.get(id)!, discarded };
+    };
+    const next: BayCard[] = [];
+    for (const id of engineIds) {
+      const b = take(id, false);
+      if (b) next.push(b);
+    }
+    for (const id of discardIds) {
+      const b = take(id, true);
+      if (b) next.push(b);
+    }
+    // Defensive: keep any owned card the caller omitted (never silently lost).
+    for (const b of p.bay) if (!seen.has(b.id)) next.push({ ...b, discarded: false });
     p.bay = next;
   }
 
