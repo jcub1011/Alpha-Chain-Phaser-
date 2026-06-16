@@ -11,7 +11,7 @@ import type { Dictionary } from "../../game/dictionary";
 import type { AlphaChainSettings, GamePhase } from "../../game/types";
 import { LocalController } from "../../net/localController";
 import { KnockBoxController } from "../../net/knockBoxController";
-import { detectLaunch } from "../../net/launch";
+import type { LaunchMode } from "../../net/launch";
 import type { GameController } from "../../net/controller";
 import { fx } from "../fx/fx";
 import { AcElement } from "./AcElement";
@@ -33,6 +33,9 @@ const MAX_DT = 0.05;
 export class AcApp extends AcElement {
   @property({ attribute: false }) dict?: Dictionary;
   @property({ attribute: false }) settings!: AlphaChainSettings;
+  /** How the game was launched — resolved once at boot (main.ts), never re-derived
+   *  here, because the KnockBox plugin scrubs the ticket from location.hash on start. */
+  @property({ attribute: false }) launchMode: LaunchMode = "solo";
 
   @state() private controller?: GameController;
   @state() private phase: GamePhase = "Setup";
@@ -59,18 +62,27 @@ export class AcApp extends AcElement {
   }
 
   override willUpdate(changed: Map<PropertyKey, unknown>): void {
-    // Once the dictionary lands, set up the multiplayer controller if we were
-    // launched for the KnockBox network (platform ticket or ?kbLocal=tab).
-    if ((changed.has("dict") || changed.has("settings")) && this.dict && !this.net) {
-      if (detectLaunch() !== "solo") this.setupNet();
+    // A networked launch must NEVER show the solo bot lobby. As soon as we know the
+    // mode is networked, switch to the multiplayer surface (which shows a connecting
+    // state until the peer attaches) and wire up the controller once the dict lands.
+    if ((changed.has("launchMode") || changed.has("dict")) && this.launchMode !== "solo") {
+      if (this.screen === "lobby") this.screen = "netlobby";
+      if (this.dict && !this.net) this.setupNet();
     }
   }
 
-  /** Create the networked controller once the KnockBox plugin is attached. */
-  private setupNet(retries = 20): void {
+  /** Create the networked controller once the KnockBox plugin is attached. The peer
+   *  appears a few frames into Phaser's boot, so we poll briefly. If it never shows
+   *  we surface the session-ended error rather than falling back to the solo lobby. */
+  private setupNet(retries = 50): void {
+    if (this.net) return;
     const peer = fx.knockbox();
     if (!peer) {
-      if (retries > 0) window.setTimeout(() => this.setupNet(retries - 1), 60);
+      if (retries > 0) {
+        window.setTimeout(() => this.setupNet(retries - 1), 60);
+      } else {
+        this.sessionEnded = "Couldn't connect to the lobby. Please reload to try again.";
+      }
       return;
     }
     const net = new KnockBoxController(peer, this.dict!);
@@ -182,12 +194,25 @@ export class AcApp extends AcElement {
         </div>
       `;
     }
-    if (this.screen === "netlobby" && this.net) {
-      return html`<ac-net-lobby
-        .controller=${this.net}
-        @ac-net-start=${this.onNetStart}
-      ></ac-net-lobby>`;
+    // Networked launch (platform / local-tab): the multiplayer lobby, or a connecting
+    // placeholder until the peer attaches. Never the solo bot lobby.
+    if (this.launchMode !== "solo" && this.screen !== "match") {
+      return this.net
+        ? html`<ac-net-lobby
+            .controller=${this.net}
+            @ac-net-start=${this.onNetStart}
+          ></ac-net-lobby>`
+        : html`
+            <div class="overlay session-ended">
+              <div class="se-card ac-panel">
+                <span class="ac-eyebrow">multiplayer</span>
+                <h2 class="se-title">Connecting…</h2>
+                <p class="se-msg">Joining the lobby.</p>
+              </div>
+            </div>
+          `;
     }
+    // Solo launch: the bot lobby until a match is running.
     if (this.screen === "lobby" || !this.controller) {
       return html`<ac-lobby .settings=${this.settings} @ac-start=${this.onStart}></ac-lobby>`;
     }

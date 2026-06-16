@@ -14,6 +14,11 @@ import "./ui/app/ac-app";
 import type { AcApp } from "./ui/app/ac-app";
 
 async function boot(): Promise<void> {
+  // 0. Resolve the launch mode ONCE, up front. The KnockBox plugin scrubs the
+  //    ticket out of location.hash the moment it starts, so detectLaunch() is only
+  //    reliable before the Phaser game boots — capture it here and thread it down.
+  const launchMode = detectLaunch();
+
   // 1. Lexicon (the large download) + card icon sprite, in parallel.
   const [wordsRes, spriteRes] = await Promise.all([
     fetch("assets/words.txt"),
@@ -38,10 +43,11 @@ async function boot(): Promise<void> {
 
   // 3. Boot the Phaser FX overlay into #fx, registering the KnockBox networking
   //    plugin when launched for multiplayer (platform ticket or ?kbLocal=tab).
-  fx.init("fx", detectLaunch());
+  fx.init("fx", launchMode);
 
   // 4. Hand the dictionary + settings to the app shell.
   const app = document.querySelector("ac-app") as AcApp;
+  app.launchMode = launchMode;
   app.dict = dict;
   app.settings = { ...DEFAULT_SETTINGS };
   fx.setShakeTarget(app);
