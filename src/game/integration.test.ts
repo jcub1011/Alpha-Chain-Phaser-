@@ -66,6 +66,11 @@ describe("full match (integration)", () => {
       } else if (s.phase === "Countdown") {
         m.tick(1);
       } else if (s.phase === "Round") {
+        // Era-end settle: phase stays Round but submits are refused; tick it out.
+        if (m.isSettling()) {
+          m.tick(1);
+          continue;
+        }
         const word = chooseBotWord(dict, {
           requiredLetter: s.requiredLetter,
           usedWords: s.usedWords,

@@ -2,9 +2,9 @@
    dwell bar. Sits above the intermission optimize panel during its sub-phase. */
 
 .overlay.tutorial {
-  /* Above the countdown/intermission layers, with its own dim backdrop. */
+  /* Above the countdown/intermission layers, with its own solid backdrop. */
   z-index: 40;
-  background: color-mix(in srgb, var(--ac-bg-0, #06080f) 78%, transparent);
+  background: var(--ac-bg-0, #06080f);
 }
 
 .tut-card {

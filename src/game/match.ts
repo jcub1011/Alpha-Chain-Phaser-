@@ -45,6 +45,11 @@ const TUTORIAL_DWELL: Record<TutorialKind, number> = {
   tax: 12,
 };
 
+/** Extra dwell (seconds) added to the engine animation when an era ends on a
+ *  submission, so every player sees the final word's score replay finish before
+ *  the phase changes. Covers the taxed finale (~0.92s) on top of the walk. */
+const ROUND_SETTLE_BUFFER = 1.0;
+
 export interface PlayerSeed {
   id: string;
   name: string;
@@ -80,6 +85,10 @@ export class MatchController {
   private readonly isWord: (w: string) => boolean;
 
   private countdownRemaining = 0;
+  /** Era-end settle: while > 0 the phase is held in Round (clock frozen) so the
+   *  last submission's score replay can finish before the era transition fires. */
+  private roundSettleRemaining = 0;
+  private pendingEraEnd: "intermission" | "gameOver" | null = null;
   private prevWordLength = 0;
   /** Leader the Bounty Hunter watches; fixed at each round's start (not live). */
   private roundLeaderId = "";
@@ -223,6 +232,13 @@ export class MatchController {
       if (now !== prev) this.events.emit("countdownTick", now);
       if (this.countdownRemaining <= 0) this.beginEra(s.era === 1);
     } else if (s.phase === "Round") {
+      // Era-end settle: hold in Round with the clock frozen until the replay dwell
+      // elapses, then fire the deferred transition.
+      if (this.roundSettleRemaining > 0) {
+        this.roundSettleRemaining = Math.max(0, this.roundSettleRemaining - dt);
+        if (this.roundSettleRemaining <= 0) this.resolveEraEnd();
+        return;
+      }
       s.clockRemaining = Math.max(0, s.clockRemaining - dt);
       this.events.emit("clockTick", s.clockRemaining);
       if (s.clockRemaining <= 0) this.timeoutCurrent();
@@ -324,7 +340,7 @@ export class MatchController {
     });
   }
 
-  private endTurn(): void {
+  private endTurn(fromSubmission = false): void {
     // Survival: stop the match when one player remains.
     if (this.state.settings.survivalMode && this.activePlayers.length <= 1) {
       this.gameOver();
@@ -335,7 +351,17 @@ export class MatchController {
       this.state.round++;
       // The era ends once `eraInterval` full rounds have been completed.
       if (this.state.roundInEra >= this.state.settings.eraInterval) {
-        if (this.state.era >= this.state.settings.eraCount) this.gameOver();
+        const eraEndsMatch = this.state.era >= this.state.settings.eraCount;
+        // A submission-driven era end waits for the score replay to finish so
+        // every player sees the final word resolve. A timeout has no replay to
+        // watch, so it transitions immediately.
+        if (fromSubmission) {
+          this.roundSettleRemaining =
+            this.state.settings.engineAnimationSeconds + ROUND_SETTLE_BUFFER;
+          this.pendingEraEnd = eraEndsMatch ? "gameOver" : "intermission";
+          return;
+        }
+        if (eraEndsMatch) this.gameOver();
         else this.enterIntermission();
         return;
       }
@@ -356,7 +382,7 @@ export class MatchController {
 
   submitWord(playerId: string, rawWord: string): SubmitResult {
     const s = this.state;
-    if (s.phase !== "Round" || playerId !== this.current.id) {
+    if (s.phase !== "Round" || this.roundSettleRemaining > 0 || playerId !== this.current.id) {
       return { accepted: false };
     }
     const word = rawWord.trim().toLowerCase();
@@ -480,7 +506,7 @@ export class MatchController {
     s.history.push(submission);
 
     this.events.emit("submission", { submission, bounties });
-    this.endTurn();
+    this.endTurn(true);
     return { accepted: true, submission };
   }
 
@@ -510,6 +536,20 @@ export class MatchController {
   // ── Intermission ─────────────────────────────────────────────────────────────
   // Host-authoritative sub-phase walk (timers live here, not in the UI):
   //   [tutorial(engine) — era 1] → optimize → [tutorial(tax) — era 1] → sniperBan
+  /** Whether the match is in the era-end settle window (phase still Round, clock
+   *  frozen, input refused) waiting for the final replay to finish. */
+  isSettling(): boolean {
+    return this.roundSettleRemaining > 0;
+  }
+
+  /** Fire the era-end transition deferred by the settle window. */
+  private resolveEraEnd(): void {
+    const pending = this.pendingEraEnd;
+    this.pendingEraEnd = null;
+    if (pending === "gameOver") this.gameOver();
+    else if (pending === "intermission") this.enterIntermission();
+  }
+
   private enterIntermission(): void {
     this.setPhase("Intermission");
     const dealt: Record<string, string[]> = {};

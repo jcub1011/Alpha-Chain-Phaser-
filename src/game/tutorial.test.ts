@@ -57,6 +57,7 @@ describe("Intermission tutorials (engine → optimize → tax → sniperBan)", (
     if (m.state.phase === "Tutorial") m.skipTutorial();
     m.tick(2); // countdown → Round
     m.submitWord("p1", word); // single player → wraps → intermission
+    m.tick(2.001); // burn the era-end settle window (engineAnimationSeconds + buffer)
   };
 
   it("walks engine → optimize → tax → sniperBan on the first intermission", () => {
@@ -93,6 +94,7 @@ describe("Intermission tutorials (engine → optimize → tax → sniperBan)", (
     // Era 2 round → second intermission goes straight to optimize.
     m.tick(2); // countdown → Round
     m.submitWord("p1", "tap");
+    m.tick(2.001); // burn the era-end settle window (engineAnimationSeconds + buffer)
     expect(m.state.phase).toBe("Intermission");
     expect(m.state.intermissionPhase).toBe("optimize");
     expect(m.state.currentTutorial).toBeNull();

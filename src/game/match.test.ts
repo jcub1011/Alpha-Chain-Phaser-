@@ -76,6 +76,7 @@ describe("MatchController", () => {
     m2.submitWord("p2", "tiger"); // round 1 wraps: p2 +5, req r
     m2.submitWord("p1", "rabbit"); // round 2: p1 +6 (total 9), req t
     m2.submitWord("p2", "torch"); // round 2 wraps → game over: p2 +5 (total 10), req h
+    m2.tick(2.001); // burn the era-end settle window (engineAnimationSeconds + buffer)
     expect(m2.state.phase).toBe("GameOver");
     expect(winner).toBe("p2"); // 10 vs 9
   });
@@ -87,6 +88,7 @@ describe("MatchController", () => {
     m2.tick(1); // era 1, p1 free choice
     m2.submitWord("p1", "cat"); // required letter → "t"
     m2.submitWord("p2", "tiger"); // wraps era 1 → intermission; word ends in "r"
+    m2.tick(2.001); // burn the era-end settle window (engineAnimationSeconds + buffer)
     expect(m2.state.phase).toBe("Intermission");
     m2.applySniperBanAndAdvance("r"); // ban "r" for era 2, roll into the countdown
     m2.tick(1); // burn the era-2 countdown → beginEra

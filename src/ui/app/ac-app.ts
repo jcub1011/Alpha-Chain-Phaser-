@@ -233,7 +233,7 @@ export class AcApp extends AcElement {
         : nothing}
       ${paused
         ? html`<div
-            style="position:fixed;top:12px;right:12px;z-index:9999;padding:4px 10px;border-radius:6px;background:rgba(0,0,0,.72);color:#fff;font:600 12px/1.4 system-ui,sans-serif;letter-spacing:.04em;pointer-events:none;"
+            style="position:fixed;top:12px;right:12px;z-index:9999;padding:4px 10px;border-radius:6px;background:rgb(4,6,14);color:#fff;font:600 12px/1.4 system-ui,sans-serif;letter-spacing:.04em;pointer-events:none;"
           >
             ⏸ PAUSED
           </div>`

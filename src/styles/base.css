@@ -207,9 +207,7 @@ ac-app {
   justify-items: center;
   gap: var(--sp-3);
   padding: var(--sp-4);
-  background: rgba(4, 6, 14, 0.72);
-  backdrop-filter: blur(9px);
-  -webkit-backdrop-filter: blur(9px);
+  background: rgb(4, 6, 14);
   animation: ac-overlay-in 0.3s ease both;
 }
 
