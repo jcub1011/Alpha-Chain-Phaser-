@@ -110,7 +110,10 @@ export class AcScoreReplay extends AcElement {
     this.active = true;
     void this.updateComplete.then(() => {
       this.numEl?.classList.remove("is-final", "is-taxed");
-      if (this.numEl) this.numEl.textContent = "0";
+      if (this.numEl) {
+        this.numEl.style.minWidth = ""; // release the per-play width reservation
+        this.numEl.textContent = "0";
+      }
     });
   }
 
@@ -164,7 +167,23 @@ export class AcScoreReplay extends AcElement {
 
     await this.updateComplete;
     if (signal.aborted) return;
-    if (this.numEl) this.numEl.textContent = fmtScore(sub.breakdown.seed);
+    if (this.numEl) {
+      // Reserve space for the widest number this play will display so the fan
+      // doesn't shift as the readout gains digits. The peak is the largest
+      // formatted string across seed, every running-score step, and the final.
+      const widest = [
+        sub.breakdown.seed,
+        sub.breakdown.finalBeforeTax,
+        sub.score,
+        ...sub.breakdown.steps.map((s) => s.runningScore),
+      ]
+        .map(fmtScore)
+        .reduce((a, b) => (b.length > a.length ? b : a), "");
+      this.numEl.style.minWidth = "0px"; // clear any prior reservation before measuring
+      this.numEl.textContent = widest;
+      this.numEl.style.minWidth = `${this.numEl.offsetWidth}px`;
+      this.numEl.textContent = fmtScore(sub.breakdown.seed);
+    }
 
     if (prefersReducedMotion()) {
       this.revealed = this.cards.length - 1; // gray out every card that didn't fire

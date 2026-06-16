@@ -106,7 +106,7 @@ export class AcIntermission extends AcElement {
           <span class="ac-eyebrow">intermission · optimize</span>
           <h2 class="im-title">Tune your engine</h2>
           <p class="im-sub">
-            Cards score left → right. Keep adders left, multipliers right. Drag or use ◄ ► —
+            Cards score left → right. Drag or use ◄ ► —
             anything past slot ${this.slots} is discarded.
           </p>
           <span class="im-timer">${this.seconds}s</span>

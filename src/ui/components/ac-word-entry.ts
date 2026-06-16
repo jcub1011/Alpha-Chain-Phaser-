@@ -44,7 +44,20 @@ export class AcWordEntry extends AcElement {
         if (submission.playerId === human && this.input) this.input.value = "";
         this.live = false;
       });
-      this.listen(e, "timeout", () => (this.live = false));
+      // When the shot clock hits zero on our live turn, auto-submit whatever is
+      // in the box. This fires synchronously inside the engine's clockTick emit,
+      // BEFORE its own timeout check (match.tick): a successful submit re-arms the
+      // clock so the engine never skips, while an empty/invalid box falls through
+      // to the normal timeout below.
+      this.listen(e, "clockTick", (remaining) => {
+        if (this.live && remaining <= 0) this.submit();
+      });
+      this.listen(e, "timeout", ({ playerId }) => {
+        this.live = false;
+        // Clear the box even when the auto-submit was rejected (garbage) or empty,
+        // so no stale text survives into our next turn.
+        if (playerId === human && this.input) this.input.value = "";
+      });
       this.listen(e, "rejected", ({ playerId, reason }) => {
         if (playerId !== human) return;
         this.feedback = REASON[reason];

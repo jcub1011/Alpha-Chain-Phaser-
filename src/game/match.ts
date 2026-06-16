@@ -286,10 +286,13 @@ export class MatchController {
     // round of the era; the player who the wrap left active opens each new era.
     this.state.roundInEra = 1;
     this.state.round++;
-    if (first) {
-      this.state.currentPlayerIndex = 0;
-      this.state.requiredLetter = "";
-    }
+    // Every era opens on a wildcard (free) starting letter — never the carry-over
+    // from the previous era's last word. Otherwise the sniper-ban picker could line
+    // the opener up to be forced straight into the just-set ban's Zero-Point Tax.
+    this.state.requiredLetter = "";
+    // Only era 1 forces the opener to seat 0; later eras open on whoever the wrap
+    // left active.
+    if (first) this.state.currentPlayerIndex = 0;
     this.roundLeaderId = this.computeLeaderId();
     this.armCurrentTurn();
   }

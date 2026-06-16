@@ -78,6 +78,23 @@ describe("MatchController", () => {
     expect(winner).toBe("p2"); // 10 vs 9
   });
 
+  it("opens each new era on a wildcard starting letter (not the carry-over)", () => {
+    // eraInterval 1 → one full round (both players) ends era 1.
+    const m2 = makeMatch({ preRoundCountdownSeconds: 1, eraInterval: 1, eraCount: 2 });
+    m2.start();
+    m2.tick(1); // era 1, p1 free choice
+    m2.submitWord("p1", "cat"); // required letter → "t"
+    m2.submitWord("p2", "tiger"); // wraps era 1 → intermission; word ends in "r"
+    expect(m2.state.phase).toBe("Intermission");
+    m2.applySniperBanAndAdvance("r"); // ban "r" for era 2, roll into the countdown
+    m2.tick(1); // burn the era-2 countdown → beginEra
+    expect(m2.state.phase).toBe("Round");
+    expect(m2.state.era).toBe(2);
+    // Free start: the opener is NOT forced onto "r" (which is now the ban) by the
+    // previous era's carry-over.
+    expect(m2.state.requiredLetter).toBe("");
+  });
+
   it("times out the current player and skips their turn (no score)", () => {
     m.tick(m.state.clockTotal + 1); // run the shot clock out
     expect(m.state.players[0].score).toBe(0);
