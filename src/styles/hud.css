@@ -186,8 +186,8 @@
 /* Two zones — an overlapping card fan on the LEFT, the running score on the RIGHT
    — so the replay always fits one line (mobile or desktop) with no wrap/scroll. */
 .sr-stage {
-  --mini-w: 88px;
-  --mini-h: 112px;
+  --mini-w: 132px;
+  --mini-h: 120px;
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
@@ -429,11 +429,11 @@ ac-leaderboard[strip] .lb-pop { right: auto; left: 50%; transform: translateX(-5
   .rail { display: none; }
   .lb-strip { display: block; order: -1; }
   .command { position: sticky; top: 0; z-index: 5; }
-  ac-engine-bay:not([compact]) { --gc-w: 108px; --gc-h: 152px; }
+  ac-engine-bay:not([mini]) { --gc-w: 108px; --gc-h: 152px; }
 }
 @media (max-width: 30rem) {
   .hud { padding: var(--sp-2); gap: var(--sp-2); }
   .command { padding: var(--sp-2) var(--sp-3); gap: var(--sp-2); }
   .we-prefix { min-width: 2.4rem; font-size: 1.3rem; }
-  ac-engine-bay:not([compact]) { --gc-w: 92px; --gc-h: 132px; }
+  ac-engine-bay:not([mini]) { --gc-w: 92px; --gc-h: 132px; }
 }

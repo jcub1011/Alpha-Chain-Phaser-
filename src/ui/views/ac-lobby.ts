@@ -105,7 +105,7 @@ export class AcLobby extends AcElement {
       <div class="lobby">
         <header class="lobby-head">
           <h1 class="lobby-title">ALPHA<span>CHAIN</span></h1>
-          <p class="lobby-tag">word-chain × engine-builder</p>
+          <p class="lobby-tag">Shiritori but worse</p>
         </header>
 
         <div class="ac-panel lobby-panel net-panel">
@@ -162,8 +162,8 @@ export class AcLobby extends AcElement {
         <button class="lobby-bay" @click=${this.openBay}>🧪 Testing Bay</button>
 
         <p class="lobby-rules">
-          Chain words by their last letter. Build an engine of modifier cards.
-          Beat the shot clock — and the Zero-Point Tax.
+          Every word must start with the last letter of the previous word. 
+          It sounds simple but don't worry, I've massively overcomplicated it.
         </p>
       </div>
     `;

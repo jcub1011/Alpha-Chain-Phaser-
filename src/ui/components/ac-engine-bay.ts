@@ -1,7 +1,7 @@
 /*
  * <ac-engine-bay> — a player's engine as a horizontal, scroll-if-needed row of
  * cards plus empty-slot placeholders up to capacity. Sizing flows to the cards
- * via --gc-w / --gc-h so the same component renders large (your bay) or compact
+ * via --gc-w / --gc-h so the same component renders large (your bay) or mini
  * (opponent summaries). It's a pure display: all scoring animation now plays in
  * the shared "last play" theater (<ac-score-replay>), which renders its own copy
  * of the submitter's bay and walks the cards there.
@@ -18,14 +18,14 @@ export class AcEngineBay extends AcElement {
   @property({ attribute: false }) cards: BayCard[] = [];
   @property({ type: Number }) slots = 3;
   @property() label = "ENGINE";
-  @property({ type: Boolean, reflect: true }) compact = false;
+  @property({ type: Boolean, reflect: true }) mini = false;
 
   override render(): TemplateResult {
     const empties = Math.max(0, this.slots - this.cards.length);
     return html`
       <div class="bay-head">
         <span class="ac-eyebrow">${this.label}</span>
-        <span class="bay-flow">seed + Σ adds → × mults</span>
+        <span class="bay-flow">evaluated left → right</span>
       </div>
       <div class="bay-slots" role="list">
         ${this.cards.map(
@@ -36,7 +36,7 @@ export class AcEngineBay extends AcElement {
               data-card-id=${c.id}
               .cardId=${c.id}
               ?isNew=${c.isNew ?? false}
-              ?compact=${this.compact}
+              ?mini=${this.mini}
             ></ac-card>
           `,
         )}

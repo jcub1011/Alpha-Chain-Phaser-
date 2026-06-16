@@ -8,11 +8,11 @@ ac-engine-bay {
   flex-direction: column;
   gap: var(--sp-2);
 }
-ac-engine-bay[compact] {
-  --gc-w: 76px;
-  --gc-h: 98px;
+/* Mini bays (opponents) keep the full width but shorten to match their cards,
+   so empty-slot placeholders line up with the mini cards' height. */
+ac-engine-bay[mini] {
+  --gc-h: 120px;
 }
-
 .bay-head {
   display: flex;
   align-items: baseline;
@@ -74,7 +74,7 @@ ac-card {
   transform-style: preserve-3d;
   transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
-ac-card:not([compact]) .gc-flip {
+ac-card:not([mini]) .gc-flip {
   cursor: pointer;
 }
 ac-card[flipped] .gc-flip {
@@ -86,7 +86,7 @@ ac-card[flipped] .gc-flip {
   display: flex;
   flex-direction: column;
   gap: calc(var(--gc-h) * 0.05);
-  padding: calc(var(--gc-h) * 0.08) calc(var(--gc-w) * 0.09);
+  padding: calc(var(--gc-h) * 0.05) calc(var(--gc-w) * 0.06);
   border: 2.5px solid var(--gc-accent);
   border-radius: var(--r-md);
   overflow: hidden;
@@ -127,7 +127,7 @@ ac-card[flipped] .gc-flip {
   overflow-y: auto;
 }
 .gc-front {
-  gap: calc(var(--gc-h) * 0.04);
+  gap: calc(var(--gc-h) * 0.03);
 }
 /* Faint full-bleed glyph behind the content for silhouette recognition.
    .gc has `isolation: isolate`, so z-index:-1 stays behind the in-flow content
@@ -149,16 +149,13 @@ ac-card[flipped] .gc-flip {
   justify-content: space-between;
   gap: 0.3rem;
 }
+/* No containing box — just the bare logo, so the chips beside it have room. */
 .gc-ico-box {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  padding: calc(var(--gc-h) * 0.03);
-  border-radius: calc(var(--gc-h) * 0.05);
-  border: 2px solid var(--gc-card-color, var(--gc-accent));
   color: var(--gc-card-color, var(--gc-accent));
-  background: color-mix(in srgb, var(--gc-card-color, var(--gc-accent)) 16%, transparent);
 }
 .gc-ico {
   width: calc(var(--gc-h) * 0.2);
@@ -170,7 +167,7 @@ ac-card[flipped] .gc-flip {
   align-items: flex-end;
   gap: calc(var(--gc-h) * 0.022);
   margin-left: auto;
-  max-width: 62%;
+  max-width: 70%;
 }
 .gc-chip {
   padding: 0.08em 0.42em;
@@ -193,7 +190,9 @@ ac-card[flipped] .gc-flip {
   line-height: 1.05;
   letter-spacing: 0.01em;
   color: var(--ac-ink);
-  text-wrap: balance;
+  /* Fit to one line — ac-card scales the font down when the name would overflow. */
+  white-space: nowrap;
+  overflow: visible;
 }
 .gc-front-desc {
   margin: 0;
@@ -234,10 +233,10 @@ ac-card[flipped] .gc-flip {
 
 /* Lift transforms live on .gc-flip so they don't clobber the faces' 3D rotation;
    guarded with :not([flipped]) so hovering a flipped card never un-flips it. */
-ac-engine-bay:not([compact]) ac-card:not([flipped]):hover .gc-flip {
+ac-engine-bay ac-card:not([mini]):not([flipped]):hover .gc-flip {
   transform: translateY(-5px);
 }
-ac-engine-bay:not([compact]) ac-card:hover .gc {
+ac-engine-bay ac-card:not([mini]):hover .gc {
   box-shadow:
     var(--ac-drop),
     0 0 22px color-mix(in srgb, var(--gc-accent) 45%, transparent);
@@ -259,43 +258,35 @@ ac-card[triggered] .gc {
 }
 .gc-new-badge { animation: ac-pop 0.4s ease-out both; }
 
-/* Compact cards (opponent bays) don't flip — hovering fades the rules text in
-   as an overlay over the front, staying inside the bay's scroll container. */
-ac-card[compact] .gc-flip { cursor: default; }
-/* The tiny foe card keeps only the icon + magnitude chip + name on its face;
-   the full text lives in the hover-reveal back. */
-ac-card[compact] .gc-front-desc,
-ac-card[compact] .gc-flip-hint,
-ac-card[compact] .gc-chip:not(:first-child) {
+/* Mini cards (opponent bays, sandbox, the engine-replay piles) keep the full
+   card width but are shorter — the face shows the icon + magnitude chip + name,
+   and hovering reveals the full description as a tooltip overlay. */
+ac-card[mini] {
+  --gc-w: 132px;
+  --gc-h: 120px;
+}
+ac-card[mini] .gc-flip { cursor: default; }
+ac-card[mini] .gc-front-desc,
+ac-card[mini] .gc-flip-hint,
+ac-card[mini] .gc-chip:not(:first-child) {
   display: none;
 }
-ac-card[compact] .gc-chip {
-  font-size: 0.56rem;
+ac-card[mini] .gc-chip { font-size: calc(var(--gc-h) * 0.1); }
+/* Mini titles aren't shrunk to one line (no description crowds them), so they
+   wrap freely within the taller-than-needed face. */
+ac-card[mini] .gc-name {
+  font-size: calc(var(--gc-h) * 0.12);
+  white-space: normal;
+  overflow: visible;
+  text-wrap: balance;
 }
-ac-card[compact] .gc-back {
+/* Mini cards have no flip; hovering fades the back-face markup in as a tooltip
+   overlay laid over the front, showing the name + full description. */
+ac-card[mini] .gc-back {
   transform: none;
   backface-visibility: visible;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.16s ease;
 }
-ac-card[compact] .gc-back-name { font-size: 0.7rem; }
-ac-card[compact] .gc-desc { font-size: 0.62rem; line-height: 1.28; }
-ac-card[compact] .gc-flip:hover .gc-back { opacity: 1; }
-
-/* Mini cards (the engine-replay piles) — size themselves standalone (no bay
-   wrapper) and keep only the icon + magnitude chip + name so a slim deck reads
-   at a glance. No description, flip hint, or back face. */
-ac-card[mini] {
-  --gc-w: 88px;
-  --gc-h: 112px;
-}
-ac-card[mini] .gc-flip { cursor: default; }
-ac-card[mini] .gc-front-desc,
-ac-card[mini] .gc-flip-hint,
-ac-card[mini] .gc-back,
-ac-card[mini] .gc-chip:not(:first-child) {
-  display: none;
-}
-ac-card[mini] .gc-name { font-size: calc(var(--gc-h) * 0.12); }
-ac-card[mini] .gc-chip { font-size: calc(var(--gc-h) * 0.1); }
+ac-card[mini] .gc-flip:hover .gc-back { opacity: 1; }

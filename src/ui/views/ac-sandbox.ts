@@ -201,7 +201,7 @@ export class AcSandbox extends AcElement {
                 ${bay.map(
                   (c, i) => html`
                     <div class="sandbox-slot">
-                      <ac-card .cardId=${c.id} compact></ac-card>
+                      <ac-card .cardId=${c.id} mini></ac-card>
                       <div class="sandbox-slot-ops">
                         <button ?disabled=${i === 0} title="move left"
                           @click=${() => this.moveCard(p.id, i, -1)}>◀</button>
@@ -306,7 +306,7 @@ export class AcSandbox extends AcElement {
           ${Object.values(CARD_LIBRARY).map(
             (c) => html`
               <div class="palette-item">
-                <ac-card .cardId=${c.id} ?compact=${!this.paletteLarge}></ac-card>
+                <ac-card .cardId=${c.id} ?mini=${!this.paletteLarge}></ac-card>
                 <button class="palette-add" @click=${() => this.addCard(c.id)}>＋ Add</button>
               </div>
             `,

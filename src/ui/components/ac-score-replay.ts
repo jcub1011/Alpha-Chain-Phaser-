@@ -27,7 +27,7 @@ import { runEngineReplay } from "./engine-replay";
 import "./ac-card";
 
 /** Mini-card footprint (keep in sync with `--mini-w` in hud.css). */
-const MINI_W = 88;
+const MINI_W = 132;
 /** Spread spacing when the fan has room: card width + a small gap. */
 const MAX_STEP = MINI_W + 10;
 /** Tightest spacing when compressed: still shows a readable sliver of each card. */

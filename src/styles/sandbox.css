@@ -6,8 +6,11 @@
   max-width: 1200px;
   margin: 0 auto;
   padding: 24px 20px 64px;
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 20px;
+  height: 100%;
+  overflow-y: auto;
 }
 .sandbox-loading {
   opacity: 0.7;
@@ -41,6 +44,7 @@
   background: rgba(255, 255, 255, 0.05);
   color: var(--ac-ink);
   cursor: pointer;
+  font-family: var(--font-display);
   font-size: 12px;
   white-space: nowrap;
   transition: border-color 0.15s, background 0.15s;
@@ -180,10 +184,10 @@
   gap: 4px;
 }
 /* Standalone <ac-card>s get no size var (those live on ac-engine-bay), so the
-   bench sizes its cards explicitly. */
+   bench sizes its cards explicitly. These are mini cards — full width, shorter. */
 .sandbox-slot ac-card {
-  --gc-w: 84px;
-  --gc-h: 112px;
+  --gc-w: 132px;
+  --gc-h: 120px;
 }
 .sandbox-slot-ops {
   display: flex;
@@ -378,12 +382,12 @@
   --gc-h: 188px;
 }
 .palette-grid.is-small {
-  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: 10px;
 }
 .palette-grid.is-small ac-card {
-  --gc-w: 88px;
-  --gc-h: 118px;
+  --gc-w: 132px;
+  --gc-h: 120px;
 }
 .palette-item {
   display: flex;

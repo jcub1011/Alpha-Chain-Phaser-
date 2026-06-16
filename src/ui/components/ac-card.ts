@@ -5,9 +5,11 @@
  * the border) and the card's own identity color (--gc-card-color, the gradient
  * / icon box / watermark tint); the latter falls back to the accent.
  *
- * Front face: a faint watermark glyph, an icon-in-a-box + type/magnitude chips,
- * the name, and a clamped description teaser. Back face: name + full rules text.
- * Full-size cards flip on click; compact cards reveal the text on hover.
+ * Front face: a faint watermark glyph, the bare icon + type/magnitude chips,
+ * the name (shrunk to fit one line), and a clamped description teaser. Back face:
+ * name + full rules text. Full-size cards flip on click; mini cards (opponent
+ * bays, sandbox, the replay piles) drop the inline description and instead
+ * reveal it as a hover tooltip overlay (the back-face markup, repurposed).
  */
 
 import { html, nothing, type TemplateResult } from "lit";
@@ -36,9 +38,8 @@ const clockText = (clock: ClockModifier): string => {
 export class AcCard extends AcElement {
   @property() cardId = "";
   @property({ type: Boolean }) isNew = false;
-  /** Compact cards (opponent summaries) reveal their text on hover, not flip. */
-  @property({ type: Boolean, reflect: true }) compact = false;
-  /** Mini cards (the engine-replay piles): icon + magnitude + name only, no flip. */
+  /** Mini cards (opponent bays, sandbox, replay piles): icon + magnitude + name
+   *  only — no description, flip, or back face. Full width but shorter. */
   @property({ type: Boolean, reflect: true }) mini = false;
   /** Whether the card is showing its back (rules text). Full-size only. */
   @property({ type: Boolean, reflect: true }) flipped = false;
@@ -47,8 +48,45 @@ export class AcCard extends AcElement {
   @property({ type: Boolean, reflect: true }) triggered = false;
 
   private onFlip = (): void => {
-    if (this.compact || this.mini) return;
+    if (this.mini) return;
     this.flipped = !this.flipped;
+  };
+
+  /** Refits the title whenever the card resizes (responsive --gc-w/--gc-h). */
+  private resizeObs?: ResizeObserver;
+
+  override firstUpdated(): void {
+    const flip = this.querySelector<HTMLElement>(".gc-flip");
+    if (flip && typeof ResizeObserver !== "undefined") {
+      this.resizeObs = new ResizeObserver(() => this.fitName());
+      this.resizeObs.observe(flip);
+    }
+  }
+
+  override disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this.resizeObs?.disconnect();
+    this.resizeObs = undefined;
+  }
+
+  override updated(): void {
+    this.fitName();
+  }
+
+  /** Shrink the front title's font until it fits on one line. Font width scales
+   *  linearly with font-size, so one ratio pass (one reflow) is enough. Mini
+   *  cards skip this — their titles wrap freely since no description crowds them. */
+  private fitName = (): void => {
+    if (this.mini) return;
+    const el = this.querySelector<HTMLElement>(".gc-name");
+    if (!el) return;
+    el.style.fontSize = ""; // reset to the CSS-driven size before measuring
+    const avail = el.clientWidth;
+    const needed = el.scrollWidth;
+    if (avail > 0 && needed > avail) {
+      const base = parseFloat(getComputedStyle(el).fontSize);
+      el.style.fontSize = `${Math.max(base * (avail / needed) * 0.98, 8)}px`;
+    }
   };
 
   override render(): TemplateResult | typeof nothing {
@@ -95,7 +133,7 @@ export class AcCard extends AcElement {
           <div class="gc-name">${card.name}</div>
           <p class="gc-front-desc">${card.description}</p>
           ${this.isNew ? html`<span class="gc-new-badge">NEW</span>` : nothing}
-          ${this.compact ? nothing : html`<span class="gc-flip-hint">tap to flip</span>`}
+          ${this.mini ? nothing : html`<span class="gc-flip-hint">tap to flip</span>`}
         </div>
         <div class="gc gc-back">
           <span class="gc-back-name">${card.name}</span>

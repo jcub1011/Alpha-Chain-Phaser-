@@ -21,8 +21,8 @@
 .im-sub { margin: 0; font-size: 0.82rem; line-height: 1.45; color: var(--ac-ink-soft); }
 .im-timer {
   position: absolute;
-  top: 0;
-  right: 0;
+  top: 12px;
+  right: 12px;
   font-family: var(--font-mono);
   font-weight: 800;
   font-size: 1.4rem;
