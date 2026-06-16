@@ -4,8 +4,7 @@ import { COLORS, PLAYER_ACCENTS } from "../../theme";
 import type { CardFamily } from "../../game/types";
 
 /** CSS custom-property name for a player's accent, by turn-order index. */
-export const playerAccentVar = (index: number): string =>
-  `var(--ac-p${(index % 6) + 1})`;
+export const playerAccentVar = (index: number): string => `var(--ac-p${(index % 6) + 1})`;
 
 /** Numeric (0xRRGGBB) player accent, for FX calls. */
 export const playerAccentColor = (index: number): number =>

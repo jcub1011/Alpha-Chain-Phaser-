@@ -34,7 +34,11 @@ export class AcLeaderboard extends AcElement {
       this.listen(e, "submission", ({ submission }) => {
         refresh();
         if (submission.score > 0)
-          this.pop = { id: submission.playerId, amount: submission.score, key: submission.breakdown.seed + Date.now() };
+          this.pop = {
+            id: submission.playerId,
+            amount: submission.score,
+            key: submission.breakdown.seed + Date.now(),
+          };
       });
       refresh();
     }
@@ -50,7 +54,9 @@ export class AcLeaderboard extends AcElement {
           const isActive = p.id === this.activeId;
           return html`
             <li
-              class="lb-row ${isActive ? "is-active" : ""} ${isMe ? "is-me" : ""} ${p.eliminated ? "is-out" : ""}"
+              class="lb-row ${isActive ? "is-active" : ""} ${isMe ? "is-me" : ""} ${p.eliminated
+                ? "is-out"
+                : ""}"
               style="--accent:${accent};"
             >
               <span class="lb-rank">${rank + 1}</span>

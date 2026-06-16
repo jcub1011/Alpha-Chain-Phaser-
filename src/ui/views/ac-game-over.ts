@@ -48,7 +48,9 @@ export class AcGameOver extends AcElement {
                   style="--accent:${playerAccentVar(p.accentIndex)};"
                 >
                   <span class="go-rank">${i + 1}</span>
-                  <span class="go-name">${p.name}${p.id === human ? html`<i> you</i>` : nothing}</span>
+                  <span class="go-name"
+                    >${p.name}${p.id === human ? html`<i> you</i>` : nothing}</span
+                  >
                   <span class="go-score">${fmtScore(p.score)}</span>
                 </li>
               `,
@@ -57,7 +59,8 @@ export class AcGameOver extends AcElement {
 
           <button
             class="ac-btn go-return"
-            @click=${() => this.dispatchEvent(new CustomEvent("ac-return", { bubbles: true, composed: true }))}
+            @click=${() =>
+              this.dispatchEvent(new CustomEvent("ac-return", { bubbles: true, composed: true }))}
           >
             RETURN TO LOBBY
           </button>

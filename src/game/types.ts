@@ -40,13 +40,7 @@ export type TutorialKind = "shiritori" | "engine" | "tax";
 
 export type BotDifficulty = "easy" | "medium" | "hard";
 
-export type GamePhase =
-  | "Setup"
-  | "Tutorial"
-  | "Countdown"
-  | "Round"
-  | "Intermission"
-  | "GameOver";
+export type GamePhase = "Setup" | "Tutorial" | "Countdown" | "Round" | "Intermission" | "GameOver";
 
 /** A single card occupying a slot in a player's Engine Bay. */
 export interface BayCard {
@@ -175,10 +169,6 @@ export interface MatchState {
 /** Result of attempting to validate + score a word. */
 export interface SubmitResult {
   accepted: boolean;
-  reason?:
-    | "not-a-word"
-    | "already-used"
-    | "wrong-start-letter"
-    | "too-short";
+  reason?: "not-a-word" | "already-used" | "wrong-start-letter" | "too-short";
   submission?: Submission;
 }

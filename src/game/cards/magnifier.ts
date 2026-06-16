@@ -33,9 +33,7 @@ export class EffectMagnifier {
 }
 
 /** Build the registry by walking the resolved bay left → right. */
-export function buildMagnifier(
-  bay: readonly (ModifierCard | undefined)[],
-): EffectMagnifier {
+export function buildMagnifier(bay: readonly (ModifierCard | undefined)[]): EffectMagnifier {
   const reg = new EffectMagnifier();
   bay.forEach((card, i) => card?.submitMagnifications?.(reg, i));
   return reg;

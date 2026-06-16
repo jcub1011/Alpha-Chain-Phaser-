@@ -80,7 +80,9 @@ export class AcHud extends AcElement {
           <section class="command ac-panel">
             <div class="cmd-cell cmd-left">
               <span class="ac-eyebrow">start with</span>
-              <span class="cmd-letter ${free ? "is-free" : ""}">${free ? "∗" : this.requiredLetter.toUpperCase()}</span>
+              <span class="cmd-letter ${free ? "is-free" : ""}"
+                >${free ? "∗" : this.requiredLetter.toUpperCase()}</span
+              >
             </div>
             <div class="cmd-cell cmd-clock">
               <ac-shot-clock .controller=${c}></ac-shot-clock>
@@ -93,7 +95,9 @@ export class AcHud extends AcElement {
                   >`
                 : html`<span class="cmd-banned is-none">—</span>`}
               ${this.humanExempt
-                ? html`<span class="cmd-exempt" title="You're in last place — the banned letter won't tax you."
+                ? html`<span
+                    class="cmd-exempt"
+                    title="You're in last place — the banned letter won't tax you."
                     >EXEMPT</span
                   >`
                 : nothing}

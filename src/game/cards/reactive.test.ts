@@ -11,8 +11,18 @@ import { DEFAULT_SETTINGS } from "../settings";
 import type { AlphaChainSettings } from "../types";
 
 const WORDS = new Set([
-  "cat", "tap", "tiger", "rat", "zebra", "rabbit", "torch", "art", "monster",
-  "cot", "tea", "apple",
+  "cat",
+  "tap",
+  "tiger",
+  "rat",
+  "zebra",
+  "rabbit",
+  "torch",
+  "art",
+  "monster",
+  "cot",
+  "tea",
+  "apple",
 ]);
 
 const seeds = (n: number): PlayerSeed[] =>

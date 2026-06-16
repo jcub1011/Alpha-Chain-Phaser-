@@ -49,9 +49,7 @@ class Fx {
 
   /** The KnockBox networking peer (the registered global plugin), if any. */
   knockbox(): NetPeer | undefined {
-    const plugins = this.game?.plugins as unknown as
-      | { get(key: string): unknown }
-      | undefined;
+    const plugins = this.game?.plugins as unknown as { get(key: string): unknown } | undefined;
     return (plugins?.get("KnockBox") as NetPeer | undefined) ?? undefined;
   }
 

@@ -233,9 +233,7 @@ export class EngineEffects {
     caster: PlayerState,
     victim: PlayerState,
   ): { target: PlayerState; reflected: boolean } {
-    const interceptor = this.deps
-      .cardsOf(victim)
-      .find((c) => typeof c.intercept === "function");
+    const interceptor = this.deps.cardsOf(victim).find((c) => typeof c.intercept === "function");
     if (interceptor && interceptor.intercept!(victim, this.services)) {
       return { target: caster, reflected: true };
     }

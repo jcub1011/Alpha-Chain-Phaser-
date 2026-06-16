@@ -20,7 +20,10 @@ let dict: Dictionary;
 beforeAll(() => {
   const text = readFileSync(wordsPath, "utf8");
   dict = new Dictionary(
-    text.split(/\r?\n/).map((w) => w.trim().toLowerCase()).filter(Boolean),
+    text
+      .split(/\r?\n/)
+      .map((w) => w.trim().toLowerCase())
+      .filter(Boolean),
   );
 });
 

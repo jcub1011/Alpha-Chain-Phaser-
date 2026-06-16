@@ -13,7 +13,9 @@
   padding: var(--sp-4);
   overflow-y: auto;
 }
-.lobby-head { text-align: center; }
+.lobby-head {
+  text-align: center;
+}
 .lobby-title {
   margin: 0;
   font-family: var(--font-display);
@@ -25,7 +27,10 @@
   text-shadow: var(--ac-glow-cyan);
   animation: ac-rise 0.5s ease-out both;
 }
-.lobby-title span { color: var(--ac-cyan); margin-left: 0.16em; }
+.lobby-title span {
+  color: var(--ac-cyan);
+  margin-left: 0.16em;
+}
 .lobby-tag {
   margin: 0.5rem 0 0;
   font-family: var(--font-mono);
@@ -51,18 +56,24 @@
   padding: 0.55rem 0.2rem;
   border-bottom: 1px solid var(--ac-border);
 }
-.set-row:last-child { border-bottom: none; }
+.set-row:last-child {
+  border-bottom: none;
+}
 
 /* Multiplayer lobby: the long settings list wraps into columns so it never
    clips on short displays. The panel widens to fit two columns. */
-.net-panel { width: min(94vw, 760px); }
+.net-panel {
+  width: min(94vw, 760px);
+}
 .net-settings {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   column-gap: var(--sp-4);
 }
 /* Each cell owns its own divider; the auto-fit grid handles row breaks. */
-.net-settings .set-row { border-bottom: 1px solid var(--ac-border); }
+.net-settings .set-row {
+  border-bottom: 1px solid var(--ac-border);
+}
 /* Segmented controls (2–3 options) can be wider than a column, so stack the
    label above and let the buttons share the cell width instead of overflowing. */
 .net-settings .set-row--seg {
@@ -70,15 +81,25 @@
   align-items: stretch;
   gap: 0.4rem;
 }
-.net-settings .set-row--seg .seg { display: flex; gap: 0.25rem; }
+.net-settings .set-row--seg .seg {
+  display: flex;
+  gap: 0.25rem;
+}
 .net-settings .set-row--seg .seg-btn {
   flex: 1 1 0;
   min-width: 0;
   text-align: center;
   padding: 0.4rem 0.3rem;
 }
-.set-label { font-weight: 600; color: var(--ac-ink); }
-.set-ctl { display: flex; align-items: center; gap: 0.6rem; }
+.set-label {
+  font-weight: 600;
+  color: var(--ac-ink);
+}
+.set-ctl {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
 .set-value {
   min-width: 3rem;
   text-align: center;
@@ -101,11 +122,19 @@
   font-weight: 700;
   line-height: 1;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
 }
-.set-btn:hover { border-color: var(--ac-cyan); background: color-mix(in srgb, var(--ac-cyan) 14%, transparent); }
+.set-btn:hover {
+  border-color: var(--ac-cyan);
+  background: color-mix(in srgb, var(--ac-cyan) 14%, transparent);
+}
 
-.seg { display: flex; gap: 0.25rem; }
+.seg {
+  display: flex;
+  gap: 0.25rem;
+}
 .seg-btn {
   appearance: none;
   padding: 0.4rem 0.7rem;
@@ -144,7 +173,10 @@
   font-weight: 600;
   letter-spacing: 0.04em;
   cursor: pointer;
-  transition: border-color 0.15s, color 0.15s, background 0.15s;
+  transition:
+    border-color 0.15s,
+    color 0.15s,
+    background 0.15s;
 }
 .lobby-bay:hover {
   border-color: var(--ac-cyan);

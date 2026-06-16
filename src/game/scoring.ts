@@ -11,13 +11,7 @@ import { buildMagnifier } from "./cards/magnifier";
 import type { EvalContext, ModifierCard } from "./cards/card";
 import type { EngineEffects, RoomServices } from "./cards/roomServices";
 import { isVowel, MAX_WORD_SCORE, MIN_SHOT_CLOCK_SECONDS } from "./settings";
-import type {
-  BayCard,
-  PlayerState,
-  ScoreBreakdown,
-  ScoreStep,
-  Submission,
-} from "./types";
+import type { BayCard, PlayerState, ScoreBreakdown, ScoreStep, Submission } from "./types";
 
 /** The per-word facts shared by every card, before bay-position context. */
 export type WordAnalysis = Pick<
@@ -36,10 +30,7 @@ export type WordAnalysis = Pick<
 >;
 
 /** Character indices in `word` that classify as vowels under `classify`. */
-const classifyIndices = (
-  word: string,
-  classify: (ch: string) => boolean,
-): number[] => {
+const classifyIndices = (word: string, classify: (ch: string) => boolean): number[] => {
   const out: number[] = [];
   for (let i = 0; i < word.length; i++) if (classify(word[i])) out.push(i);
   return out;
@@ -233,10 +224,7 @@ export function bayOwnTaxPolicy(
 }
 
 /** The first Tax Write-Off bonus in the bay (re-scoring the first letter clean). */
-export function bayWriteOffBonus(
-  ev: BayEvaluator,
-  scoreFn: (word: string) => number,
-): number {
+export function bayWriteOffBonus(ev: BayEvaluator, scoreFn: (word: string) => number): number {
   for (let i = 0; i < ev.resolved.length; i++) {
     const c = ev.resolved[i];
     if (c?.writeOffBonus) return c.writeOffBonus(ev.ctxFor(i), scoreFn);
@@ -252,7 +240,12 @@ export function bayHidesInput(ev: BayEvaluator): boolean {
 /** Fire a lifecycle hook across a bay, in slot order (mutations land via ctx). */
 export function fireBayHook(
   ev: BayEvaluator,
-  hook: "onEraStart" | "onWordAccepted" | "onTurnEnded" | "onOpponentWordResolved" | "onValidationFailed",
+  hook:
+    | "onEraStart"
+    | "onWordAccepted"
+    | "onTurnEnded"
+    | "onOpponentWordResolved"
+    | "onValidationFailed",
   extra?: Partial<EvalContext>,
 ): void {
   ev.resolved.forEach((c, i) => {
@@ -270,10 +263,7 @@ export function fireBayHook(
  *   4. A cap (Hyper-Drive's 5s) lowers a longer clock but never raises a shorter one.
  *   5. Floored at the 3s minimum.
  */
-export function armedClockSeconds(
-  baseSeconds: number,
-  bay: readonly BayCard[],
-): number {
+export function armedClockSeconds(baseSeconds: number, bay: readonly BayCard[]): number {
   const resolved = bay.map((slot) => getCard(slot.id));
   const reg = buildMagnifier(resolved);
   // Clock capabilities ignore the word, so a minimal empty-word context suffices.

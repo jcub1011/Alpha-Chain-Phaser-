@@ -101,22 +101,27 @@ export class AcSandbox extends AcElement {
         <header class="sandbox-head">
           <div>
             <h1>Testing Bay</h1>
-            <p>${CARD_COUNT} cards · live engine · stack bays, submit words, inspect every effect.</p>
+            <p>
+              ${CARD_COUNT} cards · live engine · stack bays, submit words, inspect every effect.
+            </p>
           </div>
           <button class="chip" @click=${this.back}>← Back to lobby</button>
         </header>
 
         <section class="sandbox-controls">
-          <label>Players
+          <label
+            >Players
             <select
-              @change=${(e: Event) => this.setPlayers(Number((e.target as HTMLSelectElement).value))}
+              @change=${(e: Event) =>
+                this.setPlayers(Number((e.target as HTMLSelectElement).value))}
             >
               ${[2, 3, 4, 5, 6, 7, 8].map(
                 (n) => html`<option value=${n} ?selected=${players.length === n}>${n}</option>`,
               )}
             </select>
           </label>
-          <label>Banned letter
+          <label
+            >Banned letter
             <input
               type="text"
               maxlength="1"
@@ -139,7 +144,8 @@ export class AcSandbox extends AcElement {
         </section>
 
         <section class="sandbox-submit">
-          <label class="sandbox-word">Word for ${currentName}
+          <label class="sandbox-word"
+            >Word for ${currentName}
             <input
               type="text"
               placeholder="type a word…"
@@ -148,12 +154,14 @@ export class AcSandbox extends AcElement {
               @keydown=${(e: KeyboardEvent) => e.key === "Enter" && this.submit()}
             />
           </label>
-          <label>Clock remaining (s)
+          <label
+            >Clock remaining (s)
             <input
               type="number"
               min="0"
               .value=${String(this.remaining)}
-              @input=${(e: Event) => (this.remaining = Number((e.target as HTMLInputElement).value))}
+              @input=${(e: Event) =>
+                (this.remaining = Number((e.target as HTMLInputElement).value))}
             />
           </label>
           <button class="ac-btn" @click=${this.submit}>Submit</button>
@@ -161,9 +169,7 @@ export class AcSandbox extends AcElement {
           ${this.message ? html`<span class="sandbox-msg">${this.message}</span>` : nothing}
         </section>
 
-        ${this.renderBreakdown()}
-        ${this.renderHistory()}
-        ${this.renderPalette(targetName)}
+        ${this.renderBreakdown()} ${this.renderHistory()} ${this.renderPalette(targetName)}
       </div>
     `;
   }
@@ -185,7 +191,8 @@ export class AcSandbox extends AcElement {
           <button class="sandbox-player-name" @click=${() => (this.selected = pi)}>
             ${p.name}${isCurrent ? " • turn" : ""}
           </button>
-          <label class="sandbox-player-score">Score
+          <label class="sandbox-player-score"
+            >Score
             <input
               type="number"
               min="0"
@@ -195,7 +202,9 @@ export class AcSandbox extends AcElement {
           </label>
         </div>
         ${bay.length === 0
-          ? html`<p class="sandbox-empty">No cards. Select this player, then “+ Add” from the palette.</p>`
+          ? html`<p class="sandbox-empty">
+              No cards. Select this player, then “+ Add” from the palette.
+            </p>`
           : html`
               <div class="sandbox-slots">
                 ${bay.map(
@@ -203,11 +212,21 @@ export class AcSandbox extends AcElement {
                     <div class="sandbox-slot">
                       <ac-card .cardId=${c.id} mini></ac-card>
                       <div class="sandbox-slot-ops">
-                        <button ?disabled=${i === 0} title="move left"
-                          @click=${() => this.moveCard(p.id, i, -1)}>◀</button>
+                        <button
+                          ?disabled=${i === 0}
+                          title="move left"
+                          @click=${() => this.moveCard(p.id, i, -1)}
+                        >
+                          ◀
+                        </button>
                         <button title="remove" @click=${() => this.removeAt(p.id, i)}>✕</button>
-                        <button ?disabled=${i === bay.length - 1} title="move right"
-                          @click=${() => this.moveCard(p.id, i, 1)}>▶</button>
+                        <button
+                          ?disabled=${i === bay.length - 1}
+                          title="move right"
+                          @click=${() => this.moveCard(p.id, i, 1)}
+                        >
+                          ▶
+                        </button>
                       </div>
                     </div>
                   `,
@@ -245,9 +264,10 @@ export class AcSandbox extends AcElement {
               <div class="sandbox-effects">
                 <span class="sandbox-turn-label">Off-turn effects</span>
                 ${sub.effects.map(
-                  (fx) => html`<div class="sandbox-effect ${fx.reflected ? "reflected" : ""}">
-                    ${fx.reflected ? "⛊ " : ""}${fx.source} · ${fx.text}
-                  </div>`,
+                  (fx) =>
+                    html`<div class="sandbox-effect ${fx.reflected ? "reflected" : ""}">
+                      ${fx.reflected ? "⛊ " : ""}${fx.source} · ${fx.text}
+                    </div>`,
                 )}
               </div>
             `

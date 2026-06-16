@@ -11,11 +11,11 @@
  */
 
 import "./phaserGlobal";
-// @ts-ignore — UMD side-effect module (sets globalThis.KnockBoxCore).
+// UMD side-effect module (sets globalThis.KnockBoxCore).
 import "../../addons/knockbox/kb-core.js";
-// @ts-ignore — UMD side-effect module (sets globalThis.KnockBoxPlugin).
+// UMD side-effect module (sets globalThis.KnockBoxPlugin).
 import "../../addons/knockbox/knockbox-plugin.js";
-// @ts-ignore — UMD side-effect module (sets globalThis.KnockBoxLocalPlugin / Peer).
+// UMD side-effect module (sets globalThis.KnockBoxLocalPlugin / Peer).
 import "../../addons/knockbox/knockbox-local.js";
 import type { LaunchMode } from "./launch";
 

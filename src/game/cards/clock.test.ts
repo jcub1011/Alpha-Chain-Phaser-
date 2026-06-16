@@ -24,7 +24,9 @@ describe("armedClockSeconds — layered clock", () => {
   });
 
   it("never falls below the 3s floor", () => {
-    expect(armedClockSeconds(4, bay("Redline", "Redline", "Redline", "Redline", "Redline"))).toBe(3);
+    expect(armedClockSeconds(4, bay("Redline", "Redline", "Redline", "Redline", "Redline"))).toBe(
+      3,
+    );
   });
 
   it("Slow Burn lengthens the clock 20%", () => {
@@ -35,23 +37,39 @@ describe("armedClockSeconds — layered clock", () => {
 describe("time-aware scoring", () => {
   it("Panic Button ×2.7 when submitted early (>=2s left)", () => {
     // "elephant"=8, plenty of time → ×2.7 → 8 × 2.7 = 21.6 → 22.
-    const r = scoreWord("elephant", bay("PanicButton"), { ...opts, clockRemaining: 10, clockTotal: 20 });
+    const r = scoreWord("elephant", bay("PanicButton"), {
+      ...opts,
+      clockRemaining: 10,
+      clockTotal: 20,
+    });
     expect(r.finalScore).toBe(22);
   });
 
   it("Panic Button ×1.35 in the danger zone (<2s left)", () => {
-    const r = scoreWord("elephant", bay("PanicButton"), { ...opts, clockRemaining: 1, clockTotal: 20 });
+    const r = scoreWord("elephant", bay("PanicButton"), {
+      ...opts,
+      clockRemaining: 1,
+      clockTotal: 20,
+    });
     expect(r.finalScore).toBe(11); // 8 × 1.35 = 10.8 → 11
   });
 
   it("Speedracer caps at half the letter count", () => {
     // 8-letter word, almost no time left → factor = min(huge, 8/2=4) = 4. 8 × 4 = 32.
-    const r = scoreWord("elephant", bay("Speedracer"), { ...opts, clockRemaining: 0.1, clockTotal: 20 });
+    const r = scoreWord("elephant", bay("Speedracer"), {
+      ...opts,
+      clockRemaining: 0.1,
+      clockTotal: 20,
+    });
     expect(r.finalScore).toBe(32);
   });
 
   it("Speedracer does not trigger at 6 letters or fewer", () => {
-    const r = scoreWord("monkey", bay("Speedracer"), { ...opts, clockRemaining: 1, clockTotal: 20 });
+    const r = scoreWord("monkey", bay("Speedracer"), {
+      ...opts,
+      clockRemaining: 1,
+      clockTotal: 20,
+    });
     expect(r.steps[0].triggered).toBe(false);
   });
 

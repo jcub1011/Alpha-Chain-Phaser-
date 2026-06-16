@@ -256,9 +256,7 @@ export class KnockBoxController implements GameController {
       .map((p) => ({ id: p.id, name: p.displayName, isBot: false }));
     this.host = new MatchController(seeds, settings, { isWord: (w) => this.dict.has(w) });
     for (const type of REPLAYED_EVENTS) {
-      this.host.events.on(type, (payload) =>
-        this.pending.push({ type, payload } as WireEvent),
-      );
+      this.host.events.on(type, (payload) => this.pending.push({ type, payload } as WireEvent));
     }
     this.peer.setLobbyOpen?.(false); // close the lobby once the match starts
     this.host.start();

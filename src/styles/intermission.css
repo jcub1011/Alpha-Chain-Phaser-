@@ -10,7 +10,12 @@
   padding: var(--sp-4);
   animation: ac-rise 0.4s ease-out both;
 }
-.im-head { position: relative; display: flex; flex-direction: column; gap: 0.3rem; }
+.im-head {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
 .im-title {
   margin: 0;
   font-family: var(--font-display);
@@ -18,7 +23,12 @@
   font-size: clamp(1.4rem, 4vw, 2rem);
   letter-spacing: 0.02em;
 }
-.im-sub { margin: 0; font-size: 0.82rem; line-height: 1.45; color: var(--ac-ink-soft); }
+.im-sub {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--ac-ink-soft);
+}
 .im-timer {
   position: absolute;
   top: 12px;
@@ -52,17 +62,28 @@
   gap: 0.3rem;
   cursor: grab;
 }
-.im-slot:active { cursor: grabbing; }
-.im-slot.is-discard { opacity: 0.45; }
-.im-slot.is-discard ac-card { filter: grayscale(0.6); }
+.im-slot:active {
+  cursor: grabbing;
+}
+.im-slot.is-discard {
+  opacity: 0.45;
+}
+.im-slot.is-discard ac-card {
+  filter: grayscale(0.6);
+}
 .im-slot-no {
   font-family: var(--font-mono);
   font-weight: 700;
   font-size: 0.8rem;
   color: var(--ac-ink-faint);
 }
-.im-slot.is-discard .im-slot-no { color: var(--ac-danger); }
-.im-nudge { display: flex; gap: 0.3rem; }
+.im-slot.is-discard .im-slot-no {
+  color: var(--ac-danger);
+}
+.im-nudge {
+  display: flex;
+  gap: 0.3rem;
+}
 .im-nudge button {
   appearance: none;
   width: 1.8rem;
@@ -74,7 +95,9 @@
   cursor: pointer;
   font-size: 0.7rem;
 }
-.im-nudge button:hover { border-color: var(--ac-cyan); }
+.im-nudge button:hover {
+  border-color: var(--ac-cyan);
+}
 /* A full-width row break separating the kept cards from the discard pile, so
    the keep/discard split stays clear once the list wraps onto multiple rows. */
 .im-divider {
@@ -82,15 +105,18 @@
   width: 100%;
   height: 2px;
   margin: 0.2rem 0;
-  background: repeating-linear-gradient(
-    to right,
-    var(--ac-danger) 0 6px,
-    transparent 6px 12px
-  );
+  background: repeating-linear-gradient(to right, var(--ac-danger) 0 6px, transparent 6px 12px);
   border-radius: 2px;
 }
-.im-empty { color: var(--ac-ink-faint); font-size: 0.85rem; padding: 1rem; }
-.im-lock { align-self: center; min-width: 200px; }
+.im-empty {
+  color: var(--ac-ink-faint);
+  font-size: 0.85rem;
+  padding: 1rem;
+}
+.im-lock {
+  align-self: center;
+  min-width: 200px;
+}
 
 /* Sniper-ban grid. */
 .ban-grid {
@@ -119,7 +145,10 @@
 }
 
 /* Waiting on a bot to ban. */
-.im-wait { align-items: center; text-align: center; }
+.im-wait {
+  align-items: center;
+  text-align: center;
+}
 .im-spinner {
   width: 3rem;
   height: 3rem;
@@ -128,4 +157,8 @@
   border-radius: 50%;
   animation: spin 0.9s linear infinite;
 }
-@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

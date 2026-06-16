@@ -77,10 +77,13 @@ export class AcLobby extends AcElement {
         <span class="set-label">${label}</span>
         <div class="seg">
           ${options.map(
-            (o) => html`<button
-              class="seg-btn ${current === o.value ? "is-on" : ""}"
-              @click=${() => onPick(o.value)}
-            >${o.text}</button>`,
+            (o) =>
+              html`<button
+                class="seg-btn ${current === o.value ? "is-on" : ""}"
+                @click=${() => onPick(o.value)}
+              >
+                ${o.text}
+              </button>`,
           )}
         </div>
       </div>
@@ -122,37 +125,64 @@ export class AcLobby extends AcElement {
               DIFFS.map((diff) => ({ value: diff, text: diff })),
               (v) => this.set("botDifficulty", v),
             )}
-            ${this.segmented<AlphaChainSettings["banMode"]>("Ban mode", d.banMode,
+            ${this.segmented<AlphaChainSettings["banMode"]>(
+              "Ban mode",
+              d.banMode,
               [
                 { value: "All", text: "all" },
                 { value: "VowelsOnly", text: "vowels" },
                 { value: "ConsonantsOnly", text: "conson." },
               ],
-              (v) => this.set("banMode", v))}
-            ${this.stepper("Shot clock", `${d.shotClockSeconds}s`,
+              (v) => this.set("banMode", v),
+            )}
+            ${this.stepper(
+              "Shot clock",
+              `${d.shotClockSeconds}s`,
               () => this.step("shotClockSeconds", -5, 5, 60),
-              () => this.step("shotClockSeconds", 5, 5, 60))}
-            ${this.stepper("Eras", String(d.eraCount),
+              () => this.step("shotClockSeconds", 5, 5, 60),
+            )}
+            ${this.stepper(
+              "Eras",
+              String(d.eraCount),
               () => this.step("eraCount", -1, 1, 50),
-              () => this.step("eraCount", 1, 1, 50))}
-            ${this.stepper("Rounds / era", String(d.eraInterval),
+              () => this.step("eraCount", 1, 1, 50),
+            )}
+            ${this.stepper(
+              "Rounds / era",
+              String(d.eraInterval),
               () => this.step("eraInterval", -1, 1, 50),
-              () => this.step("eraInterval", 1, 1, 50))}
-            ${this.stepper("Cards / era", String(d.modifiersDealtPerEra),
+              () => this.step("eraInterval", 1, 1, 50),
+            )}
+            ${this.stepper(
+              "Cards / era",
+              String(d.modifiersDealtPerEra),
               () => this.step("modifiersDealtPerEra", -1, 0, 10),
-              () => this.step("modifiersDealtPerEra", 1, 0, 10))}
-            ${this.stepper("Card select", `${d.intermissionCardSelectSeconds}s`,
+              () => this.step("modifiersDealtPerEra", 1, 0, 10),
+            )}
+            ${this.stepper(
+              "Card select",
+              `${d.intermissionCardSelectSeconds}s`,
               () => this.step("intermissionCardSelectSeconds", -10, 10, 180),
-              () => this.step("intermissionCardSelectSeconds", 10, 10, 180))}
-            ${this.stepper("Sniper ban", `${d.sniperBanSeconds}s`,
+              () => this.step("intermissionCardSelectSeconds", 10, 10, 180),
+            )}
+            ${this.stepper(
+              "Sniper ban",
+              `${d.sniperBanSeconds}s`,
               () => this.step("sniperBanSeconds", -5, 5, 120),
-              () => this.step("sniperBanSeconds", 5, 5, 120))}
-            ${this.stepper("Countdown", `${d.preRoundCountdownSeconds}s`,
+              () => this.step("sniperBanSeconds", 5, 5, 120),
+            )}
+            ${this.stepper(
+              "Countdown",
+              `${d.preRoundCountdownSeconds}s`,
               () => this.step("preRoundCountdownSeconds", -1, 3, 15),
-              () => this.step("preRoundCountdownSeconds", 1, 3, 15))}
-            ${this.stepper("Engine anim", `${d.engineAnimationSeconds.toFixed(1)}s`,
+              () => this.step("preRoundCountdownSeconds", 1, 3, 15),
+            )}
+            ${this.stepper(
+              "Engine anim",
+              `${d.engineAnimationSeconds.toFixed(1)}s`,
               () => this.step("engineAnimationSeconds", -0.5, 0.5, 10),
-              () => this.step("engineAnimationSeconds", 0.5, 0.5, 10))}
+              () => this.step("engineAnimationSeconds", 0.5, 0.5, 10),
+            )}
             ${this.toggle("Survival", d.survivalMode, (v) => this.set("survivalMode", v))}
             ${this.toggle("Tutorials", d.enableTutorials, (v) => this.set("enableTutorials", v))}
           </div>
@@ -162,8 +192,8 @@ export class AcLobby extends AcElement {
         <button class="lobby-bay" @click=${this.openBay}>🧪 Testing Bay</button>
 
         <p class="lobby-rules">
-          Every word must start with the last letter of the previous word. 
-          It sounds simple but don't worry, I've massively overcomplicated it.
+          Every word must start with the last letter of the previous word. It sounds simple but
+          don't worry, I've massively overcomplicated it.
         </p>
       </div>
     `;

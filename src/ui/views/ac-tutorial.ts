@@ -6,8 +6,8 @@
  * synced sub-timer for its progress ring and only the host/solo player may SKIP.
  */
 
-import { html, nothing, type TemplateResult } from "lit";
-import { customElement, property, state } from "lit/decorators.js";
+import { html, nothing, type PropertyValues, type TemplateResult } from "lit";
+import { customElement, property } from "lit/decorators.js";
 import type { GameController } from "../../net/controller";
 import type { TutorialKind } from "../../game/types";
 import { AcElement } from "../app/AcElement";
@@ -51,20 +51,14 @@ const SCRIPTS: Record<TutorialKind, Script> = {
 @customElement("ac-tutorial")
 export class AcTutorial extends AcElement {
   @property({ attribute: false }) controller!: GameController;
-  /** Re-render tick for the progress ring (the FSM owns the real dwell). */
-  @state() private refreshN = 0;
 
-  private timer = 0;
-
-  override connectedCallback(): void {
-    super.connectedCallback();
-    this.timer = window.setInterval(() => (this.refreshN = (this.refreshN + 1) % 1000), 100);
-  }
-
-  override disconnectedCallback(): void {
-    super.disconnectedCallback();
-    if (this.timer) window.clearInterval(this.timer);
-    this.timer = 0;
+  override willUpdate(changed: PropertyValues): void {
+    // The FSM owns the authoritative dwell; re-render the progress ring whenever
+    // the synced sub-timer ticks (per frame, never broadcast over the network).
+    if (changed.has("controller") && this.controller) {
+      this.clearSubs();
+      this.listen(this.controller.match.events, "subTimerTick", () => this.requestUpdate());
+    }
   }
 
   /** Only the host (or a solo player) may skip the shared dwell. */

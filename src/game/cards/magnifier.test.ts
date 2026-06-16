@@ -23,13 +23,19 @@ describe("Magnifying Glass — neighbor amplification", () => {
 
   it("stacks: two glasses on the one neighbor → ×2.25", () => {
     // +10 base → ×2.25 = +22.5 → round half-up. seed 3 + 22.5 = 25.5 → 26.
-    expect(scoreWord("cat", bay("MagnifyingGlass", "MagnifyingGlass", "TheAnchor"), opts).finalScore).toBe(26);
+    expect(
+      scoreWord("cat", bay("MagnifyingGlass", "MagnifyingGlass", "TheAnchor"), opts).finalScore,
+    ).toBe(26);
   });
 
   it("stacks: three glasses → ×3.375", () => {
     // +10 × 3.375 = +33.75; seed 3 → 36.75 → 37.
     expect(
-      scoreWord("cat", bay("MagnifyingGlass", "MagnifyingGlass", "MagnifyingGlass", "TheAnchor"), opts).finalScore,
+      scoreWord(
+        "cat",
+        bay("MagnifyingGlass", "MagnifyingGlass", "MagnifyingGlass", "TheAnchor"),
+        opts,
+      ).finalScore,
     ).toBe(37);
   });
 

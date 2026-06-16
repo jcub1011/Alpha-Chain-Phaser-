@@ -23,7 +23,10 @@
   text-shadow: var(--ac-glow-mint);
   animation: ac-num-bump 0.6s ease-out both;
 }
-.go-winner { margin: 0; color: var(--ac-ink-soft); }
+.go-winner {
+  margin: 0;
+  color: var(--ac-ink-soft);
+}
 
 .go-standings {
   list-style: none;
@@ -47,15 +50,35 @@
   background: color-mix(in srgb, var(--accent) 18%, transparent);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent);
 }
-.go-row.is-me .go-name { color: var(--accent); font-weight: 800; }
+.go-row.is-me .go-name {
+  color: var(--accent);
+  font-weight: 800;
+}
 .go-rank {
   font-family: var(--font-mono);
   font-weight: 800;
   min-width: 1.4rem;
   color: var(--ac-ink-faint);
 }
-.go-row.is-first .go-rank { color: var(--accent); }
-.go-name { flex: 1; text-align: left; font-weight: 600; }
-.go-name i { color: var(--ac-ink-faint); font-style: normal; font-size: 0.7em; }
-.go-score { font-family: var(--font-mono); font-weight: 800; font-variant-numeric: tabular-nums; }
-.go-return { margin-top: var(--sp-2); min-width: 220px; }
+.go-row.is-first .go-rank {
+  color: var(--accent);
+}
+.go-name {
+  flex: 1;
+  text-align: left;
+  font-weight: 600;
+}
+.go-name i {
+  color: var(--ac-ink-faint);
+  font-style: normal;
+  font-size: 0.7em;
+}
+.go-score {
+  font-family: var(--font-mono);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.go-return {
+  margin-top: var(--sp-2);
+  min-width: 220px;
+}

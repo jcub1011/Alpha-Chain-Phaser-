@@ -79,6 +79,8 @@ describe("armedClockSeconds", () => {
   });
 
   it("never falls below the 3s floor", () => {
-    expect(armedClockSeconds(4, bay("Redline", "Redline", "Redline", "Redline", "Redline"))).toBe(3);
+    expect(armedClockSeconds(4, bay("Redline", "Redline", "Redline", "Redline", "Redline"))).toBe(
+      3,
+    );
   });
 });

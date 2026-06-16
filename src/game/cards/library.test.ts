@@ -233,9 +233,21 @@ describe("The Titanium Mirror — passive ×1.0 with no shield state", () => {
 
 describe("FX cards fold inert (behaviour lives in the lifecycle hooks)", () => {
   const FX_CARDS = [
-    "SlowBurn", "HeatSink", "Catalyst", "Forgery", "MagnifyingGlass", "Wildcard",
-    "Prism", "IrsAgent", "TaxWriteOff", "TollBooth", "TaxCollector", "ChronoSyphon",
-    "FlakCannon", "BountyHunter", "BaitAndSwitch",
+    "SlowBurn",
+    "HeatSink",
+    "Catalyst",
+    "Forgery",
+    "MagnifyingGlass",
+    "Wildcard",
+    "Prism",
+    "IrsAgent",
+    "TaxWriteOff",
+    "TollBooth",
+    "TaxCollector",
+    "ChronoSyphon",
+    "FlakCannon",
+    "BountyHunter",
+    "BaitAndSwitch",
   ];
   for (const id of FX_CARDS) {
     it(`${id} emits an FX step and leaves the value unchanged`, () => {

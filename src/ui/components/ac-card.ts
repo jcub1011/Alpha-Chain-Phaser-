@@ -29,8 +29,10 @@ const chipVar = (op: string): string =>
 /** A compact "−20% ⏱" / "+5s ⏱" clock chip for glass-cannon / utility cards. */
 const clockText = (clock: ClockModifier): string => {
   const parts: string[] = [];
-  if (clock.pctDelta) parts.push(`${clock.pctDelta > 0 ? "+" : "−"}${Math.round(Math.abs(clock.pctDelta) * 100)}%`);
-  if (clock.flatDelta) parts.push(`${clock.flatDelta > 0 ? "+" : "−"}${Math.abs(clock.flatDelta)}s`);
+  if (clock.pctDelta)
+    parts.push(`${clock.pctDelta > 0 ? "+" : "−"}${Math.round(Math.abs(clock.pctDelta) * 100)}%`);
+  if (clock.flatDelta)
+    parts.push(`${clock.flatDelta > 0 ? "+" : "−"}${Math.abs(clock.flatDelta)}s`);
   return `${parts.join(" ")} ⏱`;
 };
 
@@ -102,8 +104,16 @@ export class AcCard extends AcElement {
         @click=${this.onFlip}
       >
         <div class="gc gc-front">
-          <svg class="gc-watermark" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-            stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <svg
+            class="gc-watermark"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.7"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
             <use href="#${this.cardId}"></use>
           </svg>
           <div class="gc-top">

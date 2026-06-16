@@ -44,8 +44,7 @@ export function chooseBotWord(dict: Dictionary, opts: BotPick): string | null {
     if (pool.length === 0) continue;
 
     const fresh = (w: string) => !opts.usedWords.has(w);
-    const clean = (w: string) =>
-      opts.bannedLetter === "" || !w.includes(opts.bannedLetter);
+    const clean = (w: string) => opts.bannedLetter === "" || !w.includes(opts.bannedLetter);
 
     // Prefer: in-band length AND clean of the banned letter.
     const inBand = (w: string) => w.length >= lo && w.length <= hi;

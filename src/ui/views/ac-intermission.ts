@@ -25,30 +25,19 @@ export class AcIntermission extends AcElement {
 
   @state() private order: string[] = [];
   @state() private slots = 3;
-  /** Re-render tick (drives the countdown read from the synced sub-timer). */
-  @state() private refreshN = 0;
 
   private dragId: string | null = null;
-  private timer = 0;
 
   override willUpdate(changed: PropertyValues): void {
     if (changed.has("controller") && this.controller) {
       const me = this.controller.match.state.players.find((p) => p.id === this.controller.humanId);
       this.order = me ? me.bay.map((b) => b.id) : [];
       this.slots = me?.slots ?? 3;
+      // Re-render the countdown whenever the synced sub-timer ticks; the FSM owns
+      // the authoritative dwell (per-frame event, never broadcast over the network).
+      this.clearSubs();
+      this.listen(this.controller.match.events, "subTimerTick", () => this.requestUpdate());
     }
-  }
-
-  override connectedCallback(): void {
-    super.connectedCallback();
-    // Refresh the countdown display; the FSM owns the authoritative dwell.
-    this.timer = window.setInterval(() => (this.refreshN = (this.refreshN + 1) % 1000), 200);
-  }
-
-  override disconnectedCallback(): void {
-    super.disconnectedCallback();
-    if (this.timer) window.clearInterval(this.timer);
-    this.timer = 0;
   }
 
   private get seconds(): number {
@@ -106,8 +95,8 @@ export class AcIntermission extends AcElement {
           <span class="ac-eyebrow">intermission · optimize</span>
           <h2 class="im-title">Tune your engine</h2>
           <p class="im-sub">
-            Cards score left → right. Drag or use ◄ ► —
-            anything past slot ${this.slots} is discarded.
+            Cards score left → right. Drag or use ◄ ► — anything past slot ${this.slots} is
+            discarded.
           </p>
           <span class="im-timer">${this.seconds}s</span>
         </header>
@@ -158,7 +147,10 @@ export class AcIntermission extends AcElement {
         </header>
         <div class="ban-grid">
           ${letters.map(
-            (l) => html`<button class="ban-key" @click=${() => this.pickBan(l)}>${l.toUpperCase()}</button>`,
+            (l) =>
+              html`<button class="ban-key" @click=${() => this.pickBan(l)}>
+                ${l.toUpperCase()}
+              </button>`,
           )}
         </div>
       </div>
@@ -186,7 +178,10 @@ export class AcIntermission extends AcElement {
     if (sub === "optimize" || sub === "tutorial") {
       body = this.renderOptimize();
     } else if (sub === "sniperBan") {
-      body = m.computeLastPlaceId() === this.controller.humanId ? this.renderBan() : this.renderBanWait();
+      body =
+        m.computeLastPlaceId() === this.controller.humanId
+          ? this.renderBan()
+          : this.renderBanWait();
     }
     return html`<div class="overlay intermission">${body}</div>`;
   }

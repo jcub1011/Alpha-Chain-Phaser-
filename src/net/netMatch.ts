@@ -73,7 +73,11 @@ export class NetMatch implements MatchLike {
         this.events.emit("clockTick", next);
       }
     } else if (s.phase === "Tutorial" || s.phase === "Intermission") {
-      s.subTimerRemaining = Math.max(0, s.subTimerRemaining - dt);
+      const next = Math.max(0, s.subTimerRemaining - dt);
+      if (next !== s.subTimerRemaining) {
+        s.subTimerRemaining = next;
+        this.events.emit("subTimerTick", next);
+      }
     }
   }
 

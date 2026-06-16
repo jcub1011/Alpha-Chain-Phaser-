@@ -47,7 +47,9 @@
   font-family: var(--font-display);
   font-size: 12px;
   white-space: nowrap;
-  transition: border-color 0.15s, background 0.15s;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
 }
 .sandbox .chip:hover {
   border-color: var(--ac-cyan);
@@ -64,7 +66,9 @@
 .sandbox-controls label {
   display: grid;
   gap: 4px;
-  font: 600 11px/1.4 system-ui, sans-serif;
+  font:
+    600 11px/1.4 system-ui,
+    sans-serif;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   opacity: 0.85;
@@ -94,7 +98,9 @@
   color: var(--ac-ink-soft);
 }
 .sandbox-turn-label {
-  font: 600 11px/1.4 system-ui, sans-serif;
+  font:
+    600 11px/1.4 system-ui,
+    sans-serif;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -152,7 +158,9 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font: 600 10px/1 system-ui, sans-serif;
+  font:
+    600 10px/1 system-ui,
+    sans-serif;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   opacity: 0.8;
@@ -223,7 +231,9 @@
 .sandbox-submit label {
   display: grid;
   gap: 4px;
-  font: 600 11px/1.4 system-ui, sans-serif;
+  font:
+    600 11px/1.4 system-ui,
+    sans-serif;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--ac-ink-soft);
@@ -273,7 +283,9 @@
   border-left: 3px solid var(--step-accent, var(--ac-border-strong));
   border-radius: 4px;
   background: rgba(255, 255, 255, 0.04);
-  font: 13px/1.4 system-ui, sans-serif;
+  font:
+    13px/1.4 system-ui,
+    sans-serif;
 }
 .sandbox-steps li.off {
   opacity: 0.4;
@@ -406,7 +418,9 @@
   font-weight: 700;
   font-size: 12px;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
 }
 .palette-add:hover {
   border-color: var(--ac-accent-mint, #14f195);

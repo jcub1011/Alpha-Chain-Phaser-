@@ -28,8 +28,7 @@ body {
   /* Deep navy base with two pinned glows; an animated layer drifts over it. */
   background:
     radial-gradient(120% 80% at 50% -10%, #0d1430 0%, transparent 55%),
-    radial-gradient(100% 100% at 50% 120%, #0a0e22 0%, transparent 60%),
-    var(--ac-bg-0);
+    radial-gradient(100% 100% at 50% 120%, #0a0e22 0%, transparent 60%), var(--ac-bg-0);
 }
 
 /* Drifting nebula — two slow blobs, behind everything. */
@@ -79,11 +78,22 @@ ac-app {
 
 /* Screen-shake, driven by fx.shake() toggling .is-shaking + --shake. */
 @keyframes ac-shake {
-  0%, 100% { transform: translate(0, 0); }
-  20% { transform: translate(calc(var(--shake) * -1), calc(var(--shake) * 0.4)); }
-  40% { transform: translate(var(--shake), calc(var(--shake) * -0.6)); }
-  60% { transform: translate(calc(var(--shake) * -0.6), var(--shake)); }
-  80% { transform: translate(calc(var(--shake) * 0.5), calc(var(--shake) * -0.4)); }
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  20% {
+    transform: translate(calc(var(--shake) * -1), calc(var(--shake) * 0.4));
+  }
+  40% {
+    transform: translate(var(--shake), calc(var(--shake) * -0.6));
+  }
+  60% {
+    transform: translate(calc(var(--shake) * -0.6), var(--shake));
+  }
+  80% {
+    transform: translate(calc(var(--shake) * 0.5), calc(var(--shake) * -0.4));
+  }
 }
 /* Generic — fx.shake() targets the UI root by default, or a specific region
    (e.g. the scoring-engine theater) so only that area jolts. */
@@ -117,7 +127,9 @@ ac-app {
   background: var(--ac-panel);
   border: 1px solid var(--ac-border);
   border-radius: var(--r-lg);
-  box-shadow: var(--ac-drop-sm), inset 0 1px 0 var(--ac-hi);
+  box-shadow:
+    var(--ac-drop-sm),
+    inset 0 1px 0 var(--ac-hi);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
 }
@@ -150,7 +162,10 @@ ac-app {
   text-transform: uppercase;
   cursor: pointer;
   box-shadow: var(--ac-shadow-sm);
-  transition: transform 0.08s ease, box-shadow 0.08s ease, filter 0.15s ease;
+  transition:
+    transform 0.08s ease,
+    box-shadow 0.08s ease,
+    filter 0.15s ease;
 }
 .ac-btn:hover:not(:disabled) {
   transform: translate(-2px, -2px);
@@ -177,7 +192,10 @@ ac-app {
   border-color: var(--ac-cyan);
   background: color-mix(in srgb, var(--ac-cyan) 12%, transparent);
 }
-.ac-btn-magenta { background: var(--ac-magenta); color: #1a0410; }
+.ac-btn-magenta {
+  background: var(--ac-magenta);
+  color: #1a0410;
+}
 
 /* ── Overlays (countdown / intermission / game over) ───────────────────── */
 .overlay {

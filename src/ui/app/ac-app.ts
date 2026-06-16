@@ -183,7 +183,10 @@ export class AcApp extends AcElement {
       `;
     }
     if (this.screen === "netlobby" && this.net) {
-      return html`<ac-net-lobby .controller=${this.net} @ac-net-start=${this.onNetStart}></ac-net-lobby>`;
+      return html`<ac-net-lobby
+        .controller=${this.net}
+        @ac-net-start=${this.onNetStart}
+      ></ac-net-lobby>`;
     }
     if (this.screen === "lobby" || !this.controller) {
       return html`<ac-lobby .settings=${this.settings} @ac-start=${this.onStart}></ac-lobby>`;
@@ -195,9 +198,7 @@ export class AcApp extends AcElement {
       (this.phase === "Intermission" && c.match.state.intermissionPhase === "tutorial");
     return html`
       <ac-hud .controller=${c}></ac-hud>
-      ${this.phase === "Countdown"
-        ? html`<ac-countdown .controller=${c}></ac-countdown>`
-        : nothing}
+      ${this.phase === "Countdown" ? html`<ac-countdown .controller=${c}></ac-countdown>` : nothing}
       ${this.phase === "Intermission"
         ? html`<ac-intermission .controller=${c}></ac-intermission>`
         : nothing}

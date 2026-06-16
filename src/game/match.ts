@@ -11,11 +11,7 @@
 
 import { DEALABLE_CARD_IDS, getCard } from "./cards/library";
 import type { ModifierCard } from "./cards/card";
-import {
-  BanLetterService,
-  EngineEffects,
-  RoomServices,
-} from "./cards/roomServices";
+import { BanLetterService, EngineEffects, RoomServices } from "./cards/roomServices";
 import { Emitter } from "./emitter";
 import {
   armedClockSeconds,
@@ -28,12 +24,7 @@ import {
   scoreWord,
   type BayEvaluator,
 } from "./scoring";
-import {
-  legalBanLetters,
-  MIN_SHOT_CLOCK_SECONDS,
-  MODIFIER_SLOTS_START,
-  isVowel,
-} from "./settings";
+import { legalBanLetters, MIN_SHOT_CLOCK_SECONDS, MODIFIER_SLOTS_START, isVowel } from "./settings";
 import type {
   AlphaChainSettings,
   BayCard,
@@ -72,6 +63,8 @@ export interface MatchEvents {
   /** Tutorial phase / intermission sub-phase changed (drives a host snapshot). */
   subPhaseChanged: { intermissionPhase: IntermissionPhase; currentTutorial: TutorialKind | null };
   countdownTick: number; // seconds remaining
+  /** Tutorial / intermission sub-phase dwell remaining (per-frame; never broadcast). */
+  subTimerTick: number;
   turnArmed: { playerIndex: number; requiredLetter: string; clockTotal: number };
   clockTick: number; // shot-clock seconds remaining
   submission: { submission: Submission; bounties: { playerId: string; amount: number }[] };
@@ -147,9 +140,7 @@ export class MatchController {
     );
     this.effects = new EngineEffects(this.services, {
       cardsOf: (p) =>
-        p.bay
-          .map((b) => getCard(b.id))
-          .filter((c): c is ModifierCard => c !== undefined),
+        p.bay.map((b) => getCard(b.id)).filter((c): c is ModifierCard => c !== undefined),
       activePlayers: () => this.turnOrderedActive(),
       leaderId: () => this.roundLeaderId,
       armedClockOf: (p) => armedClockSeconds(this.state.settings.shotClockSeconds, p.bay),
@@ -190,7 +181,9 @@ export class MatchController {
   hidesInput(playerId: string): boolean {
     const p = this.state.players.find((x) => x.id === playerId);
     if (!p) return false;
-    return p.bay.some((b) => getCard(b.id)?.hidesInput?.(this.bayEval(p, "", false).ctxFor(0)) ?? false);
+    return p.bay.some(
+      (b) => getCard(b.id)?.hidesInput?.(this.bayEval(p, "", false).ctxFor(0)) ?? false,
+    );
   }
 
   // ── Accessors ──────────────────────────────────────────────────────────────
@@ -221,6 +214,7 @@ export class MatchController {
     const s = this.state;
     if (s.phase === "Tutorial") {
       s.subTimerRemaining = Math.max(0, s.subTimerRemaining - dt);
+      this.events.emit("subTimerTick", s.subTimerRemaining);
       if (s.subTimerRemaining <= 0) this.advanceTutorialPhase();
     } else if (s.phase === "Countdown") {
       const prev = Math.ceil(this.countdownRemaining);
@@ -435,8 +429,9 @@ export class MatchController {
         finalScore = irs.score(breakdown.finalBeforeTax);
         suppressBounty = irs.suppress;
       }
-      const bonus = bayWriteOffBonus(evCheck, (w) =>
-        scoreWord(w, player.bay, { ...scoreOpts, taxed: false }).finalScore,
+      const bonus = bayWriteOffBonus(
+        evCheck,
+        (w) => scoreWord(w, player.bay, { ...scoreOpts, taxed: false }).finalScore,
       );
       if (bonus > 0) finalScore += bonus;
       breakdown.finalScore = finalScore;
@@ -576,6 +571,7 @@ export class MatchController {
     const s = this.state;
     if (s.intermissionPhase === null) return;
     s.subTimerRemaining = Math.max(0, s.subTimerRemaining - dt);
+    this.events.emit("subTimerTick", s.subTimerRemaining);
     if (s.subTimerRemaining > 0) return;
     switch (s.intermissionPhase) {
       case "tutorial":
@@ -616,7 +612,8 @@ export class MatchController {
     const active = this.activePlayers;
     let last = active[0];
     for (const p of active) if (p.score < last.score) last = p;
-    return last.id;
+    // Defensive: mirror computeLeaderId — never index into an empty active set.
+    return last?.id ?? "";
   }
 
   /** Replace a player's bay with an explicit ordering (used by reorder/discard UI). */
@@ -640,9 +637,7 @@ export class MatchController {
   /** Apply the sniper ban then roll into the next era's countdown. */
   applySniperBanAndAdvance(letter: string): void {
     const legal = new Set(legalBanLetters(this.state.settings.banMode));
-    const choice = legal.has(letter.toLowerCase())
-      ? letter.toLowerCase()
-      : this.randomBanLetter();
+    const choice = legal.has(letter.toLowerCase()) ? letter.toLowerCase() : this.randomBanLetter();
     this.state.bannedLetter = choice;
     for (const p of this.state.players) p.bay.forEach((b) => (b.isNew = false));
     this.state.era += 1;

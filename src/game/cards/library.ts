@@ -55,7 +55,8 @@ export const CARD_LIBRARY: Record<string, ModifierCard> = {
     magnitudeText: "+2/con",
     description: "+2 per consonant; +3 per consonant when the word is 7+ letters.",
     // Gate on the REAL word length (matches C#), count via Catalyst-aware indices.
-    fold: (v, c) => add(v, c.consonantIndices().length * (c.length >= 7 ? 3 : 2) * c.magnification()),
+    fold: (v, c) =>
+      add(v, c.consonantIndices().length * (c.length >= 7 ? 3 : 2) * c.magnification()),
   },
 
   VocalVowels: {
@@ -158,7 +159,9 @@ export const CARD_LIBRARY: Record<string, ModifierCard> = {
     magnitudeText: "×3",
     description: "×3 when the word has more vowels than consonants.",
     fold: (v, c) =>
-      c.vowelIndices().length > c.consonantIndices().length ? mul(v, 3 * c.magnification()) : skip(v),
+      c.vowelIndices().length > c.consonantIndices().length
+        ? mul(v, 3 * c.magnification())
+        : skip(v),
   },
 
   TheArchitect: {
@@ -206,7 +209,8 @@ export const CARD_LIBRARY: Record<string, ModifierCard> = {
     op: "multiplicative",
     magnitudeText: "×1.5",
     description: "×1.5 when the word ends in a vowel (and hands an easy letter on).",
-    fold: (v, c) => (c.vowelIndices().includes(c.length - 1) ? mul(v, 1.5 * c.magnification()) : skip(v)),
+    fold: (v, c) =>
+      c.vowelIndices().includes(c.length - 1) ? mul(v, 1.5 * c.magnification()) : skip(v),
   },
 
   TryHard: {
@@ -231,7 +235,8 @@ export const CARD_LIBRARY: Record<string, ModifierCard> = {
     op: "multiplicative",
     magnitudeText: "×2",
     description: "×2 when the word has a repeat letter (the 'ff' in coffin), else ×0.5.",
-    fold: (v, c) => (c.hasRepeatLetter ? mul(v, 2 * c.magnification()) : mul(v, 0.5 * c.magnification())),
+    fold: (v, c) =>
+      c.hasRepeatLetter ? mul(v, 2 * c.magnification()) : mul(v, 0.5 * c.magnification()),
   },
 
   // ── §3.3 Glass cannon (multipliers paid in your own shot clock) ──
@@ -266,7 +271,8 @@ export const CARD_LIBRARY: Record<string, ModifierCard> = {
     family: "clock",
     op: "multiplicative",
     magnitudeText: "×1.35–2.7",
-    description: "Halves your shot clock. ×1.35 normally — but ×2.7 if you submit before the final 2 seconds.",
+    description:
+      "Halves your shot clock. ×1.35 normally — but ×2.7 if you submit before the final 2 seconds.",
     clock: { pctDelta: -0.5 },
     // ×2.7 when there are >=2s left (submitted early), else ×1.35.
     fold: (v, c) => mul(v, (c.clockRemaining >= 2 ? 2.7 : 1.35) * c.magnification()),
@@ -279,7 +285,8 @@ export const CARD_LIBRARY: Record<string, ModifierCard> = {
     family: "clock",
     op: "multiplicative",
     magnitudeText: "×0.5/ltr",
-    description: "Locks your shot clock to a strict, unmodifiable 5s for the era. In exchange: ×(0.5 per letter).",
+    description:
+      "Locks your shot clock to a strict, unmodifiable 5s for the era. In exchange: ×(0.5 per letter).",
     // Uses the REAL word length (not Forgery-perceived), per C# AnchorChainCard.
     fold: (v, c) => mul(v, 0.5 * c.length * c.magnification()),
     shotClockOverride: () => 5,
@@ -292,7 +299,8 @@ export const CARD_LIBRARY: Record<string, ModifierCard> = {
     family: "clock",
     op: "multiplicative",
     magnitudeText: "×1.5",
-    description: "Caps your shot clock at 5s. When your word is longer than 6 letters, ×1.5 to your score so far.",
+    description:
+      "Caps your shot clock at 5s. When your word is longer than 6 letters, ×1.5 to your score so far.",
     // Per-word ×1.5 folded at its own slot (boosts the seed + everything to its left).
     fold: (v, c) => (c.resolveWordLength() > 6 ? mul(v, 1.5 * c.magnification()) : skip(v)),
     shotClockCap: () => 5,
@@ -305,7 +313,8 @@ export const CARD_LIBRARY: Record<string, ModifierCard> = {
     family: "clock",
     op: "fx",
     magnitudeText: "FX",
-    description: "Lengthens your shot clock by 20%, but words shorter than 6 letters are illegal — they take the Zero-Point Tax.",
+    description:
+      "Lengthens your shot clock by 20%, but words shorter than 6 letters are illegal — they take the Zero-Point Tax.",
     clock: { pctDelta: 0.2 },
     fold: (v) => fx(v),
     illegalWord: (c) => c.resolveWordLength() < 6,
@@ -323,8 +332,7 @@ export const CARD_LIBRARY: Record<string, ModifierCard> = {
     fold: (v, c) => {
       if (c.resolveWordLength() <= 6) return skip(v);
       const cap = Math.floor(c.resolveWordLength() / 2);
-      const factor =
-        c.clockRemaining <= 0 ? cap : Math.min(c.clockTotal / c.clockRemaining, cap);
+      const factor = c.clockRemaining <= 0 ? cap : Math.min(c.clockTotal / c.clockRemaining, cap);
       return mul(v, factor * c.magnification());
     },
   },
@@ -434,7 +442,8 @@ export const CARD_LIBRARY: Record<string, ModifierCard> = {
     family: "economy",
     op: "fx",
     magnitudeText: "FX",
-    description: "When YOUR word is hit by the Zero-Point Tax, no opponent's Tax Collector collects a thing.",
+    description:
+      "When YOUR word is hit by the Zero-Point Tax, no opponent's Tax Collector collects a thing.",
     fold: (v) => fx(v),
     ownTaxScore: () => 0,
     suppressesSiphon: true,
@@ -530,7 +539,8 @@ export const CARD_LIBRARY: Record<string, ModifierCard> = {
     family: "economy",
     op: "fx",
     magnitudeText: "FX",
-    description: "Banks +1 for every whole second left on an opponent's shot clock when they submit.",
+    description:
+      "Banks +1 for every whole second left on an opponent's shot clock when they submit.",
     fold: (v) => fx(v),
     onOpponentWordResolved: (c) => {
       const res = c.resolution;
@@ -576,7 +586,8 @@ export const CARD_LIBRARY: Record<string, ModifierCard> = {
     family: "economy",
     op: "fx",
     magnitudeText: "FX",
-    description: "Marks the round leader — if they play a word shorter than 6 letters, they lose 15 points.",
+    description:
+      "Marks the round leader — if they play a word shorter than 6 letters, they lose 15 points.",
     fold: (v) => fx(v),
     onOpponentWordResolved: (c) => {
       const res = c.resolution;
@@ -597,7 +608,8 @@ export const CARD_LIBRARY: Record<string, ModifierCard> = {
     family: "utility",
     op: "fx",
     magnitudeText: "FX",
-    description: "When your word is taxed, curse the next player with that exact banned letter for their next turn.",
+    description:
+      "When your word is taxed, curse the next player with that exact banned letter for their next turn.",
     fold: (v) => fx(v),
     roomServices: ["hijackBan"],
     onTurnEnded: (c) => {

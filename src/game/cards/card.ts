@@ -15,13 +15,7 @@
  */
 
 import { isVowel, MAX_WORD_SCORE } from "../settings";
-import type {
-  CardFamily,
-  CardOp,
-  PlayerState,
-  Submission,
-  WordResolution,
-} from "../types";
+import type { CardFamily, CardOp, PlayerState, Submission, WordResolution } from "../types";
 import type { EffectMagnifier } from "./magnifier";
 import type { EngineEffects, RoomServices, RoomServiceKey } from "./roomServices";
 

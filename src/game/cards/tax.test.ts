@@ -4,8 +4,18 @@ import { DEFAULT_SETTINGS } from "../settings";
 import type { AlphaChainSettings } from "../types";
 
 const WORDS = new Set([
-  "cat", "tiger", "apple", "banana", "table", "rat", "torch", "art", "ant",
-  "tap", "monster", "carrot",
+  "cat",
+  "tiger",
+  "apple",
+  "banana",
+  "table",
+  "rat",
+  "torch",
+  "art",
+  "ant",
+  "tap",
+  "monster",
+  "carrot",
 ]);
 
 const two: PlayerSeed[] = [
@@ -17,7 +27,14 @@ const one: PlayerSeed[] = [{ id: "p1", name: "P1", isBot: false }];
 const make = (seeds: PlayerSeed[], overrides: Partial<AlphaChainSettings> = {}) => {
   const m = new MatchController(
     seeds,
-    { ...DEFAULT_SETTINGS, enableTutorials: false, preRoundCountdownSeconds: 1, eraInterval: 9, eraCount: 1, ...overrides },
+    {
+      ...DEFAULT_SETTINGS,
+      enableTutorials: false,
+      preRoundCountdownSeconds: 1,
+      eraInterval: 9,
+      eraCount: 1,
+      ...overrides,
+    },
     { isWord: (w) => WORDS.has(w), rng: () => 0.5 },
   );
   m.start();

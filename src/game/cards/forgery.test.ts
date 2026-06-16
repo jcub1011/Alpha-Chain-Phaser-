@@ -34,6 +34,8 @@ describe("Forgery — perceived length doubling", () => {
 
   it("stacks with a Magnifying Glass on the Forgery (×2 perceived → ×3)", () => {
     // Glass magnifies Forgery: perceived = 3 × 2 × 1.5 = 9. Vanilla 9 ≥ 7 → +2/letter = +18. seed 3 → 21.
-    expect(scoreWord("cat", bay("MagnifyingGlass", "Forgery", "Vanilla"), opts).finalScore).toBe(21);
+    expect(scoreWord("cat", bay("MagnifyingGlass", "Forgery", "Vanilla"), opts).finalScore).toBe(
+      21,
+    );
   });
 });

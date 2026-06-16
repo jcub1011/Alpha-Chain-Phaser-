@@ -99,7 +99,9 @@ ac-card[flipped] .gc-flip {
       color-mix(in srgb, var(--gc-card-color, var(--gc-accent)) 5%, transparent) 60%
     ),
     var(--ac-panel-solid);
-  box-shadow: var(--ac-drop-sm), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  box-shadow:
+    var(--ac-drop-sm),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
   transition:
     box-shadow 0.16s ease,
     filter 0.16s ease;
@@ -256,7 +258,9 @@ ac-card[triggered] .gc {
     0 0 30px color-mix(in srgb, var(--gc-accent) 80%, transparent);
   border-color: color-mix(in srgb, var(--gc-accent) 100%, #fff 25%);
 }
-.gc-new-badge { animation: ac-pop 0.4s ease-out both; }
+.gc-new-badge {
+  animation: ac-pop 0.4s ease-out both;
+}
 
 /* Mini cards (opponent bays, sandbox, the engine-replay piles) keep the full
    card width but are shorter — the face shows the icon + magnitude chip + name,
@@ -265,13 +269,17 @@ ac-card[mini] {
   --gc-w: 132px;
   --gc-h: 120px;
 }
-ac-card[mini] .gc-flip { cursor: default; }
+ac-card[mini] .gc-flip {
+  cursor: default;
+}
 ac-card[mini] .gc-front-desc,
 ac-card[mini] .gc-flip-hint,
 ac-card[mini] .gc-chip:not(:first-child) {
   display: none;
 }
-ac-card[mini] .gc-chip { font-size: calc(var(--gc-h) * 0.1); }
+ac-card[mini] .gc-chip {
+  font-size: calc(var(--gc-h) * 0.1);
+}
 /* Mini titles aren't shrunk to one line (no description crowds them), so they
    wrap freely within the taller-than-needed face. */
 ac-card[mini] .gc-name {
@@ -289,4 +297,6 @@ ac-card[mini] .gc-back {
   pointer-events: none;
   transition: opacity 0.16s ease;
 }
-ac-card[mini] .gc-flip:hover .gc-back { opacity: 1; }
+ac-card[mini] .gc-flip:hover .gc-back {
+  opacity: 1;
+}

@@ -81,7 +81,13 @@ describe("KnockBoxController — host-authoritative sync", () => {
     hostPeer.fireReady();
     guestPeer.fireReady();
 
-    hostCtl.startMatch({ ...DEFAULT_SETTINGS, enableTutorials: false, preRoundCountdownSeconds: 1, eraInterval: 9, eraCount: 1 });
+    hostCtl.startMatch({
+      ...DEFAULT_SETTINGS,
+      enableTutorials: false,
+      preRoundCountdownSeconds: 1,
+      eraInterval: 9,
+      eraCount: 1,
+    });
     hostCtl.tick(1); // burn the countdown → first turn armed, broadcast
 
     // The match reached the host AND the guest mirror.
@@ -117,7 +123,13 @@ describe("KnockBoxController — host-authoritative sync", () => {
     let guestSawSubmission = "";
     guestCtl.events.on("submission", (e) => (guestSawSubmission = e.submission.word));
 
-    hostCtl.startMatch({ ...DEFAULT_SETTINGS, enableTutorials: false, preRoundCountdownSeconds: 1, eraInterval: 9, eraCount: 1 });
+    hostCtl.startMatch({
+      ...DEFAULT_SETTINGS,
+      enableTutorials: false,
+      preRoundCountdownSeconds: 1,
+      eraInterval: 9,
+      eraCount: 1,
+    });
     hostCtl.tick(1);
     hostCtl.submitWord("cat");
 
@@ -134,7 +146,13 @@ describe("KnockBoxController — host-authoritative sync", () => {
     guestPeer.fireReady();
 
     // Tutorials ON: the match opens on the Shiritori tutorial for everyone.
-    hostCtl.startMatch({ ...DEFAULT_SETTINGS, enableTutorials: true, preRoundCountdownSeconds: 1, eraInterval: 9, eraCount: 1 });
+    hostCtl.startMatch({
+      ...DEFAULT_SETTINGS,
+      enableTutorials: true,
+      preRoundCountdownSeconds: 1,
+      eraInterval: 9,
+      eraCount: 1,
+    });
     expect(hostCtl.match.state.phase).toBe("Tutorial");
     expect(guestCtl.match.state.phase).toBe("Tutorial");
     expect(guestCtl.match.state.currentTutorial).toBe("shiritori");
@@ -159,7 +177,13 @@ describe("KnockBoxController — edge cases", () => {
     const guestCtl = new KnockBoxController(guestPeer, dict);
     hostPeer.fireReady();
     guestPeer.fireReady();
-    hostCtl.startMatch({ ...DEFAULT_SETTINGS, enableTutorials: false, preRoundCountdownSeconds: 1, eraInterval: 9, eraCount: 1 });
+    hostCtl.startMatch({
+      ...DEFAULT_SETTINGS,
+      enableTutorials: false,
+      preRoundCountdownSeconds: 1,
+      eraInterval: 9,
+      eraCount: 1,
+    });
     hostCtl.tick(1);
     return { hostPeer, guestPeer, hostCtl, guestCtl };
   };

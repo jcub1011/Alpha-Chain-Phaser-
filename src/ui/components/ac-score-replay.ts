@@ -261,9 +261,7 @@ export class AcScoreReplay extends AcElement {
                           .cardId=${c.id}
                           ?triggered=${isCurrent && fired}
                           ?dimmed=${j <= this.revealed && !fired}
-                          style="left:${Math.round(j * step)}px; --z:${isCurrent
-                            ? 500
-                            : n - j};"
+                          style="left:${Math.round(j * step)}px; --z:${isCurrent ? 500 : n - j};"
                         ></ac-card>`;
                       })}
                     </div>`

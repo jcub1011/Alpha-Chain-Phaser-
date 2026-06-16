@@ -3,19 +3,21 @@ import { MatchController, type PlayerSeed } from "./match";
 import { DEFAULT_SETTINGS } from "./settings";
 import type { AlphaChainSettings } from "./types";
 
-const WORDS = new Set([
-  "cat", "tiger", "rabbit", "tractor", "rat", "torch", "house", "elephant",
-]);
+const WORDS = new Set(["cat", "tiger", "rabbit", "tractor", "rat", "torch", "house", "elephant"]);
 const seeds: PlayerSeed[] = [
   { id: "p1", name: "You", isBot: false },
   { id: "p2", name: "Bot", isBot: true },
 ];
 
 const makeMatch = (overrides: Partial<AlphaChainSettings> = {}) =>
-  new MatchController(seeds, { ...DEFAULT_SETTINGS, enableTutorials: false, ...overrides }, {
-    isWord: (w) => WORDS.has(w),
-    rng: () => 0.5,
-  });
+  new MatchController(
+    seeds,
+    { ...DEFAULT_SETTINGS, enableTutorials: false, ...overrides },
+    {
+      isWord: (w) => WORDS.has(w),
+      rng: () => 0.5,
+    },
+  );
 
 describe("MatchController", () => {
   let m: MatchController;
@@ -99,6 +101,14 @@ describe("MatchController", () => {
     m.tick(m.state.clockTotal + 1); // run the shot clock out
     expect(m.state.players[0].score).toBe(0);
     expect(m.current.id).toBe("p2"); // advanced past the timed-out player
+  });
+
+  it("returns an empty id (rather than throwing) when no active players remain", () => {
+    // Defensive: the FSM guards this via gameOver(), but computeLastPlaceId must
+    // not index into an empty active set if it is ever called bare.
+    m.state.players.forEach((p) => (p.eliminated = true));
+    expect(() => m.computeLastPlaceId()).not.toThrow();
+    expect(m.computeLastPlaceId()).toBe("");
   });
 });
 
