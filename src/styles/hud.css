@@ -315,6 +315,19 @@
   border-color: var(--ac-cyan);
   box-shadow: var(--ac-glow-cyan);
 }
+.we.is-ondeck {
+  border-color: var(--ac-amber);
+  animation: ac-ondeck-glow 1.6s ease-in-out infinite;
+}
+@keyframes ac-ondeck-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 10px rgba(255, 176, 32, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 24px rgba(255, 176, 32, 0.6);
+  }
+}
 .we.is-reject {
   animation: ac-shakeX 0.4s;
   border-color: var(--ac-danger);

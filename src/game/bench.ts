@@ -13,6 +13,7 @@
 
 import type { Dictionary } from "./dictionary";
 import { MatchController, type PlayerSeed } from "./match";
+import { orderPreservingRng } from "./rng";
 import { DEFAULT_SETTINGS, legalBanLetters } from "./settings";
 import type { PlayerState, Submission, SubmitResult } from "./types";
 
@@ -46,7 +47,12 @@ export class BenchScenario {
       eraInterval: BENCH_ERAS,
       eraCount: BENCH_ERAS,
     };
-    this.controller = new MatchController(seeds, settings, { isWord: this.isWord });
+    // The bench keeps seed order (P0 opens) so scenarios are reproducible — it
+    // routes through the same per-era shuffle as a real match but with a no-op RNG.
+    this.controller = new MatchController(seeds, settings, {
+      isWord: this.isWord,
+      rng: orderPreservingRng,
+    });
     this.controller.start();
     this.controller.tick(settings.preRoundCountdownSeconds + 1); // burn countdown → Round
     // No opening deal on the bench: cards are added explicitly from the palette.

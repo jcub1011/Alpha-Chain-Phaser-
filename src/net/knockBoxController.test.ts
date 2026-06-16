@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Dictionary } from "../game/dictionary";
+import { orderPreservingRng } from "../game/rng";
 import { DEFAULT_SETTINGS } from "../game/settings";
 import { KnockBoxController, type NetPeer } from "./knockBoxController";
 
@@ -76,8 +77,8 @@ describe("KnockBoxController — host-authoritative sync", () => {
     const hub = new Hub();
     const hostPeer = new FakePeer(hub, "host", true, roster);
     const guestPeer = new FakePeer(hub, "guest", false, roster);
-    const hostCtl = new KnockBoxController(hostPeer, dict);
-    const guestCtl = new KnockBoxController(guestPeer, dict);
+    const hostCtl = new KnockBoxController(hostPeer, dict, orderPreservingRng);
+    const guestCtl = new KnockBoxController(guestPeer, dict, orderPreservingRng);
     hostPeer.fireReady();
     guestPeer.fireReady();
 
@@ -115,8 +116,8 @@ describe("KnockBoxController — host-authoritative sync", () => {
     const hub = new Hub();
     const hostPeer = new FakePeer(hub, "host", true, roster);
     const guestPeer = new FakePeer(hub, "guest", false, roster);
-    const hostCtl = new KnockBoxController(hostPeer, dict);
-    const guestCtl = new KnockBoxController(guestPeer, dict);
+    const hostCtl = new KnockBoxController(hostPeer, dict, orderPreservingRng);
+    const guestCtl = new KnockBoxController(guestPeer, dict, orderPreservingRng);
     hostPeer.fireReady();
     guestPeer.fireReady();
 
@@ -140,8 +141,8 @@ describe("KnockBoxController — host-authoritative sync", () => {
     const hub = new Hub();
     const hostPeer = new FakePeer(hub, "host", true, roster);
     const guestPeer = new FakePeer(hub, "guest", false, roster);
-    const hostCtl = new KnockBoxController(hostPeer, dict);
-    const guestCtl = new KnockBoxController(guestPeer, dict);
+    const hostCtl = new KnockBoxController(hostPeer, dict, orderPreservingRng);
+    const guestCtl = new KnockBoxController(guestPeer, dict, orderPreservingRng);
     hostPeer.fireReady();
     guestPeer.fireReady();
 
@@ -173,8 +174,8 @@ describe("KnockBoxController — edge cases", () => {
     const hub = new Hub();
     const hostPeer = new FakePeer(hub, "host", true, roster);
     const guestPeer = new FakePeer(hub, "guest", false, roster);
-    const hostCtl = new KnockBoxController(hostPeer, dict);
-    const guestCtl = new KnockBoxController(guestPeer, dict);
+    const hostCtl = new KnockBoxController(hostPeer, dict, orderPreservingRng);
+    const guestCtl = new KnockBoxController(guestPeer, dict, orderPreservingRng);
     hostPeer.fireReady();
     guestPeer.fireReady();
     hostCtl.startMatch({

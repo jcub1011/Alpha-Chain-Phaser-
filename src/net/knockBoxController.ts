@@ -85,6 +85,9 @@ export class KnockBoxController implements GameController {
   constructor(
     private readonly peer: NetPeer,
     private readonly dict: Dictionary,
+    /** RNG for the host's MatchController (per-era turn shuffle). Injectable for
+     *  deterministic tests; production uses Math.random. */
+    private readonly rng: () => number = Math.random,
   ) {
     this.mirror = new NetMatch((intent) => this.dispatch(intent));
     this.match = this.mirror;
@@ -258,7 +261,10 @@ export class KnockBoxController implements GameController {
     const seeds: PlayerSeed[] = this.peer.players
       .filter((p) => settings.hostPlays || p.id !== this.peer.playerId)
       .map((p) => ({ id: p.id, name: p.displayName, isBot: false }));
-    this.host = new MatchController(seeds, settings, { isWord: (w) => this.dict.has(w) });
+    this.host = new MatchController(seeds, settings, {
+      isWord: (w) => this.dict.has(w),
+      rng: this.rng,
+    });
     for (const type of REPLAYED_EVENTS) {
       this.host.events.on(type, (payload) => this.pending.push({ type, payload } as WireEvent));
     }

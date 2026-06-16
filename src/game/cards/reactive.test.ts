@@ -7,6 +7,7 @@
 
 import { describe, expect, it } from "vitest";
 import { MatchController, type PlayerSeed } from "../match";
+import { orderPreservingRng } from "../rng";
 import { DEFAULT_SETTINGS } from "../settings";
 import type { AlphaChainSettings } from "../types";
 
@@ -40,7 +41,9 @@ const make = (n: number, overrides: Partial<AlphaChainSettings> = {}) => {
       shotClockSeconds: 20,
       ...overrides,
     },
-    { isWord: (w) => WORDS.has(w), rng: () => 0.5 },
+    // Keep seed order (p1, p2, p3, …) so multi-player turn order is deterministic
+    // despite the per-era shuffle these cards' assertions depend on.
+    { isWord: (w) => WORDS.has(w), rng: orderPreservingRng },
   );
   m.start();
   m.tick(1); // burn the countdown → p1's turn armed, free choice

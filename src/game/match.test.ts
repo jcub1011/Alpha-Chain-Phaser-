@@ -169,6 +169,43 @@ describe("MatchController", () => {
   });
 });
 
+describe("turn order shuffles every era", () => {
+  const threeSeeds: PlayerSeed[] = [
+    { id: "p1", name: "P1", isBot: false },
+    { id: "p2", name: "P2", isBot: true },
+    { id: "p3", name: "P3", isBot: true },
+  ];
+  // Fisher-Yates with rng 0.5 over [p1,p2,p3]: i=2 swaps idx2↔idx1 → [p1,p3,p2];
+  // i=1 is a no-op. So the shuffled order is deterministic for this RNG.
+  const makeThree = (rng: () => number) =>
+    new MatchController(
+      threeSeeds,
+      { ...DEFAULT_SETTINGS, enableTutorials: false, preRoundCountdownSeconds: 1, eraInterval: 9, eraCount: 1 },
+      { isWord: (w) => WORDS.has(w), rng },
+    );
+
+  it("reorders the players and opens on the first live player of the shuffle", () => {
+    const m = makeThree(() => 0.5);
+    m.start();
+    m.tick(1); // burn countdown → beginEra shuffles, then arms the opener
+    expect(m.state.players.map((p) => p.id)).toEqual(["p1", "p3", "p2"]);
+    expect(m.state.currentPlayerIndex).toBe(0);
+    expect(m.current.id).toBe("p1");
+  });
+
+  it("skips an eliminated player when picking the era opener", () => {
+    const m = makeThree(() => 0.5);
+    // Eliminate p1 before the era-1 shuffle. With rng 0.5 the order becomes
+    // [p1(dead), p3, p2], so the opener must skip seat 0 to the first live player.
+    m.state.players.find((p) => p.id === "p1")!.eliminated = true;
+    m.start();
+    m.tick(1);
+    expect(m.state.currentPlayerIndex).toBe(1);
+    expect(m.current.id).toBe("p3");
+    expect(m.current.eliminated).toBe(false);
+  });
+});
+
 describe("Zero-Point Tax + Tax Collector", () => {
   it("zeroes a banned-letter word but the holder still scores 0 if last place exempt", () => {
     const m = makeMatch({ preRoundCountdownSeconds: 1, eraInterval: 9, eraCount: 1 });

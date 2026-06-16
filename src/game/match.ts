@@ -13,6 +13,7 @@ import { DEALABLE_CARD_IDS, getCard } from "./cards/library";
 import type { ModifierCard } from "./cards/card";
 import { BanLetterService, EngineEffects, RoomServices } from "./cards/roomServices";
 import { Emitter } from "./emitter";
+import { shuffle } from "./rng";
 import {
   armedClockSeconds,
   bayOwnTaxPolicy,
@@ -230,7 +231,7 @@ export class MatchController {
       this.countdownRemaining -= dt;
       const now = Math.ceil(Math.max(0, this.countdownRemaining));
       if (now !== prev) this.events.emit("countdownTick", now);
-      if (this.countdownRemaining <= 0) this.beginEra(s.era === 1);
+      if (this.countdownRemaining <= 0) this.beginEra();
     } else if (s.phase === "Round") {
       // Era-end settle: hold in Round with the clock frozen until the replay dwell
       // elapses, then fire the deferred transition.
@@ -289,20 +290,24 @@ export class MatchController {
       this.completeOptimize();
   }
 
-  private beginEra(first: boolean): void {
+  private beginEra(): void {
     this.setPhase("Round");
     // A "round" is one full cycle of all players (GDD §4); the era runs for
     // `eraInterval` such rounds. roundInEra is 1-based and starts at the first
-    // round of the era; the player who the wrap left active opens each new era.
+    // round of the era.
     this.state.roundInEra = 1;
     this.state.round++;
     // Every era opens on a wildcard (free) starting letter — never the carry-over
     // from the previous era's last word. Otherwise the sniper-ban picker could line
     // the opener up to be forced straight into the just-set ban's Zero-Point Tax.
     this.state.requiredLetter = "";
-    // Only era 1 forces the opener to seat 0; later eras open on whoever the wrap
-    // left active.
-    if (first) this.state.currentPlayerIndex = 0;
+    // Reshuffle the turn order every era (including era 1) so a random player opens
+    // — the opener gets the free starting letter, so a fixed order would hand the
+    // same seat a recurring advantage. The opener is the first non-eliminated player
+    // in the freshly shuffled order.
+    this.state.players = shuffle(this.state.players, this.rng);
+    const opener = this.state.players.findIndex((p) => !p.eliminated);
+    this.state.currentPlayerIndex = opener < 0 ? 0 : opener;
     this.roundLeaderId = this.computeLeaderId();
     this.armCurrentTurn();
   }

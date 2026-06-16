@@ -23,6 +23,8 @@ export class AcWordEntry extends AcElement {
   @property({ attribute: false }) controller!: GameController;
 
   @state() private live = false;
+  /** The turn is one seat away — the player before us (in shuffled order) is up. */
+  @state() private onDeck = false;
   @state() private requiredLetter = "";
   @state() private feedback = "";
   /** Blindfold: mask the player's own glyphs as they type. */
@@ -39,6 +41,7 @@ export class AcWordEntry extends AcElement {
       this.listen(e, "turnArmed", ({ requiredLetter }) => {
         this.requiredLetter = requiredLetter;
         this.live = this.controller.match.current?.id === human;
+        this.onDeck = !this.live && this.isOnDeck(human);
         this.feedback = "";
         this.hideInput = this.controller.match.hidesInput(human);
         if (this.live) this.wantFocus = true;
@@ -70,9 +73,24 @@ export class AcWordEntry extends AcElement {
       const s = this.controller.match.state;
       this.requiredLetter = s.requiredLetter;
       this.live = s.phase === "Round" && this.controller.match.current?.id === human;
+      this.onDeck = !this.live && this.isOnDeck(human);
       this.hideInput = this.controller.match.hidesInput(human);
       if (this.live) this.wantFocus = true;
     }
+  }
+
+  /** Whether the human is up immediately after the current player. Mirrors
+   *  MatchController.advanceIndex by skipping eliminated seats. */
+  private isOnDeck(human: string): boolean {
+    const s = this.controller.match.state;
+    if (s.phase !== "Round") return false;
+    const players = s.players;
+    const n = players.length;
+    for (let i = 1; i <= n; i++) {
+      const p = players[(s.currentPlayerIndex + i) % n];
+      if (!p.eliminated) return p.id === human;
+    }
+    return false;
   }
 
   override updated(): void {
@@ -107,7 +125,7 @@ export class AcWordEntry extends AcElement {
   override render(): TemplateResult {
     const free = !this.requiredLetter;
     return html`
-      <div class="we ${this.live ? "is-live" : ""}">
+      <div class="we ${this.live ? "is-live" : ""} ${this.onDeck ? "is-ondeck" : ""}">
         <span class="we-prefix ${free ? "is-free" : ""}">
           ${free ? "∗" : this.requiredLetter.toUpperCase()}
         </span>
@@ -119,7 +137,7 @@ export class AcWordEntry extends AcElement {
           autocapitalize="off"
           autocorrect="off"
           spellcheck="false"
-          placeholder=${this.live ? "type a word…" : "waiting…"}
+          placeholder=${this.live ? "type a word…" : this.onDeck ? "get ready — you're up next…" : "waiting…"}
           ?disabled=${!this.live}
           @keydown=${this.onKey}
         />
