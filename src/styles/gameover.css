@@ -119,9 +119,19 @@
 .go-row-engine .bay-slots {
   justify-content: flex-start;
 }
+/* Size this standings engine bay once, on the bay element, so the mini cards
+   and the empty-slot placeholders share the exact same footprint. Larger than
+   the word-history cards (96×62) for readability. Qualified with the element
+   name so it outweighs ac-engine-bay[mini]'s own --gc-h. */
+ac-engine-bay.go-row-engine {
+  --gc-w: 112px;
+  --gc-h: 72px;
+}
+/* ac-card[mini] sets --gc-* directly (cards.css), which shadows inheritance, so
+   point it back at the bay's shared value. */
 .go-row-engine ac-card[mini] {
-  --gc-w: 88px;
-  --gc-h: 62px;
+  --gc-w: inherit;
+  --gc-h: inherit;
 }
 .go-row-engine .bay-empty {
   min-width: 32px;
@@ -255,6 +265,10 @@ ac-word-history {
 
 /* ── Per-word engine strip (static mirror of <ac-score-replay>) ────────── */
 .go-wh-strip {
+  /* Mini card size for this strip, set here so the empty-card placeholder can
+     inherit the exact same dimensions as the real mini cards. */
+  --gc-w: 96px;
+  --gc-h: 62px;
   display: flex;
   align-items: center;
   gap: 0.4rem;
@@ -270,10 +284,21 @@ ac-word-history {
 }
 /* Shorter than the default mini card so each history row stays compact. The
    override sits on the card itself — ac-card[mini] sets --gc-* on the element,
-   shadowing any value inherited from the wrapper. */
+   shadowing the value inherited from the strip; we restate it from the strip's
+   vars so the card and the empty-card placeholder stay in lockstep. */
 .go-wh-strip ac-card[mini] {
   --gc-w: 96px;
   --gc-h: 62px;
+}
+/* Placeholder card for words scored with no engine cards — exact same footprint
+   (and corner radius) as the real mini cards, so cardless rows occupy the same
+   space and keep the list's content-visibility size estimate honest. */
+.go-wh-empty-card {
+  width: var(--gc-w);
+  height: var(--gc-h);
+  border-radius: var(--r-md);
+  border: 2.5px dashed var(--ac-ink-faint);
+  opacity: 0.35;
 }
 .go-wh-step.is-dim {
   opacity: 0.55;

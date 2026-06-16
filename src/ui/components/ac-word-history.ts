@@ -60,17 +60,24 @@ export class AcWordHistory extends AcElement {
             <span class="go-wh-op">len</span>
             <span class="go-wh-run">${b.seed}</span>
           </span>
-          ${b.steps.map(
-            (step) => html`
-              <div class="go-wh-step ${step.triggered ? "" : "is-dim"}">
-                <ac-card mini .cardId=${step.cardId} ?dimmed=${!step.triggered}></ac-card>
-                <span class="go-wh-chips">
-                  <span class="go-wh-delta">${step.triggered ? step.valueText : "—"}</span>
-                  <span class="go-wh-run">${fmtScore(step.runningScore)}</span>
-                </span>
-              </div>
-            `,
-          )}
+          ${b.steps.length === 0
+            ? html`
+                <div class="go-wh-step is-empty" aria-hidden="true">
+                  <div class="go-wh-empty-card"></div>
+                  <span class="go-wh-chips"><span class="go-wh-delta">—</span></span>
+                </div>
+              `
+            : b.steps.map(
+                (step) => html`
+                  <div class="go-wh-step ${step.triggered ? "" : "is-dim"}">
+                    <ac-card mini .cardId=${step.cardId} ?dimmed=${!step.triggered}></ac-card>
+                    <span class="go-wh-chips">
+                      <span class="go-wh-delta">${step.triggered ? step.valueText : "—"}</span>
+                      <span class="go-wh-run">${fmtScore(step.runningScore)}</span>
+                    </span>
+                  </div>
+                `,
+              )}
           <span class="go-wh-final ${b.taxed ? "is-taxed" : ""}">
             <span class="go-wh-op">${b.taxed ? "tax" : "score"}</span>
             <span class="go-wh-run"
