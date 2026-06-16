@@ -44,3 +44,11 @@ export const familyAccentColor = (family: CardFamily): number => {
 
 /** Thousands-separated score. */
 export const fmtScore = (n: number): string => Math.round(n).toLocaleString("en-US");
+
+/** A duration in ms as `m:ss` (e.g. 765000 → "12:45"). Clamps negatives to 0. */
+export const fmtDuration = (ms: number): string => {
+  const total = Math.max(0, Math.round(ms / 1000));
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+};

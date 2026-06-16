@@ -206,6 +206,7 @@ export class MatchController {
 
   // ── Lifecycle ────────────────────────────────────────────────────────────────
   start(): void {
+    this.state.startedAt ??= Date.now();
     // The Shiritori tutorial (if enabled) plays once before the very first round.
     if (this.shouldShowTutorial("shiritori")) this.enterTutorialPhase("shiritori");
     else this.beginCountdown();
@@ -725,6 +726,7 @@ export class MatchController {
 
   // ── End ────────────────────────────────────────────────────────────────────
   private gameOver(): void {
+    this.state.endedAt = Date.now();
     const standings = [...this.state.players].sort((a, b) => b.score - a.score);
     this.state.winnerId = standings[0]?.id ?? null;
     this.setPhase("GameOver");

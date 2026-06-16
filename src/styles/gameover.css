@@ -1,7 +1,13 @@
-/* Game-over overlay — final standings. */
+/* Game-over overlay — final standings + a separate breakdown card below it.
+   The overlay scrolls as a whole when the two stacked cards exceed the viewport
+   (safe-centered so the top stays reachable). */
+.overlay.gameover {
+  align-content: safe center;
+  overflow-y: auto;
+}
 
 .go-card {
-  width: min(92vw, 520px);
+  max-width: min(calc(100vw - 4rem), 900px);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -39,12 +45,17 @@
 }
 .go-row {
   display: flex;
-  align-items: center;
-  gap: 0.6rem;
+  flex-direction: column;
+  gap: 0.5rem;
   padding: 0.6rem 0.8rem;
   border-radius: var(--r-sm);
   background: rgba(255, 255, 255, 0.03);
   border-left: 4px solid var(--accent);
+}
+.go-row-main {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
 }
 .go-row.is-first {
   background: color-mix(in srgb, var(--accent) 18%, transparent);
@@ -73,12 +84,228 @@
   font-style: normal;
   font-size: 0.7em;
 }
+.go-out {
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: var(--r-xs);
+  background: color-mix(in srgb, var(--ac-danger) 22%, transparent);
+  color: var(--ac-danger);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  vertical-align: middle;
+}
+.go-words {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--ac-ink-faint);
+  white-space: nowrap;
+}
 .go-score {
   font-family: var(--font-mono);
   font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
+/* Each entry's final engine, shown under the name/words/score line. */
+.go-row-engine {
+  display: block;
+  width: 100%;
+}
+.go-row-engine .bay-head {
+  display: none;
+}
+.go-row-engine .bay-slots {
+  justify-content: flex-start;
+}
+.go-row-engine ac-card[mini] {
+  --gc-w: 88px;
+  --gc-h: 66px;
+}
+.go-row-engine .bay-empty {
+  min-width: 32px;
+}
 .go-return {
   margin-top: var(--sp-2);
   min-width: 220px;
+}
+
+/* ── Match totals ──────────────────────────────────────────────────────── */
+.go-totals {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  color: var(--ac-ink-faint);
+}
+
+/* ── Breakdown card (separate panel below the standings) ───────────────── */
+.go-breakdown {
+  max-width: min(calc(100vw - 4rem), 900px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  padding: var(--sp-4);
+  text-align: left;
+  animation: ac-rise 0.5s ease-out both;
+}
+.go-section-head {
+  margin: 0;
+}
+
+/* ── Word history: fixed title + sort header above a scrolling list ─────── */
+ac-word-history {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.go-wh-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+.go-sort {
+  display: flex;
+  gap: 0.3rem;
+}
+.go-sort-btn {
+  padding: 0.25rem 0.7rem;
+  border: 1px solid var(--ac-border);
+  border-radius: var(--r-sm);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--ac-ink-soft);
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+.go-sort-btn:hover {
+  border-color: var(--ac-border-strong);
+  color: var(--ac-ink);
+}
+.go-sort-btn.is-active {
+  background: color-mix(in srgb, var(--ac-cyan) 18%, transparent);
+  border-color: color-mix(in srgb, var(--ac-cyan) 40%, transparent);
+  color: var(--ac-ink);
+}
+
+/* ── Word-history rows ─────────────────────────────────────────────────── */
+.go-wh-empty {
+  margin: 0;
+  color: var(--ac-ink-faint);
+  font-size: 0.85rem;
+}
+.go-wh-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  max-height: calc(100vh - 8rem);
+  overflow-y: auto;
+}
+.go-wh-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: var(--r-sm);
+  background: rgba(255, 255, 255, 0.03);
+  border-left: 4px solid var(--accent);
+}
+.go-wh-main {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+}
+.go-wh-word {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+.go-wh-word.is-taxed {
+  color: var(--ac-danger);
+}
+.go-wh-who {
+  flex: 1;
+  color: var(--ac-ink-faint);
+  font-size: 0.78rem;
+}
+.go-wh-pts {
+  font-family: var(--font-mono);
+  font-weight: 800;
+  color: var(--ac-mint);
+  font-variant-numeric: tabular-nums;
+}
+.go-wh-tax {
+  font-family: var(--font-mono);
+  font-weight: 800;
+  color: var(--ac-danger);
+}
+
+/* ── Per-word engine strip (static mirror of <ac-score-replay>) ────────── */
+.go-wh-strip {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  overflow-x: auto;
+  padding-bottom: 0.2rem;
+}
+.go-wh-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  flex: 0 0 auto;
+}
+/* Shorter than the default mini card so each history row stays compact. The
+   override sits on the card itself — ac-card[mini] sets --gc-* on the element,
+   shadowing any value inherited from the wrapper. */
+.go-wh-strip ac-card[mini] {
+  --gc-w: 96px;
+  --gc-h: 80px;
+}
+.go-wh-step.is-dim {
+  opacity: 0.55;
+}
+.go-wh-chips {
+  display: flex;
+  gap: 0.25rem;
+}
+.go-wh-delta {
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  font-weight: 700;
+  color: var(--ac-ink-soft);
+}
+.go-wh-seed,
+.go-wh-final {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  flex: 0 0 auto;
+  padding: 0.3rem 0.5rem;
+  border-radius: var(--r-xs);
+  background: rgba(255, 255, 255, 0.04);
+}
+.go-wh-final.is-taxed {
+  background: color-mix(in srgb, var(--ac-danger) 18%, transparent);
+}
+.go-wh-op {
+  font-size: 0.58rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ac-ink-faint);
+}
+.go-wh-run {
+  font-family: var(--font-mono);
+  font-weight: 800;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
 }

@@ -164,6 +164,10 @@ export interface MatchState {
   shownTutorials: TutorialKind[];
   settings: AlphaChainSettings;
   winnerId: string | null;
+  /** Epoch ms the match started (first `start()`); undefined before then. */
+  startedAt?: number;
+  /** Epoch ms the match ended (GameOver); undefined until then. */
+  endedAt?: number;
 }
 
 /** Result of attempting to validate + score a word. */
