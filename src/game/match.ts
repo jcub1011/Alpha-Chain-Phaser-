@@ -25,6 +25,7 @@ import {
   type BayEvaluator,
 } from "./scoring";
 import { legalBanLetters, MIN_SHOT_CLOCK_SECONDS, MODIFIER_SLOTS_START, isVowel } from "./settings";
+import { CardId } from "./types";
 import type {
   AlphaChainSettings,
   BayCard,
@@ -598,8 +599,7 @@ export class MatchController {
     // Drop overflow keeping the FIRST `slots` cards — matching the optimize UI
     // ("anything past slot N is discarded"). Bots are already trimmed to capacity
     // at the intermission event (autoTrimBay), so this is a no-op for them.
-    for (const p of this.state.players)
-      if (p.bay.length > p.slots) p.bay = p.bay.slice(0, p.slots);
+    for (const p of this.state.players) if (p.bay.length > p.slots) p.bay = p.bay.slice(0, p.slots);
     if (this.shouldShowTutorial("tax")) this.enterIntermissionTutorial("tax");
     else this.beginSniperBan();
   }
@@ -645,7 +645,7 @@ export class MatchController {
       dealt.push(id);
       player.bay.push({ id, isNew: true });
       // A fresh Titanium Mirror resets the player's shield to ×1.0 (GDD §3.7).
-      if (id === "TitaniumMirror") this.services.shield.grantFresh(player.id);
+      if (id === CardId.TitaniumMirror) this.services.shield.grantFresh(player.id);
     }
     return dealt;
   }
@@ -723,7 +723,8 @@ export class MatchController {
     if (!p) return;
     p.bay = orderedIds.filter((id) => getCard(id)).map((id) => ({ id }));
     // A fresh Titanium Mirror grants its ×1.0 shield (normally done on deal).
-    for (const b of p.bay) if (b.id === "TitaniumMirror") this.services.shield.grantFresh(p.id);
+    for (const b of p.bay)
+      if (b.id === CardId.TitaniumMirror) this.services.shield.grantFresh(p.id);
     this.armPlayerForEra(p);
   }
 

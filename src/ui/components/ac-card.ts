@@ -16,13 +16,14 @@ import { html, nothing, type TemplateResult } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import { getCard } from "../../game/cards/library";
 import type { ClockModifier } from "../../game/cards/card";
+import { CardOp } from "../../game/types";
 import { familyAccentVar } from "../app/util";
 import { AcElement } from "../app/AcElement";
 
-const chipVar = (op: string): string =>
-  op === "additive"
+const chipVar = (op: CardOp): string =>
+  op === CardOp.Additive
     ? "var(--ac-additive)"
-    : op === "multiplicative"
+    : op === CardOp.Multiplicative
       ? "var(--ac-multiplicative)"
       : "var(--ac-action)";
 

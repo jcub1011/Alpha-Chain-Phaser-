@@ -1,7 +1,7 @@
 /* Small presentation helpers shared across components. */
 
 import { COLORS, PLAYER_ACCENTS } from "../../theme";
-import type { CardFamily } from "../../game/types";
+import { CardFamily } from "../../game/types";
 
 /** CSS custom-property name for a player's accent, by turn-order index. */
 export const playerAccentVar = (index: number): string => `var(--ac-p${(index % 6) + 1})`;
@@ -13,13 +13,13 @@ export const playerAccentColor = (index: number): number =>
 /** CSS custom-property name for a card family's accent. */
 export const familyAccentVar = (family: CardFamily): string => {
   switch (family) {
-    case "letter":
+    case CardFamily.Letter:
       return "var(--ac-accent-letter)";
-    case "clock":
+    case CardFamily.Clock:
       return "var(--ac-accent-clock)";
-    case "economy":
+    case CardFamily.Economy:
       return "var(--ac-accent-economy)";
-    case "utility":
+    case CardFamily.Utility:
       return "var(--ac-accent-utility)";
     default:
       return "var(--ac-accent-neutral)";
@@ -29,13 +29,13 @@ export const familyAccentVar = (family: CardFamily): string => {
 /** Numeric (0xRRGGBB) family accent, for FX calls. */
 export const familyAccentColor = (family: CardFamily): number => {
   switch (family) {
-    case "letter":
+    case CardFamily.Letter:
       return COLORS.accentLetter;
-    case "clock":
+    case CardFamily.Clock:
       return COLORS.accentClock;
-    case "economy":
+    case CardFamily.Economy:
       return COLORS.accentEconomy;
-    case "utility":
+    case CardFamily.Utility:
       return COLORS.accentUtility;
     default:
       return COLORS.accentNeutral;

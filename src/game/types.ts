@@ -7,10 +7,77 @@
 /** Which letters may be chosen as the era's banned letter. */
 export type BanMode = "All" | "VowelsOnly" | "ConsonantsOnly";
 
-export type CardFamily = "letter" | "clock" | "economy" | "utility" | "neutral";
+/** Single source of truth for a card's family. Values are byte-identical to the
+ *  former string-literal union (they tint the family accent in the UI). */
+export const CardFamily = {
+  Letter: "letter",
+  Clock: "clock",
+  Economy: "economy",
+  Utility: "utility",
+  Neutral: "neutral",
+} as const;
+export type CardFamily = (typeof CardFamily)[keyof typeof CardFamily];
 
 /** How a card folds into the running score. */
-export type CardOp = "additive" | "multiplicative" | "fx";
+export const CardOp = {
+  Additive: "additive",
+  Multiplicative: "multiplicative",
+  Fx: "fx",
+} as const;
+export type CardOp = (typeof CardOp)[keyof typeof CardOp];
+
+/**
+ * Single source of truth for the 41 modifier-card ids. The string VALUES are
+ * load-bearing and must stay byte-identical: they match the SVG symbol ids in
+ * cards.svg (`<use href="#${id}">`) and travel over the wire as BayCard.id.
+ * Reference cards by `CardId.X` instead of a bare literal so typos are caught
+ * at compile time. Boundary types (BayCard.id, ScoreStep.cardId, getCard's
+ * param) intentionally stay `string` so deserialized / sandbox ids flow freely.
+ */
+export const CardId = {
+  TheAnchor: "TheAnchor",
+  Vanilla: "Vanilla",
+  ConsonantCrunch: "ConsonantCrunch",
+  VocalVowels: "VocalVowels",
+  BrickLayer: "BrickLayer",
+  TheBlueprint: "TheBlueprint",
+  LetterHoarder: "LetterHoarder",
+  HighRoller: "HighRoller",
+  BoosterPack: "BoosterPack",
+  Scavenger: "Scavenger",
+  VowelSurge: "VowelSurge",
+  TheArchitect: "TheArchitect",
+  Sesquipedalian: "Sesquipedalian",
+  GutturalRoar: "GutturalRoar",
+  PerfectLink: "PerfectLink",
+  TryHard: "TryHard",
+  DoubleDown: "DoubleDown",
+  TheVault: "TheVault",
+  Redline: "Redline",
+  PanicButton: "PanicButton",
+  AnchorChain: "AnchorChain",
+  HyperDrive: "HyperDrive",
+  SlowBurn: "SlowBurn",
+  Speedracer: "Speedracer",
+  Blindfold: "Blindfold",
+  HeatSink: "HeatSink",
+  Catalyst: "Catalyst",
+  Forgery: "Forgery",
+  MagnifyingGlass: "MagnifyingGlass",
+  Wildcard: "Wildcard",
+  Prism: "Prism",
+  IrsAgent: "IrsAgent",
+  TaxWriteOff: "TaxWriteOff",
+  RouletteWheel: "RouletteWheel",
+  TollBooth: "TollBooth",
+  TaxCollector: "TaxCollector",
+  ChronoSyphon: "ChronoSyphon",
+  FlakCannon: "FlakCannon",
+  BountyHunter: "BountyHunter",
+  BaitAndSwitch: "BaitAndSwitch",
+  TitaniumMirror: "TitaniumMirror",
+} as const;
+export type CardId = (typeof CardId)[keyof typeof CardId];
 
 /** Host-configurable match settings (ported from AlphaChainSettings.cs). */
 export interface AlphaChainSettings {

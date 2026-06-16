@@ -4,6 +4,8 @@
  * canvas FX needs as 0xRRGGBB numbers (Phaser tints/particles want numbers).
  */
 
+import { CardFamily } from "./game/types";
+
 /** Hex string -> 0xRRGGBB number. */
 export const hex = (s: string): number => parseInt(s.replace("#", ""), 16);
 
@@ -37,16 +39,16 @@ export const PLAYER_ACCENTS = [
 export const playerAccent = (index: number): number =>
   PLAYER_ACCENTS[index % PLAYER_ACCENTS.length];
 
-/** Map a card-family string to its FX tint. */
-export const familyColor = (family: string): number => {
+/** Map a card-family to its FX tint. */
+export const familyColor = (family: CardFamily): number => {
   switch (family) {
-    case "letter":
+    case CardFamily.Letter:
       return COLORS.accentLetter;
-    case "clock":
+    case CardFamily.Clock:
       return COLORS.accentClock;
-    case "economy":
+    case CardFamily.Economy:
       return COLORS.accentEconomy;
-    case "utility":
+    case CardFamily.Utility:
       return COLORS.accentUtility;
     default:
       return COLORS.accentNeutral;
