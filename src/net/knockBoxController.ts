@@ -231,8 +231,12 @@ export class KnockBoxController implements GameController {
         h.submitWord(fromId, action.word);
         break;
       case "reorderBay":
-        if (h.state.phase === "Intermission" && h.state.intermissionPhase === "optimize")
+        if (h.state.phase === "Intermission" && h.state.intermissionPhase === "optimize") {
           h.setPlayerBay(fromId, action.order);
+          // setPlayerBay emits no match event, so the trailing flush() would no-op
+          // and clients would never see the reorder. Force a snapshot.
+          this.flush(true);
+        }
         break;
       case "sniperBan":
         if (

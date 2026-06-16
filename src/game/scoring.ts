@@ -234,7 +234,7 @@ export function bayWriteOffBonus(ev: BayEvaluator, scoreFn: (word: string) => nu
 
 /** Whether any card hides the owner's own input (Blindfold). */
 export function bayHidesInput(ev: BayEvaluator): boolean {
-  return ev.resolved.some((c, i) => c?.hidesInput?.(ev.ctxFor(i)) ?? false);
+  return ev.resolved.some((c) => c?.hidesInput?.() ?? false);
 }
 
 /** Fire a lifecycle hook across a bay, in slot order (mutations land via ctx). */

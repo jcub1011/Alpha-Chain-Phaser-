@@ -190,9 +190,7 @@ export class MatchController {
   hidesInput(playerId: string): boolean {
     const p = this.state.players.find((x) => x.id === playerId);
     if (!p) return false;
-    return p.bay.some(
-      (b) => getCard(b.id)?.hidesInput?.(this.bayEval(p, "", false).ctxFor(0)) ?? false,
-    );
+    return p.bay.some((b) => getCard(b.id)?.hidesInput?.() ?? false);
   }
 
   // ── Accessors ──────────────────────────────────────────────────────────────
@@ -597,7 +595,11 @@ export class MatchController {
 
   /** Optimize timer elapsed (or was skipped): trim overflow, then ban (via Tax). */
   private completeOptimize(): void {
-    for (const p of this.state.players) this.autoTrimBay(p.id);
+    // Drop overflow keeping the FIRST `slots` cards — matching the optimize UI
+    // ("anything past slot N is discarded"). Bots are already trimmed to capacity
+    // at the intermission event (autoTrimBay), so this is a no-op for them.
+    for (const p of this.state.players)
+      if (p.bay.length > p.slots) p.bay = p.bay.slice(0, p.slots);
     if (this.shouldShowTutorial("tax")) this.enterIntermissionTutorial("tax");
     else this.beginSniperBan();
   }
@@ -657,15 +659,21 @@ export class MatchController {
     return last?.id ?? "";
   }
 
-  /** Replace a player's bay with an explicit ordering (used by reorder/discard UI). */
+  /** Replace a player's bay with an explicit ordering (used by reorder/discard UI).
+   *  The full ordering is kept (overflow included) so the player can freely
+   *  rearrange cards past their slot capacity during optimize; the trim to `slots`
+   *  happens once, when the optimize sub-phase completes (completeOptimize). */
   setPlayerBay(playerId: string, orderedIds: string[]): void {
     const p = this.state.players.find((x) => x.id === playerId);
     if (!p) return;
     const owned = new Map(p.bay.map((b) => [b.id, b] as const));
-    p.bay = orderedIds
-      .filter((id) => owned.has(id))
-      .slice(0, p.slots)
+    const seen = new Set<string>();
+    const next = orderedIds
+      .filter((id) => owned.has(id) && !seen.has(id) && (seen.add(id), true))
       .map((id) => owned.get(id)!);
+    // Defensive: append any owned card the caller omitted so cards are never lost.
+    for (const b of p.bay) if (!seen.has(b.id)) next.push(b);
+    p.bay = next;
   }
 
   /** Bots/non-submitters: trim oldest (left) cards to fit the expanded capacity. */

@@ -5,9 +5,11 @@
  * by ctx.magnification() (a Magnifying Glass on its immediate left); inert FX
  * cards leave their factor at 1.0 so a glass never turns FX into a multiplier.
  *
- * Length-scoring cards read ctx.resolveWordLength() (Forgery-aware perceived
- * length); per-character cards read the real characters via ctx.vowelIndices()
- * / consonantIndices() (Catalyst-aware) and are unaffected by Forgery.
+ * Any length decision reads ctx.resolveWordLength() (Forgery-aware perceived
+ * length) — gates, multipliers, all of it. Per-character cards still count the
+ * real characters via ctx.vowelIndices() / consonantIndices() (Catalyst-aware):
+ * Forgery adds no real letters, so a count can't change, but a length gate on
+ * top of that count is Forgery-aware like every other length decision.
  *
  * Cards are added in build phases; the glass-cannon clocks (A2), tax/economy
  * (A3/A4) and aggression/shield (A5) cards plug in without touching the
@@ -28,7 +30,7 @@ export const CARD_LIBRARY: Record<string, ModifierCard> = {
     family: "letter",
     op: "additive",
     magnitudeText: "+10",
-    description: "+10 flat, always.",
+    description: "+10 to your submission",
     fold: (v, c) => add(v, 10 * c.magnification()),
   },
 
@@ -54,9 +56,8 @@ export const CARD_LIBRARY: Record<string, ModifierCard> = {
     op: "additive",
     magnitudeText: "+2/con",
     description: "+2 per consonant; +3 per consonant when the word is 7+ letters.",
-    // Gate on the REAL word length (matches C#), count via Catalyst-aware indices.
     fold: (v, c) =>
-      add(v, c.consonantIndices().length * (c.length >= 7 ? 3 : 2) * c.magnification()),
+      add(v, c.consonantIndices().length * (c.resolveWordLength() >= 7 ? 3 : 2) * c.magnification()),
   },
 
   VocalVowels: {
@@ -67,7 +68,8 @@ export const CARD_LIBRARY: Record<string, ModifierCard> = {
     op: "additive",
     magnitudeText: "+3/vwl",
     description: "+3 per vowel; +4 per vowel when the word is 7+ letters.",
-    fold: (v, c) => add(v, c.vowelIndices().length * (c.length >= 7 ? 4 : 3) * c.magnification()),
+    fold: (v, c) =>
+      add(v, c.vowelIndices().length * (c.resolveWordLength() >= 7 ? 4 : 3) * c.magnification()),
   },
 
   BrickLayer: {
@@ -76,11 +78,11 @@ export const CARD_LIBRARY: Record<string, ModifierCard> = {
     color: "#d96a3c",
     family: "letter",
     op: "additive",
-    magnitudeText: "+1/ltr",
-    description: "+1 per letter, but only when the word is 6+ letters.",
+    magnitudeText: "+3/ltr",
+    description: "+3 per letter, but only when the word is 6+ letters.",
     fold: (v, c) => {
       const L = c.resolveWordLength();
-      return L >= 6 ? add(v, L * c.magnification()) : skip(v);
+      return L >= 6 ? add(v, 3 * L * c.magnification()) : skip(v);
     },
   },
 
@@ -118,9 +120,12 @@ export const CARD_LIBRARY: Record<string, ModifierCard> = {
     color: "#ff5ca0",
     family: "economy",
     op: "additive",
-    magnitudeText: "+20",
-    description: "+20 when the word starts with a rare letter (Q, X, Z, J).",
-    fold: (v, c) => (RARE_START.has(c.startsWith) ? add(v, 20 * c.magnification()) : skip(v)),
+    magnitudeText: "+10/rare",
+    description: "+10 for every rare letter in the word (Q, X, Z, J).",
+    fold: (v, c) => {
+      const rareCount = [...c.word].filter((ch) => RARE_START.has(ch)).length;
+      return rareCount > 0 ? add(v, 10 * rareCount * c.magnification()) : skip(v);
+    },
   },
 
   BoosterPack: {
@@ -287,8 +292,10 @@ export const CARD_LIBRARY: Record<string, ModifierCard> = {
     magnitudeText: "×0.5/ltr",
     description:
       "Locks your shot clock to a strict, unmodifiable 5s for the era. In exchange: ×(0.5 per letter).",
-    // Uses the REAL word length (not Forgery-perceived), per C# AnchorChainCard.
-    fold: (v, c) => mul(v, 0.5 * c.length * c.magnification()),
+    // ×(0.5 per letter), Forgery-aware (resolveWordLength) — Forgery's whole point
+    // is to inflate length scoring. Diverges from the C# AnchorChainCard, which
+    // used the real length (an oversight in that port).
+    fold: (v, c) => mul(v, 0.5 * c.resolveWordLength() * c.magnification()),
     shotClockOverride: () => 5,
   },
 

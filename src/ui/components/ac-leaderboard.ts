@@ -7,7 +7,7 @@
 import { html, nothing, type PropertyValues, type TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type { GameController } from "../../net/controller";
-import type { PlayerState } from "../../game/types";
+import type { PlayerState, Submission } from "../../game/types";
 import { fmtScore, playerAccentVar } from "../app/util";
 import { AcElement } from "../app/AcElement";
 
@@ -20,28 +20,50 @@ export class AcLeaderboard extends AcElement {
   @state() private activeId = "";
   @state() private pop: { id: string; amount: number; key: number } | null = null;
 
+  /** Window listener for the deferred score reveal (engine-replay completion). */
+  private onRevealed?: (e: Event) => void;
+
   override willUpdate(changed: PropertyValues): void {
     if (changed.has("controller") && this.controller) {
       this.clearSubs();
       const e = this.controller.events;
-      const refresh = (): void => {
-        this.rows = this.controller.match.standings();
+      const setActive = (): void => {
         this.activeId = this.controller.match.current?.id ?? "";
       };
-      this.listen(e, "turnArmed", refresh);
-      this.listen(e, "timeout", refresh);
-      this.listen(e, "phaseChanged", refresh);
-      this.listen(e, "submission", ({ submission }) => {
+      const refresh = (): void => {
+        this.rows = this.controller.match.standings();
+        setActive();
+      };
+      // Move only the active-row glow on turn/timeout changes; do NOT pull fresh
+      // standings here — a score change must stay hidden until its engine replay
+      // finishes (turnArmed for the next player fires right after a submission).
+      this.listen(e, "turnArmed", setActive);
+      this.listen(e, "timeout", setActive);
+      this.listen(e, "phaseChanged", refresh); // safety net across phase boundaries
+
+      // The score (and +pop) reveal is driven by <ac-score-replay> finishing its
+      // walk, not by the raw `submission` event — so the leaderboard never spoils
+      // the result before the animation lands.
+      window.removeEventListener("ac-score-revealed", this.onRevealed!);
+      this.onRevealed = (ev: Event): void => {
+        const sub = (ev as CustomEvent<{ submission: Submission }>).detail?.submission;
         refresh();
-        if (submission.score > 0)
+        if (sub && sub.score > 0)
           this.pop = {
-            id: submission.playerId,
-            amount: submission.score,
-            key: submission.breakdown.seed + Date.now(),
+            id: sub.playerId,
+            amount: sub.score,
+            key: sub.breakdown.seed + Date.now(),
           };
-      });
+      };
+      window.addEventListener("ac-score-revealed", this.onRevealed);
+
       refresh();
     }
+  }
+
+  override disconnectedCallback(): void {
+    super.disconnectedCallback();
+    if (this.onRevealed) window.removeEventListener("ac-score-revealed", this.onRevealed);
   }
 
   override render(): TemplateResult {

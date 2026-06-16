@@ -24,26 +24,25 @@ const SCRIPTS: Record<TutorialKind, Script> = {
     title: "Chain the letters",
     lines: [
       "Each word must begin with the last letter of the word before it.",
-      "No word may be repeated, and it must be a real word.",
-      "Beat the shot clock — let it hit zero and your turn is lost.",
+      "Words can't be repeated.",
+      "If the shot clock runs out, your turn is skipped.",
     ],
   },
   engine: {
     eyebrow: "how to play · your engine",
     title: "Your engine scores left → right",
     lines: [
-      "Cards fold into the running total in order, one slot at a time.",
-      "Additives add; multipliers multiply everything banked to their left.",
-      "Order your bay so multipliers land after the points they should compound.",
+      "Engine cards are evaluated from left to right.",
+      "Try to keep adds to the left and multipliers to the right.",
     ],
   },
   tax: {
-    eyebrow: "how to play · the tax",
+    eyebrow: "how to play · the ban",
     title: "Mind the banned letter",
     lines: [
-      "Each era, the last-place player bans one letter as a zero-point tax.",
+      "Each era, the last-place player bans one letter.",
       "Any word containing the banned letter scores nothing that era…",
-      "…except the player in last place, who is exempt from the tax.",
+      "…except the player in last place, who is exempt from the ban.",
     ],
   },
 };

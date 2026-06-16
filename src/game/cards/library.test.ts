@@ -52,15 +52,15 @@ describe("Vocal Vowels — +3/vowel, +4/vowel at 7+", () => {
   });
 });
 
-describe("Brick Layer — +1/ltr only when 6+", () => {
+describe("Brick Layer — +3/ltr only when 6+", () => {
   it("skips below 6 letters", () => {
     const r = scoreWord("cat", bay("BrickLayer"), opts);
     expect(r.finalScore).toBe(3);
     expect(r.steps[0].triggered).toBe(false);
     expect(r.steps[0].valueText).toBe("—");
   });
-  it("pays +1/letter at exactly 6", () => {
-    expect(score("monkey", ["BrickLayer"])).toBe(12); // 6 + 6
+  it("pays +3/letter at exactly 6", () => {
+    expect(score("monkey", ["BrickLayer"])).toBe(24); // 6 + 6×3
   });
 });
 
@@ -85,11 +85,14 @@ describe("Letter Hoarder — +1/distinct letter", () => {
   });
 });
 
-describe("High Roller — +20 on a rare start letter", () => {
-  it("pays on Q/X/Z/J", () => {
-    expect(score("zebra", ["HighRoller"])).toBe(25); // 5 + 20
+describe("High Roller — +10 per rare letter (Q, X, Z, J)", () => {
+  it("pays +10 per rare letter", () => {
+    expect(score("zebra", ["HighRoller"])).toBe(15); // 5 + 10 (one Z)
   });
-  it("skips on a common start letter", () => {
+  it("pays +10 per rare letter for multiple rare letters", () => {
+    expect(score("quiz", ["HighRoller"])).toBe(24); // 4 + 20 (Q + Z)
+  });
+  it("skips when no rare letters", () => {
     const r = scoreWord("cat", bay("HighRoller"), opts);
     expect(r.finalScore).toBe(3);
     expect(r.steps[0].triggered).toBe(false);

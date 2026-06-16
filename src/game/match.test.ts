@@ -99,6 +99,30 @@ describe("MatchController", () => {
     expect(m2.state.requiredLetter).toBe("");
   });
 
+  it("reorders the full bay (overflow included) and trims to the first slots on optimize", () => {
+    const m2 = makeMatch({ preRoundCountdownSeconds: 1, eraInterval: 1, eraCount: 3 });
+    m2.start();
+    m2.tick(1);
+    m2.submitWord("p1", "cat");
+    m2.submitWord("p2", "tiger"); // wraps era 1 → intermission
+    m2.tick(2.001); // burn the era-end settle window into the optimize sub-phase
+    expect(m2.state.phase).toBe("Intermission");
+    expect(m2.state.intermissionPhase).toBe("optimize");
+
+    const p1 = m2.state.players[0];
+    p1.slots = 2;
+    p1.bay = [{ id: "A" }, { id: "B" }, { id: "C" }];
+    // Rescue the overflow card C to the front: the full order is retained (no
+    // premature slice), so the player can keep rearranging it during optimize.
+    m2.setPlayerBay("p1", ["C", "A", "B"]);
+    expect(p1.bay.map((b) => b.id)).toEqual(["C", "A", "B"]);
+
+    // Completing optimize keeps the FIRST `slots` cards (drops the rightmost),
+    // matching the optimize UI's "anything past slot N is discarded".
+    m2.skipOptimize();
+    expect(p1.bay.map((b) => b.id)).toEqual(["C", "A"]);
+  });
+
   it("times out the current player and skips their turn (no score)", () => {
     m.tick(m.state.clockTotal + 1); // run the shot clock out
     expect(m.state.players[0].score).toBe(0);

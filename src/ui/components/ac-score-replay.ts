@@ -189,6 +189,7 @@ export class AcScoreReplay extends AcElement {
       this.revealed = this.cards.length - 1; // gray out every card that didn't fire
       if (this.numEl) this.numEl.textContent = fmtScore(sub.score);
       this.numEl?.classList.add(sub.taxed ? "is-taxed" : "is-final");
+      this.announceRevealed(sub);
       return;
     }
 
@@ -237,6 +238,21 @@ export class AcScoreReplay extends AcElement {
         if (sub.score >= 120) fx.shake(Math.min(0.7, sub.score / 360), theater);
       }
     }
+
+    if (signal.aborted) return;
+    this.announceRevealed(sub);
+  }
+
+  /** The replay for `sub` has fully settled — let the leaderboard reveal the score
+   *  now, instead of the instant the submission landed (which spoils the result). */
+  private announceRevealed(sub: Submission): void {
+    this.dispatchEvent(
+      new CustomEvent<{ submission: Submission }>("ac-score-revealed", {
+        detail: { submission: sub },
+        bubbles: true,
+        composed: true,
+      }),
+    );
   }
 
   override render(): TemplateResult {

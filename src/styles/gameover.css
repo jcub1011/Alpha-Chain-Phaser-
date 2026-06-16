@@ -121,7 +121,7 @@
 }
 .go-row-engine ac-card[mini] {
   --gc-w: 88px;
-  --gc-h: 66px;
+  --gc-h: 62px;
 }
 .go-row-engine .bay-empty {
   min-width: 32px;
@@ -217,6 +217,11 @@ ac-word-history {
   border-radius: var(--r-sm);
   background: rgba(255, 255, 255, 0.03);
   border-left: 4px solid var(--accent);
+  /* Skip layout/paint for rows scrolled out of the list — a long match has
+     hundreds of rows, each with several <ac-card> elements. The estimate is a
+     placeholder until a row is measured once, then its real size is remembered. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 132px;
 }
 .go-wh-main {
   display: flex;
@@ -268,7 +273,7 @@ ac-word-history {
    shadowing any value inherited from the wrapper. */
 .go-wh-strip ac-card[mini] {
   --gc-w: 96px;
-  --gc-h: 80px;
+  --gc-h: 62px;
 }
 .go-wh-step.is-dim {
   opacity: 0.55;

@@ -58,6 +58,10 @@ export class AcCard extends AcElement {
   private resizeObs?: ResizeObserver;
 
   override firstUpdated(): void {
+    // Mini cards never refit (their titles wrap freely), so skip the observer —
+    // a long word-history list renders hundreds of mini cards and each idle
+    // ResizeObserver would just add scroll/layout cost for nothing.
+    if (this.mini) return;
     const flip = this.querySelector<HTMLElement>(".gc-flip");
     if (flip && typeof ResizeObserver !== "undefined") {
       this.resizeObs = new ResizeObserver(() => this.fitName());

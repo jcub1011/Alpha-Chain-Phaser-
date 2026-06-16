@@ -21,10 +21,25 @@ describe("Forgery — perceived length doubling", () => {
     expect(scoreWord("tiger", bay("Forgery", "TheArchitect"), opts).finalScore).toBe(15);
   });
 
-  it("does NOT affect per-character cards (Consonant Crunch counts real letters)", () => {
-    // "monster"=7, 5 consonants. Real length gate 7+ → +3/consonant = +15. seed 7 → 22.
-    // Forgery in front must not change the consonant count.
+  it("does not change a per-character count (Consonant Crunch still counts real letters)", () => {
+    // "monster"=7, 5 consonants — Forgery adds no real letters, so the count stays 5.
+    // Gate already met at real length 7: +3/consonant = +15. seed 7 → 22.
     expect(scoreWord("monster", bay("Forgery", "ConsonantCrunch"), opts).finalScore).toBe(22);
+  });
+
+  it("pushes Consonant Crunch over its 7+ gate on a perceived-doubled short word", () => {
+    // "barn"=4, 3 consonants → perceived 8 ≥ 7 → +3/consonant = +9. seed 4 → 13 (was 10).
+    expect(scoreWord("barn", bay("Forgery", "ConsonantCrunch"), opts).finalScore).toBe(13);
+  });
+
+  it("pushes Vocal Vowels over its 7+ gate on a perceived-doubled short word", () => {
+    // "idea"=4, 3 vowels → perceived 8 ≥ 7 → +4/vowel = +12. seed 4 → 16 (was 13).
+    expect(scoreWord("idea", bay("Forgery", "VocalVowels"), opts).finalScore).toBe(16);
+  });
+
+  it("scales Anchor Chain's per-letter multiplier with the perceived length", () => {
+    // "cat"=3 → perceived 6 → ×(0.5×6)=×3 on seed 3 → 9 (was 5 with real length).
+    expect(scoreWord("cat", bay("Forgery", "AnchorChain"), opts).finalScore).toBe(9);
   });
 
   it("does not affect cards placed BEFORE it", () => {

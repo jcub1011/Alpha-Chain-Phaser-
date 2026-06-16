@@ -7,6 +7,7 @@
  * components that animate off events (score replay, turn-armed) still fire.
  */
 
+import { getCard } from "../game/cards/library";
 import { Emitter } from "../game/emitter";
 import type { MatchEvents } from "../game/match";
 import { DEFAULT_SETTINGS, legalBanLetters } from "../game/settings";
@@ -93,6 +94,11 @@ export class NetMatch implements MatchLike {
   }
   isExempt(player: PlayerState): boolean {
     return this.computeLastPlaceId() === player.id;
+  }
+  hidesInput(playerId: string): boolean {
+    const p = this._state.players.find((x) => x.id === playerId);
+    if (!p) return false;
+    return p.bay.some((b) => getCard(b.id)?.hidesInput?.() ?? false);
   }
 
   // ── Mutators → host intents (guests never mutate authoritative state) ──

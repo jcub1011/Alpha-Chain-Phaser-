@@ -22,6 +22,8 @@ export interface MatchLike {
   standings(): PlayerState[];
   computeLastPlaceId(): string;
   isExempt(player: PlayerState): boolean;
+  /** Whether the player's own input should be masked while typing (Blindfold). */
+  hidesInput(playerId: string): boolean;
   setPlayerBay(playerId: string, orderedIds: string[]): void;
   applySniperBanAndAdvance(letter: string): void;
   randomBanLetter(): string;

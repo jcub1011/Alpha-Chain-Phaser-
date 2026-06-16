@@ -25,6 +25,8 @@ export class AcWordEntry extends AcElement {
   @state() private live = false;
   @state() private requiredLetter = "";
   @state() private feedback = "";
+  /** Blindfold: mask the player's own glyphs as they type. */
+  @state() private hideInput = false;
   @query(".we-input") private input?: HTMLInputElement;
 
   private wantFocus = false;
@@ -38,6 +40,7 @@ export class AcWordEntry extends AcElement {
         this.requiredLetter = requiredLetter;
         this.live = this.controller.match.current?.id === human;
         this.feedback = "";
+        this.hideInput = this.controller.match.hidesInput(human);
         if (this.live) this.wantFocus = true;
       });
       this.listen(e, "submission", ({ submission }) => {
@@ -67,6 +70,7 @@ export class AcWordEntry extends AcElement {
       const s = this.controller.match.state;
       this.requiredLetter = s.requiredLetter;
       this.live = s.phase === "Round" && this.controller.match.current?.id === human;
+      this.hideInput = this.controller.match.hidesInput(human);
       if (this.live) this.wantFocus = true;
     }
   }
@@ -108,7 +112,7 @@ export class AcWordEntry extends AcElement {
           ${free ? "∗" : this.requiredLetter.toUpperCase()}
         </span>
         <input
-          class="we-input"
+          class="we-input ${this.hideInput ? "is-masked" : ""}"
           type="text"
           inputmode="text"
           autocomplete="off"

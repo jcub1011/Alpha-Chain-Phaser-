@@ -140,8 +140,9 @@ export interface ModifierCard {
   ignoresSuccession?(ctx: EvalContext): boolean;
   /** IAttackInterceptor — block + reflect an incoming automated attack (Titanium Mirror). */
   intercept?(owner: PlayerState, services: RoomServices): boolean;
-  /** IInputMask — hides the owner's own input glyphs while typing (Blindfold). */
-  hidesInput?(ctx: EvalContext): boolean;
+  /** IInputMask — hides the owner's own input glyphs while typing (Blindfold).
+   *  State-independent (the UI reads it without an EvalContext). */
+  hidesInput?(): boolean;
   /** Magnifying Glass pushes a magnification onto its immediate-right neighbor. */
   submitMagnifications?(reg: EffectMagnifier, selfIndex: number): void;
 
@@ -172,16 +173,20 @@ const fx = (value: number): FoldResult => ({
   valueText: "FX",
 });
 
+/** Round a factor/amount for DISPLAY only (the underlying value stays exact) —
+ *  Magnifying-Glass stacking otherwise yields e.g. ×2.6999999999999997. */
+const fmtMag = (n: number): string => `${Math.round(n * 100) / 100}`;
+
 const add = (value: number, amount: number): FoldResult => ({
   triggered: true,
   value: value + amount,
-  valueText: amount < 0 ? `−${Math.abs(amount)}` : `+${amount}`,
+  valueText: amount < 0 ? `−${fmtMag(Math.abs(amount))}` : `+${fmtMag(amount)}`,
 });
 
 const mul = (value: number, factor: number): FoldResult => ({
   triggered: true,
   value: value * factor,
-  valueText: `×${factor}`,
+  valueText: `×${fmtMag(factor)}`,
 });
 
 /** Round half-up and clamp to [0, MAX_WORD_SCORE] (ports ModifierMath.ClampScore).

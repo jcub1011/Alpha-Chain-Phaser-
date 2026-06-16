@@ -356,6 +356,11 @@
   text-transform: none;
   letter-spacing: 0.04em;
 }
+/* Blindfold: mask the player's own glyphs as dots (no peeking at typos). */
+.we-input.is-masked {
+  -webkit-text-security: disc;
+  text-security: disc;
+}
 .we-go {
   flex: 0 0 auto;
   padding: 0 1.3rem;
