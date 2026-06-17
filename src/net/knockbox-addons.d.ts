@@ -18,6 +18,11 @@ declare module "*/knockbox-plugin.js" {
 }
 
 declare module "*/knockbox-local.js" {
-  const api: { KnockBoxLocalPlugin?: unknown; KnockBoxLocalPeer?: unknown };
+  const api: { KnockBoxLocalPlugin?: unknown; KnockBoxLocalPeer?: unknown; _resetLocalHubs?: unknown };
   export default api;
+}
+
+declare module "*/kb-authority.js" {
+  const KBAuthority: unknown;
+  export default KBAuthority;
 }
