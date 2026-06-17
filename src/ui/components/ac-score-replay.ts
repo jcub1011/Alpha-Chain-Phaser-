@@ -24,14 +24,11 @@ import { prefersReducedMotion } from "../../theme";
 import { fx } from "../fx/fx";
 import { AcElement } from "../app/AcElement";
 import { runEngineReplay } from "./engine-replay";
+import { fanStep } from "./card-fan";
 import "./ac-card";
 
 /** Mini-card footprint (keep in sync with `--mini-w` in hud.css). */
 const MINI_W = 132;
-/** Spread spacing when the fan has room: card width + a small gap. */
-const MAX_STEP = MINI_W + 10;
-/** Tightest spacing when compressed: still shows a readable sliver of each card. */
-const MIN_STEP = 24;
 
 @customElement("ac-score-replay")
 export class AcScoreReplay extends AcElement {
@@ -122,12 +119,9 @@ export class AcScoreReplay extends AcElement {
   }
 
   /** Horizontal advance per card so the whole fan fits `fanWidth`: spread out when
-   *  there's room, compress (overlap) when there isn't. */
+   *  there's room, compress (overlap) when there isn't. Shared with <ac-card-fan>. */
   private step(): number {
-    const n = this.cards.length;
-    if (n <= 1 || this.fanWidth <= 0) return MAX_STEP;
-    const fit = (this.fanWidth - MINI_W) / (n - 1);
-    return Math.max(MIN_STEP, Math.min(MAX_STEP, fit));
+    return fanStep(this.cards.length, this.fanWidth, MINI_W);
   }
 
   /** Tween the big readout from `from` to `to` over `ms`, abortable. */
@@ -275,7 +269,7 @@ export class AcScoreReplay extends AcElement {
               </div>
               <div class="sr-stage ${n === 0 ? "is-empty" : ""}">
                 ${n > 0
-                  ? html`<div class="sr-fan">
+                  ? html`<div class="sr-fan card-fan">
                       ${this.cards.map((c, j) => {
                         const fired = this.activated[j] === true;
                         const isCurrent = j === this.current;

@@ -39,25 +39,68 @@ ac-engine-bay[mini] {
   color: var(--ac-danger);
   text-shadow: var(--ac-glow-danger);
 }
-.bay-slots {
-  display: flex;
-  flex-wrap: nowrap;
-  gap: var(--sp-2);
-  overflow-x: auto;
-  /* overflow-x:auto forces overflow-y to clip, so reserve headroom for the
-     triggered/hover card lift (translateY up to -10px) and the NEW badge. */
-  padding-top: 16px;
-  padding-bottom: 0.3rem;
-  scroll-snap-type: x proximity;
+/* ── Card fan ──────────────────────────────────────────────────────────────
+   Shared by <ac-card-fan> and the score-replay theater (<ac-score-replay>'s
+   .sr-fan also carries .card-fan). Cards are absolutely positioned at JS-computed
+   left offsets so the row compresses to always fit one line — no scrolling. Top
+   headroom keeps the hover / triggered lift and the NEW badge from clipping. */
+ac-card-fan {
+  display: block;
 }
-
-.bay-empty {
-  flex: 0 0 auto;
+.card-fan {
+  position: relative;
+  height: calc(var(--gc-h) + 16px);
+}
+.card-fan ac-card,
+.fan-empty {
+  position: absolute;
+  top: 16px;
+  z-index: var(--z, 1);
+}
+.card-fan ac-card {
+  transition:
+    transform 0.16s cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 0.16s ease;
+}
+/* Hover lifts a card and raises it to the front so a clustered card stays readable.
+   Guarded with :not([flipped]) so hovering a flipped card never un-flips it. */
+.card-fan ac-card:hover {
+  z-index: 600;
+}
+.card-fan ac-card:not([flipped]):hover .gc-flip {
+  transform: translateY(-12px);
+}
+.card-fan ac-card:hover .gc {
+  box-shadow:
+    var(--ac-drop),
+    0 0 22px color-mix(in srgb, var(--gc-accent) 50%, transparent);
+}
+/* Empty-slot placeholder — joins the fan so a bay's remaining capacity stays visible. */
+.fan-empty {
   width: var(--gc-w);
   height: var(--gc-h);
   border-radius: var(--r-md);
   border: 1.5px dashed var(--ac-ink-ghost);
   background: rgba(255, 255, 255, 0.015);
+}
+/* Per-card chip revealed only while its card is lifted (e.g. word-history deltas).
+   pointer-events:none so the mouse stays on the card underneath. */
+.fan-chip {
+  position: absolute;
+  top: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: var(--r-xs);
+  background: color-mix(in srgb, var(--ac-panel-solid) 86%, transparent);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+  z-index: 601;
+}
+.card-fan ac-card:hover + .fan-chip {
+  opacity: 1;
 }
 
 /* ── Card ──────────────────────────────────────────────────────────────── */

@@ -7,7 +7,7 @@
 }
 
 .go-card {
-  max-width: min(calc(100vw - 4rem), 900px);
+  width: min(calc(100vw - 4rem), 900px);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -116,9 +116,6 @@
 .go-row-engine .bay-head {
   display: none;
 }
-.go-row-engine .bay-slots {
-  justify-content: flex-start;
-}
 /* Size this standings engine bay once, on the bay element, so the mini cards
    and the empty-slot placeholders share the exact same footprint. Larger than
    the word-history cards (96×62) for readability. Qualified with the element
@@ -132,9 +129,6 @@ ac-engine-bay.go-row-engine {
 .go-row-engine ac-card[mini] {
   --gc-w: inherit;
   --gc-h: inherit;
-}
-.go-row-engine .bay-empty {
-  min-width: 32px;
 }
 .go-return {
   margin-top: var(--sp-2);
@@ -152,7 +146,7 @@ ac-engine-bay.go-row-engine {
 
 /* ── Breakdown card (separate panel below the standings) ───────────────── */
 .go-breakdown {
-  max-width: min(calc(100vw - 4rem), 900px);
+  width: min(calc(100vw - 4rem), 900px);
   display: flex;
   flex-direction: column;
   gap: var(--sp-4);
@@ -263,50 +257,28 @@ ac-word-history {
   color: var(--ac-danger);
 }
 
-/* ── Per-word engine strip (static mirror of <ac-score-replay>) ────────── */
+/* ── Per-word engine fan (static mirror of <ac-score-replay>) ──────────── */
 .go-wh-strip {
-  /* Mini card size for this strip, set here so the empty-card placeholder can
-     inherit the exact same dimensions as the real mini cards. */
+  /* Mini card size for this row's fan, set here so the cards and the fan's
+     empty-slot placeholder inherit the exact same compact dimensions. */
   --gc-w: 96px;
   --gc-h: 62px;
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  overflow-x: auto;
-  padding-bottom: 0.2rem;
 }
-.go-wh-step {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.2rem;
-  flex: 0 0 auto;
+/* The overlapping fan takes the middle; min-width:0 lets it actually compress. */
+.go-wh-strip ac-card-fan {
+  flex: 1 1 auto;
+  min-width: 0;
 }
-/* Shorter than the default mini card so each history row stays compact. The
-   override sits on the card itself — ac-card[mini] sets --gc-* on the element,
-   shadowing the value inherited from the strip; we restate it from the strip's
-   vars so the card and the empty-card placeholder stay in lockstep. */
+/* ac-card[mini] sets --gc-* directly on the element (cards.css), shadowing the
+   inherited value; restate the strip's compact size so the cards stay in lockstep. */
 .go-wh-strip ac-card[mini] {
   --gc-w: 96px;
   --gc-h: 62px;
 }
-/* Placeholder card for words scored with no engine cards — exact same footprint
-   (and corner radius) as the real mini cards, so cardless rows occupy the same
-   space and keep the list's content-visibility size estimate honest. */
-.go-wh-empty-card {
-  width: var(--gc-w);
-  height: var(--gc-h);
-  border-radius: var(--r-md);
-  border: 2.5px dashed var(--ac-ink-faint);
-  opacity: 0.35;
-}
-.go-wh-step.is-dim {
-  opacity: 0.55;
-}
-.go-wh-chips {
-  display: flex;
-  gap: 0.25rem;
-}
+/* Shown in the per-card hover chip (.fan-chip) alongside the running score. */
 .go-wh-delta {
   font-family: var(--font-mono);
   font-size: 0.66rem;

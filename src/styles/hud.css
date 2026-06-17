@@ -238,33 +238,13 @@
 .sr-stage.is-empty {
   justify-content: center;
 }
-/* The fan: mini-cards absolutely positioned at JS-computed offsets (--fan-w is the
-   total content width). Top headroom so the hover / triggered lift isn't clipped. */
+/* The fan: positioning, hover lift and overlap come from the shared `.card-fan`
+   class (cards.css). Here we only give it the theater's flex sizing and the mini
+   card height, since this zone sizes via --mini-h rather than --gc-h. */
 .sr-fan {
   display: flex;
   flex: auto;
-  position: relative;
   height: calc(var(--mini-h) + 16px);
-}
-.sr-fan ac-card {
-  position: absolute;
-  top: 16px;
-  z-index: var(--z, 1);
-  transition:
-    transform 0.16s cubic-bezier(0.2, 0.8, 0.2, 1),
-    box-shadow 0.16s ease;
-}
-/* Hover lifts a card and raises it to the front so a clustered card stays readable. */
-.sr-fan ac-card:hover {
-  z-index: 600;
-}
-.sr-fan ac-card:hover .gc-flip {
-  transform: translateY(-12px);
-}
-.sr-fan ac-card:hover .gc {
-  box-shadow:
-    var(--ac-drop),
-    0 0 22px color-mix(in srgb, var(--gc-accent) 50%, transparent);
 }
 .sr-num {
   display: flex;

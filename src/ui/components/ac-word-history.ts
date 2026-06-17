@@ -13,7 +13,8 @@ import { customElement, property, state } from "lit/decorators.js";
 import type { Submission } from "../../game/types";
 import { fmtScore, playerAccentVar } from "../app/util";
 import { AcElement } from "../app/AcElement";
-import "./ac-card";
+import type { FanCard } from "./ac-card-fan";
+import "./ac-card-fan";
 
 type SortOrder = "high" | "old" | "new";
 
@@ -43,6 +44,16 @@ export class AcWordHistory extends AcElement {
 
   private renderRow(s: Submission): TemplateResult {
     const b = s.breakdown;
+    // The engine cards as an overlapping fan; each card's delta + running-score
+    // chip is revealed on hover (no room for it inline once cards overlap).
+    const fanCards: FanCard[] = b.steps.map((step) => ({
+      id: step.cardId,
+      dimmed: !step.triggered,
+      hover: html`
+        <span class="go-wh-delta">${step.triggered ? step.valueText : "—"}</span>
+        <span class="go-wh-run">${fmtScore(step.runningScore)}</span>
+      `,
+    }));
     return html`
       <div class="go-wh-row" style="--accent:${playerAccentVar(s.accentIndex)};">
         <div class="go-wh-main">
@@ -61,23 +72,8 @@ export class AcWordHistory extends AcElement {
             <span class="go-wh-run">${b.seed}</span>
           </span>
           ${b.steps.length === 0
-            ? html`
-                <div class="go-wh-step is-empty" aria-hidden="true">
-                  <div class="go-wh-empty-card"></div>
-                  <span class="go-wh-chips"><span class="go-wh-delta">—</span></span>
-                </div>
-              `
-            : b.steps.map(
-                (step) => html`
-                  <div class="go-wh-step ${step.triggered ? "" : "is-dim"}">
-                    <ac-card mini .cardId=${step.cardId} ?dimmed=${!step.triggered}></ac-card>
-                    <span class="go-wh-chips">
-                      <span class="go-wh-delta">${step.triggered ? step.valueText : "—"}</span>
-                      <span class="go-wh-run">${fmtScore(step.runningScore)}</span>
-                    </span>
-                  </div>
-                `,
-              )}
+            ? html`<ac-card-fan mini .slots=${1}></ac-card-fan>`
+            : html`<ac-card-fan mini .cards=${fanCards}></ac-card-fan>`}
           <span class="go-wh-final ${b.taxed ? "is-taxed" : ""}">
             <span class="go-wh-op">${b.taxed ? "tax" : "score"}</span>
             <span class="go-wh-run"
