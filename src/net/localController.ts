@@ -9,7 +9,10 @@ import { BOT_THINK_SECONDS, chooseBotWord } from "../game/bots";
 import type { Dictionary } from "../game/dictionary";
 import { MatchController, type PlayerSeed } from "../game/match";
 import type { AlphaChainSettings, SubmitResult } from "../game/types";
+import { createLogger } from "../log";
 import type { GameController } from "./controller";
+
+const log = createLogger("local");
 
 export class LocalController implements GameController {
   readonly match: MatchController;
@@ -60,6 +63,9 @@ export class LocalController implements GameController {
   }
 
   start(): void {
+    log.info(
+      `solo match starting (${this.match.state.players.length} players, ${this.match.state.settings.botDifficulty} bots)`,
+    );
     this.match.start();
   }
 
@@ -118,7 +124,12 @@ export class LocalController implements GameController {
       bannedLetter: s.bannedLetter,
       difficulty: s.settings.botDifficulty,
     });
-    if (word) this.match.submitWord(playerId, word);
-    // If no word found, the bot simply lets its clock run out (handled by tick).
+    if (word) {
+      log.debug(`bot ${playerId} plays "${word}"`);
+      this.match.submitWord(playerId, word);
+    } else {
+      // No valid word found — the bot lets its clock run out (handled by tick).
+      log.warn(`bot ${playerId} found no valid word (letter="${s.requiredLetter}")`);
+    }
   }
 }

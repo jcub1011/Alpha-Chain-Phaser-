@@ -8,10 +8,13 @@
 
 import Phaser from "phaser";
 import { COLORS, prefersReducedMotion } from "../../theme";
+import { createLogger } from "../../log";
 import type { LaunchMode } from "../../net/launch";
 import { knockboxPluginConfig } from "../../net/knockboxPlugin";
 import type { NetPeer } from "../../net/knockBoxController";
 import { FxScene } from "./FxScene";
+
+const log = createLogger("fx");
 
 export interface Rectish {
   left: number;
@@ -31,6 +34,7 @@ class Fx {
   init(parentId: string, mode: LaunchMode = "solo"): void {
     if (this.game) return;
     const net = knockboxPluginConfig(mode);
+    log.info(`FX init (launch=${mode}, KnockBox plugin ${net ? "registered" : "none"})`);
     this.game = new Phaser.Game({
       type: Phaser.AUTO,
       parent: parentId,

@@ -17,10 +17,13 @@
 import type { Dictionary } from "../game/dictionary";
 import { MatchController, type MatchEvents, type PlayerSeed } from "../game/match";
 import type { AlphaChainSettings, SubmitResult } from "../game/types";
+import { createLogger, type KnockBoxLogger } from "../log";
 import type { GameController, MatchLike } from "./controller";
 import type { Intent, NetMessage, SnapshotMsg, WireEvent } from "./messages";
 import { NetMatch } from "./netMatch";
 import { serializeState } from "./serialize";
+
+const log = createLogger("net");
 
 /** The transport surface shared by KnockBoxPlugin and KnockBoxLocalPeer. */
 export interface NetPeer {
@@ -35,6 +38,8 @@ export interface NetPeer {
   sendToAll(payload: unknown): void;
   sendTo(playerId: string, payload: unknown): void;
   setLobbyOpen?(open: boolean): void;
+  /** Ships diagnostic lines to the server log (the addon's console-like logger). */
+  log?: KnockBoxLogger;
 }
 
 /** Match events the host broadcasts for replay (everything but the per-frame clock). */
@@ -79,6 +84,7 @@ export class KnockBoxController implements GameController {
   private endSession(reason: string): void {
     if (this.ended) return;
     this.ended = true;
+    log.warn(`session ended: ${reason}`);
     this.sessionEndedCbs.slice().forEach((c) => c(reason));
   }
 
@@ -152,10 +158,14 @@ export class KnockBoxController implements GameController {
 
   // ── Transport ────────────────────────────────────────────────────────────────
   private dispatch(action: Intent): void {
+    log.debug(`intent → host: ${action.kind}`);
     this.peer.sendToHost({ t: "intent", action } satisfies NetMessage);
   }
 
   private onReady = (): void => {
+    log.info(
+      `ready as ${this.peer.isHost ? "host" : "guest"} (id=${this.peer.playerId ?? "?"}, players=${this.peer.players.length})`,
+    );
     if (!this.peer.isHost) {
       this.peer.sendToHost({ t: "sync" } satisfies NetMessage);
     } else if (this.host) {
@@ -171,6 +181,7 @@ export class KnockBoxController implements GameController {
 
   private onLeft = (...args: unknown[]): void => {
     const leftId = args[0] as string;
+    log.info(`player left: ${leftId}`);
     if (this.peer.isHost && this.host) {
       // Mirror the Blazor HasLeft: mark eliminated so turns skip them.
       const p = this.host.state.players.find((x) => x.id === leftId);
@@ -214,6 +225,7 @@ export class KnockBoxController implements GameController {
         // The host already applied its own snapshot directly; ignore the echo.
         if (!this.peer.isHost) {
           this.hostId = payload.hostId;
+          log.debug(`guest applying snapshot (${payload.events.length} events)`);
           this.mirror.applySnapshot(payload.state, payload.events);
         }
         break;
@@ -222,6 +234,7 @@ export class KnockBoxController implements GameController {
 
   // ── Host authority ───────────────────────────────────────────────────────────
   private applyIntent(fromId: string, action: Intent): void {
+    log.debug(`host applying intent ${action.kind} from ${fromId}`);
     if (action.kind === "startMatch") {
       if (fromId !== this.peer.playerId) return; // only the host starts
       this.beginHostMatch(action.settings);
@@ -261,6 +274,7 @@ export class KnockBoxController implements GameController {
     const seeds: PlayerSeed[] = this.peer.players
       .filter((p) => settings.hostPlays || p.id !== this.peer.playerId)
       .map((p) => ({ id: p.id, name: p.displayName, isBot: false }));
+    log.info(`host starting match (${seeds.length} players)`);
     this.host = new MatchController(seeds, settings, {
       isWord: (w) => this.dict.has(w),
       rng: this.rng,

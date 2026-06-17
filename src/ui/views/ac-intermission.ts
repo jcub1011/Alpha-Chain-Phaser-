@@ -16,8 +16,11 @@ import { customElement, property, state } from "lit/decorators.js";
 import type { GameController } from "../../net/controller";
 import { LocalController } from "../../net/localController";
 import { legalBanLetters } from "../../game/settings";
+import { createLogger } from "../../log";
 import { AcElement } from "../app/AcElement";
 import "../components/ac-card";
+
+const log = createLogger("input");
 
 @customElement("ac-intermission")
 export class AcIntermission extends AcElement {
@@ -153,11 +156,13 @@ export class AcIntermission extends AcElement {
 
   /** LOCK IN: commit the order; in solo, fast-forward the optimize dwell. */
   private lockIn(): void {
+    log.debug(`locked in engine (${this.engine.length} cards, ${this.discard.length} discarded)`);
     this.commit();
     if (this.controller instanceof LocalController) this.controller.match.skipOptimize();
   }
 
   private pickBan(letter: string): void {
+    log.info(`sniper ban: "${letter}"`);
     this.controller.match.applySniperBanAndAdvance(letter);
   }
 

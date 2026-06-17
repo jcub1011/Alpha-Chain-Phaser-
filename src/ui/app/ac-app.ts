@@ -13,8 +13,11 @@ import { LocalController } from "../../net/localController";
 import { KnockBoxController } from "../../net/knockBoxController";
 import type { LaunchMode } from "../../net/launch";
 import type { GameController } from "../../net/controller";
+import { createLogger } from "../../log";
 import { fx } from "../fx/fx";
 import { AcElement } from "./AcElement";
+
+const log = createLogger("app");
 
 // Side-effect imports register the custom elements used in the template.
 import "../views/ac-lobby";
@@ -51,6 +54,7 @@ export class AcApp extends AcElement {
 
   override connectedCallback(): void {
     super.connectedCallback();
+    log.debug(`<ac-app> connected (launch=${this.launchMode})`);
     window.addEventListener("keydown", this.onKeyDown);
   }
 
@@ -81,10 +85,12 @@ export class AcApp extends AcElement {
       if (retries > 0) {
         window.setTimeout(() => this.setupNet(retries - 1), 60);
       } else {
+        log.error("KnockBox peer never attached; giving up after retries");
         this.sessionEnded = "Couldn't connect to the lobby. Please reload to try again.";
       }
       return;
     }
+    log.info("KnockBox peer attached; creating networked controller");
     const net = new KnockBoxController(peer, this.dict!);
     this.net = net;
     this.controller = net;
@@ -105,6 +111,7 @@ export class AcApp extends AcElement {
   }
 
   private onNetStart = (e: CustomEvent<AlphaChainSettings>): void => {
+    log.info("host requested match start");
     this.net?.startMatch(e.detail);
   };
 
@@ -120,6 +127,7 @@ export class AcApp extends AcElement {
   };
 
   private onStart = (e: CustomEvent<AlphaChainSettings>): void => {
+    log.info("starting solo match from lobby");
     this.settings = e.detail;
     this.controller?.destroy();
     this.clearSubs();
@@ -135,6 +143,7 @@ export class AcApp extends AcElement {
   };
 
   private onReturnToLobby = (): void => {
+    log.info(`returning to lobby (${this.net ? "networked" : "solo"})`);
     // Networked play returns to the multiplayer lobby; solo tears the controller down.
     if (this.net) {
       this.screen = "netlobby";

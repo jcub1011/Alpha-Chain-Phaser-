@@ -1,4 +1,7 @@
+import { createLogger } from "../log";
 import type { AlphaChainSettings } from "./types";
+
+const log = createLogger("settings");
 
 /** Defaults ported from AlphaChainSettings.cs, plus single-player bot options. */
 export const DEFAULT_SETTINGS: AlphaChainSettings = {
@@ -39,8 +42,10 @@ export function loadSettings(): AlphaChainSettings {
         (result[key] as unknown) = value;
       }
     }
+    log.debug("settings loaded from localStorage");
     return result;
-  } catch {
+  } catch (err) {
+    log.warn(`settings load failed; using defaults: ${String(err)}`);
     return { ...DEFAULT_SETTINGS };
   }
 }
@@ -49,8 +54,10 @@ export function loadSettings(): AlphaChainSettings {
 export function saveSettings(settings: AlphaChainSettings): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-  } catch {
-    // Persistence is best-effort; ignore storage failures.
+    log.debug("settings saved");
+  } catch (err) {
+    // Persistence is best-effort; log and ignore storage failures.
+    log.warn(`settings save failed (private mode / quota?): ${String(err)}`);
   }
 }
 

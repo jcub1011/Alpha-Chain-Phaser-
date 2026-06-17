@@ -7,23 +7,40 @@
 import "./styles/index.css";
 import { Dictionary } from "./game/dictionary";
 import { loadSettings } from "./game/settings";
+import { attachKnockBoxSink, createLogger } from "./log";
 import { detectLaunch } from "./net/launch";
 import { fx } from "./ui/fx/fx";
 // Side-effect import registers <ac-app>; the type import is erased at build.
 import "./ui/app/ac-app";
 import type { AcApp } from "./ui/app/ac-app";
 
+const log = createLogger("boot");
+
+/** Surface otherwise-silent runtime failures (uncaught errors, rejected promises). */
+function installGlobalErrorHandlers(): void {
+  window.addEventListener("error", (e) => {
+    log.critical(`uncaught error: ${e.message}`, e.error ?? e);
+  });
+  window.addEventListener("unhandledrejection", (e) => {
+    log.error(`unhandled promise rejection: ${String(e.reason)}`, e.reason);
+  });
+}
+
 async function boot(): Promise<void> {
   // 0. Resolve the launch mode ONCE, up front. The KnockBox plugin scrubs the
   //    ticket out of location.hash the moment it starts, so detectLaunch() is only
   //    reliable before the Phaser game boots — capture it here and thread it down.
   const launchMode = detectLaunch();
+  log.info(`booting (launch=${launchMode})`);
 
   // 1. Lexicon (the large download) + card icon sprite, in parallel.
   const [wordsRes, spriteRes] = await Promise.all([
     fetch("assets/words.txt"),
     fetch("assets/cards.svg"),
   ]);
+  if (!wordsRes.ok || !spriteRes.ok) {
+    log.error(`asset fetch failed (words=${wordsRes.status}, sprite=${spriteRes.status})`);
+  }
   const [wordsText, spriteText] = await Promise.all([wordsRes.text(), spriteRes.text()]);
 
   const dict = new Dictionary(
@@ -32,6 +49,7 @@ async function boot(): Promise<void> {
       .map((w) => w.trim().toLowerCase())
       .filter((w) => w.length > 0),
   );
+  log.info(`dictionary loaded (${dict.size} words)`);
 
   // 2. Inject the SVG <symbol> sprite once so <use href="#id"> resolves anywhere.
   const sprite = document.createElement("div");
@@ -45,12 +63,18 @@ async function boot(): Promise<void> {
   //    plugin when launched for multiplayer (platform ticket or ?kbLocal=tab).
   fx.init("fx", launchMode);
 
+  // 3a. Route logs to the KnockBox server logger once the plugin is attached.
+  //     The getter is resolved lazily per log call, so the plugin's async startup
+  //     and solo mode (no plugin → undefined) are both handled transparently.
+  attachKnockBoxSink(() => fx.knockbox()?.log);
+
   // 4. Hand the dictionary + settings to the app shell.
   const app = document.querySelector("ac-app") as AcApp;
   app.launchMode = launchMode;
   app.dict = dict;
   app.settings = loadSettings();
   fx.setShakeTarget(app);
+  log.info("app shell mounted");
 
   // 5. Dismiss the loading screen.
   const bootEl = document.getElementById("boot");
@@ -65,4 +89,7 @@ async function boot(): Promise<void> {
   }
 }
 
-void boot();
+installGlobalErrorHandlers();
+boot().catch((err: unknown) => {
+  log.critical(`boot failed: ${String(err)}`, err);
+});

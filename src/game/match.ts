@@ -12,6 +12,7 @@
 import { DEALABLE_CARD_IDS, getCard } from "./cards/library";
 import type { ModifierCard } from "./cards/card";
 import { BanLetterService, EngineEffects, RoomServices } from "./cards/roomServices";
+import { createLogger } from "../log";
 import { Emitter } from "./emitter";
 import { shuffle } from "./rng";
 import {
@@ -39,6 +40,8 @@ import type {
   TutorialKind,
   WordResolution,
 } from "./types";
+
+const log = createLogger("match");
 
 /** Tutorial dwell durations in seconds (port of TutorialState.DurationFor). */
 const TUTORIAL_DWELL: Record<TutorialKind, number> = {
@@ -156,6 +159,42 @@ export class MatchController {
       leaderId: () => this.roundLeaderId,
       armedClockOf: (p) => armedClockSeconds(this.state.settings.shotClockSeconds, p.bay),
     });
+    this.installLogging();
+  }
+
+  /**
+   * Mirror the FSM's discrete events to the app log from one place, so the state
+   * machine body stays uncluttered. Per-frame ticks (countdown/clock/subTimer)
+   * are deliberately excluded to avoid flooding the log.
+   */
+  private installLogging(): void {
+    const playerName = (id: string): string =>
+      this.state.players.find((p) => p.id === id)?.name ?? id;
+
+    this.events.on("phaseChanged", (phase) => log.info(`phase → ${phase} (era ${this.state.era})`));
+    this.events.on("subPhaseChanged", ({ intermissionPhase, currentTutorial }) =>
+      log.debug(`sub-phase → intermission=${intermissionPhase ?? "-"}, tutorial=${currentTutorial ?? "-"}`),
+    );
+    this.events.on("turnArmed", ({ playerIndex, requiredLetter, clockTotal }) =>
+      log.info(
+        `turn armed: ${playerName(this.state.players[playerIndex]?.id ?? "")} letter="${requiredLetter || "*"}" clock=${clockTotal}s`,
+      ),
+    );
+    this.events.on("submission", ({ submission }) =>
+      log.info(
+        `submission: ${playerName(submission.playerId)} "${submission.word}" → ${submission.score} pts`,
+      ),
+    );
+    this.events.on("rejected", ({ playerId, reason }) =>
+      log.warn(`rejected: ${playerName(playerId)} (${reason})`),
+    );
+    this.events.on("timeout", ({ playerId }) => log.warn(`timeout: ${playerName(playerId)}`));
+    this.events.on("intermission", ({ lastPlaceId, dealt }) =>
+      log.info(`intermission: last=${playerName(lastPlaceId)}, dealt ${Object.keys(dealt).length} bays`),
+    );
+    this.events.on("gameOver", ({ winnerId }) =>
+      log.info(`game over: winner=${winnerId ? playerName(winnerId) : "none"}`),
+    );
   }
 
   /** Active players in turn order (index-aligned with how turns advance). */

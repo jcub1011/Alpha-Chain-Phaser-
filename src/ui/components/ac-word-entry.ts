@@ -9,7 +9,10 @@ import { html, type PropertyValues, type TemplateResult } from "lit";
 import { customElement, property, query, state } from "lit/decorators.js";
 import type { GameController } from "../../net/controller";
 import type { SubmitResult } from "../../game/types";
+import { createLogger } from "../../log";
 import { AcElement } from "../app/AcElement";
+
+const log = createLogger("input");
 
 const REASON: Record<NonNullable<SubmitResult["reason"]>, string> = {
   "not-a-word": "Not a word",
@@ -112,6 +115,7 @@ export class AcWordEntry extends AcElement {
     if (!this.live || !this.input) return;
     const value = this.input.value.trim();
     if (!value) return;
+    log.debug(`player submits "${value}"`);
     this.controller.submitWord(value);
   }
 
