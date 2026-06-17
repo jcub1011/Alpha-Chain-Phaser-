@@ -96,16 +96,46 @@
     opacity: 1;
   }
 }
-@keyframes ac-float-up {
+/* Leaderboard score-pop: a punchy scale-overshoot in, then float up and fade. */
+@keyframes ac-score-pop {
   0% {
-    transform: translateY(0);
+    transform: translateY(0) scale(0.5);
     opacity: 0;
   }
-  18% {
+  15% {
+    transform: translateY(-0.3rem) scale(1.25);
+    opacity: 1;
+  }
+  35% {
+    transform: translateY(-0.7rem) scale(1);
     opacity: 1;
   }
   100% {
-    transform: translateY(-2.2rem);
+    transform: translateY(-2.6rem) scale(1);
+    opacity: 0;
+  }
+}
+/* Strip (mobile) variant: pop in below the player and fade out in place — no
+ * vertical travel. Bakes in the translateX(-50%) centering so the animation's
+ * transform doesn't clobber it. */
+@keyframes ac-score-pop-strip {
+  0% {
+    transform: translate(-50%, 0) scale(0.5);
+    opacity: 0;
+  }
+  20% {
+    transform: translate(-50%, 0) scale(1.25);
+    opacity: 1;
+  }
+  35% {
+    transform: translate(-50%, 0) scale(1);
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, 0) scale(1);
     opacity: 0;
   }
 }

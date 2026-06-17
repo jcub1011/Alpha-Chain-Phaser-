@@ -175,6 +175,9 @@ export interface EngineEffectNotice {
   targetId: string;
   /** Human-readable summary, e.g. "−2s shot clock". */
   text: string;
+  /** Signed point delta for score-affecting effects (+gain / −loss); omitted for
+   *  non-score effects (time shaves, letter bans). Drives the leaderboard pop. */
+  amount?: number;
   /** True when a Titanium Mirror reflected the hit back at its caster. */
   reflected?: boolean;
 }

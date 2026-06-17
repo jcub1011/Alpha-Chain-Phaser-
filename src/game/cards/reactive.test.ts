@@ -74,8 +74,8 @@ describe("Tax Collector — only banks off an opponent's taxed word", () => {
     expect(r.submission!.siphonedBy).toEqual(expect.arrayContaining(["p2", "p3"]));
     expect(r.submission!.effects).toEqual(
       expect.arrayContaining([
-        { source: "Tax Collector", targetId: "p2", text: "+2 banked" },
-        { source: "Tax Collector", targetId: "p3", text: "+2 banked" },
+        { source: "Tax Collector", targetId: "p2", text: "+2 banked", amount: 2 },
+        { source: "Tax Collector", targetId: "p3", text: "+2 banked", amount: 2 },
       ]),
     );
   });
@@ -164,6 +164,7 @@ describe("The Toll Booth — no toll on an opponent's taxed word", () => {
       source: "The Toll Booth",
       targetId: "p1",
       text: `+${r.submission!.taxBounty} banked`,
+      amount: r.submission!.taxBounty,
     });
   });
 });
@@ -181,8 +182,18 @@ describe("Chrono Syphon — every opponent banks the leftover seconds", () => {
     expect(m.state.players[2].score).toBe(remaining * 2);
     expect(r.submission!.effects).toEqual(
       expect.arrayContaining([
-        { source: "Chrono Syphon", targetId: "p2", text: `+${remaining * 2} banked` },
-        { source: "Chrono Syphon", targetId: "p3", text: `+${remaining * 2} banked` },
+        {
+          source: "Chrono Syphon",
+          targetId: "p2",
+          text: `+${remaining * 2} banked`,
+          amount: remaining * 2,
+        },
+        {
+          source: "Chrono Syphon",
+          targetId: "p3",
+          text: `+${remaining * 2} banked`,
+          amount: remaining * 2,
+        },
       ]),
     );
   });

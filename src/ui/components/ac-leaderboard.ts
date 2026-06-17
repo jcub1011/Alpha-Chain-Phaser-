@@ -1,7 +1,8 @@
 /*
  * <ac-leaderboard> — live standings. Re-renders only on low-frequency events
  * (turn changes, submissions, timeouts). The active player's row glows; the
- * human's row is bordered; a mint score-pop floats up on each fresh submission.
+ * human's row is bordered; a score-pop floats up on every row a submission
+ * moves — the submitter plus any off-turn siphons/drains it triggers.
  */
 
 import { html, nothing, type PropertyValues, type TemplateResult } from "lit";
@@ -23,7 +24,7 @@ export class AcLeaderboard extends AcElement {
 
   @state() private rows: LbRow[] = [];
   @state() private activeId = "";
-  @state() private pop: { id: string; amount: number; key: number } | null = null;
+  @state() private pops: { id: string; amount: number; key: number }[] = [];
 
   /** Window listener for the deferred score reveal (engine-replay completion). */
   private onRevealed?: (e: Event) => void;
@@ -62,12 +63,18 @@ export class AcLeaderboard extends AcElement {
       this.onRevealed = (ev: Event): void => {
         const sub = (ev as CustomEvent<{ submission: Submission }>).detail?.submission;
         refresh();
-        if (sub && sub.score !== 0)
-          this.pop = {
-            id: sub.playerId,
-            amount: sub.score,
-            key: sub.breakdown.seed + Date.now(),
-          };
+        if (!sub) return;
+        // A single word can move several players: the submitter's own score plus
+        // any off-turn siphons/drains it triggers (Chrono Syphon, Tax Collector,
+        // drains, …). Fold every signed delta per player so each changed row pops.
+        const delta = new Map<string, number>();
+        if (sub.score) delta.set(sub.playerId, sub.score);
+        for (const eff of sub.effects ?? [])
+          if (eff.amount) delta.set(eff.targetId, (delta.get(eff.targetId) ?? 0) + eff.amount);
+        const base = sub.breakdown.seed + Date.now();
+        this.pops = [...delta]
+          .filter(([, amount]) => amount !== 0)
+          .map(([id, amount], i) => ({ id, amount, key: base + i }));
       };
       window.addEventListener("ac-score-revealed", this.onRevealed);
 
@@ -99,13 +106,16 @@ export class AcLeaderboard extends AcElement {
               <span class="lb-name">${p.name}${isMe ? html`<i> you</i>` : nothing}</span>
               ${p.eliminated ? html`<span class="lb-tag">OUT</span>` : nothing}
               <span class="lb-score">${fmtScore(p.score)}</span>
-              ${this.pop && this.pop.id === p.id
-                ? html`<span
-                    class="lb-pop ${this.pop.amount < 0 ? "is-neg" : ""}"
-                    @animationend=${() => (this.pop = null)}
-                    >${this.pop.amount > 0 ? "+" : ""}${fmtScore(this.pop.amount)}</span
-                  >`
-                : nothing}
+              ${this.pops
+                .filter((q) => q.id === p.id)
+                .map(
+                  (q) =>
+                    html`<span
+                      class="lb-pop ${q.amount < 0 ? "is-neg" : ""}"
+                      @animationend=${() => (this.pops = this.pops.filter((x) => x.key !== q.key))}
+                      >${q.amount > 0 ? "+" : ""}${fmtScore(q.amount)}</span
+                    >`,
+                )}
             </li>
           `;
         })}

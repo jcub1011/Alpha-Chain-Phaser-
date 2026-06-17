@@ -23,7 +23,7 @@ describe("EngineEffects.bankSiphon", () => {
     fx.bankSiphon("p1", 6, "Chrono Syphon");
     expect(fx.takeSiphons()).toEqual([{ playerId: "p1", amount: 6 }]);
     expect(fx.takeNotices()).toEqual([
-      { source: "Chrono Syphon", targetId: "p1", text: "+6 banked" },
+      { source: "Chrono Syphon", targetId: "p1", text: "+6 banked", amount: 6 },
     ]);
   });
 

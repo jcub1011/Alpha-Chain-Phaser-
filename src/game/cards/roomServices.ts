@@ -188,7 +188,7 @@ export class EngineEffects {
   bankSiphon(playerId: string, amount: number, source: string): void {
     if (amount <= 0) return;
     this.siphons.push({ playerId, amount });
-    this.notices.push({ source, targetId: playerId, text: `+${amount} banked` });
+    this.notices.push({ source, targetId: playerId, text: `+${amount} banked`, amount });
   }
 
   /** Return and clear siphons accumulated since the last drain. */
@@ -255,7 +255,13 @@ export class EngineEffects {
     if (points <= 0) return;
     const { target, reflected } = this.route(caster, victim);
     target.score -= points;
-    this.addNotice({ source, targetId: target.id, text: `−${points} pts`, reflected });
+    this.addNotice({
+      source,
+      targetId: target.id,
+      text: `−${points} pts`,
+      amount: -points,
+      reflected,
+    });
   }
 
   /** Curse the target with a personal banned letter for their next turn (Bait & Switch). */
