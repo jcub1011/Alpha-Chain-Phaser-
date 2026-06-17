@@ -197,11 +197,11 @@ export class AcScoreReplay extends AcElement {
       return;
     }
 
+    // Per-card beat scales down with card count so the whole walk fits the
+    // configured engineAnimationSeconds budget regardless of how many cards fire.
     const steps = sub.breakdown.steps.length;
-    const stepMs = Math.max(
-      180,
-      (this.controller.match.state.settings.engineAnimationSeconds * 1000) / Math.max(1, steps),
-    );
+    const stepMs =
+      (this.controller.match.state.settings.engineAnimationSeconds * 1000) / Math.max(1, steps);
 
     const theater = this.querySelector<HTMLElement>(".sr") ?? undefined;
     if (this.fanEl) {

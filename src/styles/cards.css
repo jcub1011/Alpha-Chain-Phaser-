@@ -281,8 +281,7 @@ ac-engine-bay ac-card:not([mini]):hover .gc {
 
 /* States toggled by the score replay. */
 ac-card[dimmed] .gc {
-  opacity: 0.4;
-  filter: saturate(0.5);
+  filter: grayscale(1) brightness(0.6);
 }
 ac-card[triggered]:not([flipped]) .gc-flip {
   transform: translateY(-10px) scale(1.05);
