@@ -151,7 +151,6 @@ export class AcCard extends AcElement {
           ${this.mini ? nothing : html`<span class="gc-flip-hint">tap to flip</span>`}
         </div>
         <div class="gc gc-back">
-          <span class="gc-back-name">${card.name}</span>
           <p class="gc-desc">${card.description}</p>
         </div>
       </div>

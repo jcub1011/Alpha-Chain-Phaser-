@@ -156,14 +156,6 @@ ac-card[flipped] .gc-flip {
   justify-content: flex-start;
   gap: calc(var(--gc-h) * 0.04);
 }
-.gc-back-name {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: calc(var(--gc-w) * 0.1424);
-  line-height: 1.05;
-  letter-spacing: 0.01em;
-  color: var(--ac-ink);
-}
 .gc-desc {
   margin: 0;
   font-size: calc(var(--gc-w) * 0.1111);
@@ -342,9 +334,4 @@ ac-card[mini] .gc-back {
 }
 ac-card[mini] .gc-flip:hover .gc-back {
   opacity: 1;
-}
-/* The mini back-face is too small to fit both name and description; on hover
-   show the description only. (Full-size cards keep their flipped title.) */
-ac-card[mini] .gc-back-name {
-  display: none;
 }
