@@ -58,7 +58,7 @@ export class AcLeaderboard extends AcElement {
       // The score (and +pop) reveal is driven by <ac-score-replay> finishing its
       // walk, not by the raw `submission` event — so the leaderboard never spoils
       // the result before the animation lands.
-      window.removeEventListener("ac-score-revealed", this.onRevealed!);
+      if (this.onRevealed) window.removeEventListener("ac-score-revealed", this.onRevealed);
       this.onRevealed = (ev: Event): void => {
         const sub = (ev as CustomEvent<{ submission: Submission }>).detail?.submission;
         refresh();

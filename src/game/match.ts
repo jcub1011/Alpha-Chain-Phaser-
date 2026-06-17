@@ -181,27 +181,39 @@ export class MatchController {
         `sub-phase → intermission=${intermissionPhase ?? "-"}, tutorial=${currentTutorial ?? "-"}`,
       ),
     );
-    this.events.on("turnArmed", ({ playerIndex, requiredLetter, clockTotal }) =>
+    // Player names and submitted words are PII. They go to the local console as
+    // detail args (which the logger never ships to the server); the lines that
+    // reach the server log carry only opaque player ids. See log.ts.
+    this.events.on("turnArmed", ({ playerIndex, requiredLetter, clockTotal }) => {
+      const id = this.state.players[playerIndex]?.id ?? "?";
       log.info(
-        `turn armed: ${playerName(this.state.players[playerIndex]?.id ?? "")} letter="${requiredLetter || "*"}" clock=${clockTotal}s`,
-      ),
-    );
+        `turn armed: ${id} letter="${requiredLetter || "*"}" clock=${clockTotal}s`,
+        playerName(id),
+      );
+    });
     this.events.on("submission", ({ submission }) =>
       log.info(
-        `submission: ${playerName(submission.playerId)} "${submission.word}" → ${submission.score} pts`,
+        `submission: ${submission.playerId} → ${submission.score} pts`,
+        playerName(submission.playerId),
+        submission.word,
       ),
     );
     this.events.on("rejected", ({ playerId, reason }) =>
-      log.warn(`rejected: ${playerName(playerId)} (${reason})`),
+      log.warn(`rejected: ${playerId} (${reason})`, playerName(playerId)),
     );
-    this.events.on("timeout", ({ playerId }) => log.warn(`timeout: ${playerName(playerId)}`));
+    this.events.on("timeout", ({ playerId }) =>
+      log.warn(`timeout: ${playerId}`, playerName(playerId)),
+    );
     this.events.on("intermission", ({ lastPlaceId, dealt }) =>
       log.info(
-        `intermission: last=${playerName(lastPlaceId)}, dealt ${Object.keys(dealt).length} bays`,
+        `intermission: last=${lastPlaceId} dealt ${Object.keys(dealt).length} bays`,
+        playerName(lastPlaceId),
       ),
     );
     this.events.on("gameOver", ({ winnerId }) =>
-      log.info(`game over: winner=${winnerId ? playerName(winnerId) : "none"}`),
+      winnerId
+        ? log.info(`game over: winner=${winnerId}`, playerName(winnerId))
+        : log.info(`game over: winner=none`),
     );
   }
 
@@ -352,6 +364,9 @@ export class MatchController {
     // — the opener gets the free starting letter, so a fixed order would hand the
     // same seat a recurring advantage. The opener is the first non-eliminated player
     // in the freshly shuffled order.
+    // Cross-peer consistency comes from HOST AUTHORITY, not seed replication: only the
+    // host runs beginEra and the shuffled order ships wholesale in the snapshot. `rng`
+    // defaults to Math.random, so no RNG-derived logic may ever run on a guest mirror.
     this.state.players = shuffle(this.state.players, this.rng);
     const opener = this.state.players.findIndex((p) => !p.eliminated);
     this.state.currentPlayerIndex = opener < 0 ? 0 : opener;

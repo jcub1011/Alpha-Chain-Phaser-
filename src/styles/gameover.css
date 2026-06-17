@@ -285,6 +285,28 @@ ac-word-history {
   font-weight: 700;
   color: var(--ac-ink-soft);
 }
+/* Always-on per-card scoring beneath the fan — the same delta + running total the
+   hover chip shows, but reachable without a pointer (touch). One chip per step. */
+.go-wh-deltas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.4rem;
+  margin-top: 0.3rem;
+}
+.go-wh-delta-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  padding: 0.05rem 0.3rem;
+  border-radius: var(--r-xs);
+  background: rgba(255, 255, 255, 0.04);
+}
+.go-wh-delta-chip.is-dim {
+  opacity: 0.45;
+}
+.go-wh-delta-chip .go-wh-run {
+  font-size: 0.66rem;
+}
 .go-wh-seed,
 .go-wh-final {
   display: flex;

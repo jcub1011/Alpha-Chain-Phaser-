@@ -184,11 +184,6 @@ export class EngineEffects {
     private readonly deps: EngineEffectsDeps,
   ) {}
 
-  /** Record points siphoned from the resolving word (Tax Collector / Toll / Chrono). */
-  recordSiphon(playerId: string, amount: number): void {
-    this.siphons.push({ playerId, amount });
-  }
-
   /** Bank a siphon AND emit a named notice so the UI can attribute it to a card. */
   bankSiphon(playerId: string, amount: number, source: string): void {
     if (amount <= 0) return;

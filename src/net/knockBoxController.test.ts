@@ -303,7 +303,7 @@ describe("KnockBoxController — intermission optimize", () => {
     hostCtl.submitWord("cat"); // host (player 0): "" → t
     guestCtl.submitWord("tiger"); // guest (player 1): t → r — wraps the round, ends the era
     hostCtl.tick(10); // burn the era-end settle dwell → enterIntermission → optimize
-    return { hostCtl, guestCtl };
+    return { hostPeer, guestPeer, hostCtl, guestCtl };
   };
 
   it("reaches the optimize sub-phase on both host and guest without throwing", () => {
@@ -336,5 +336,57 @@ describe("KnockBoxController — intermission optimize", () => {
     const before = hostCtl.match.state.subTimerRemaining;
     hostCtl.tick(0.1); // a frame with no replayed event — the host must drive its mirror
     expect(hostCtl.match.state.subTimerRemaining).toBeLessThan(before);
+  });
+
+  it("advances optimize when the last unlocked player leaves mid-optimize", () => {
+    const { hostPeer, hostCtl } = startToOptimize();
+    // The host locks in, but the guest hasn't — the shared dwell must keep waiting.
+    hostCtl.match.skipOptimize();
+    expect(hostCtl.match.state.intermissionPhase).toBe("optimize");
+
+    // The only player we were still waiting on leaves. recheckOptimizeCompletion must
+    // re-evaluate so the locked-in host isn't stranded waiting on a departed straggler.
+    hostPeer.fireLeft("guest");
+    expect(hostCtl.match.state.intermissionPhase).toBe("sniperBan"); // tutorials off: optimize → ban
+  });
+});
+
+describe("KnockBoxController — fault containment", () => {
+  it("contains a throwing intent without tearing down the host loop", () => {
+    const hub = new Hub();
+    const hostPeer = new FakePeer(hub, "host", true, roster);
+    const guestPeer = new FakePeer(hub, "guest", false, roster);
+    // A dictionary that throws while validating one specific word, to force a throw
+    // inside the host's applyIntent path.
+    const throwingDict = {
+      has: (w: string) => {
+        if (w === "boom") throw new Error("kaboom");
+        return WORDS.has(w);
+      },
+    } as unknown as Dictionary;
+    const hostCtl = new KnockBoxController(hostPeer, throwingDict, orderPreservingRng);
+    const guestCtl = new KnockBoxController(guestPeer, throwingDict, orderPreservingRng);
+    hostPeer.fireReady();
+    guestPeer.fireReady();
+    hostCtl.startMatch({
+      ...DEFAULT_SETTINGS,
+      enableTutorials: false,
+      preRoundCountdownSeconds: 1,
+      eraInterval: 9,
+      eraCount: 1,
+    });
+    hostCtl.tick(1);
+    expect(hostCtl.match.current.id).toBe("host");
+
+    // The throwing submission must be swallowed by applyIntent's try/catch — it must
+    // not propagate out, and it must not advance the turn.
+    expect(() => hostCtl.submitWord("boom")).not.toThrow();
+    expect(hostCtl.match.current.id).toBe("host");
+
+    // The very next valid intent still applies — the host loop survived the throw.
+    hostCtl.submitWord("cat");
+    expect(hostCtl.match.state.players[0].score).toBe(3);
+    expect(guestCtl.match.state.players[0].score).toBe(3);
+    expect(hostCtl.match.current.id).toBe("guest"); // turn advanced normally
   });
 });

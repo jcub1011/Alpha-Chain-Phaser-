@@ -135,10 +135,11 @@ export class KnockBoxController implements GameController {
       this.host.tick(dt); // authoritative clock + timeouts
       // The host renders from its own mirror too, but the per-frame clock/sub-timer
       // ticks aren't replayed events, so flush() only resnaps on a real state change.
-      // On the frames in between, drive the mirror's smooth countdown exactly like a
-      // guest so the host's displayed timers don't sit frozen between snapshots.
-      const sent = this.flush();
-      if (!sent) this.mirror.localClockTick(dt);
+      // On the frames in between ("noop"), drive the mirror's smooth countdown exactly
+      // like a guest so the host's displayed timers don't sit frozen between snapshots.
+      // On "failed" we do NOT tick locally — that would advance the host's display past
+      // a state it couldn't broadcast; let the next successful flush resync instead.
+      if (this.flush() === "noop") this.mirror.localClockTick(dt);
     } else {
       this.mirror.localClockTick(dt); // smooth guest countdown, never times out
     }
@@ -324,11 +325,13 @@ export class KnockBoxController implements GameController {
   }
 
   /** Flush buffered host events as a snapshot to everyone (and the host's own mirror).
-   *  Returns whether a snapshot was actually applied this call — the host's tick() uses
-   *  that to decide whether to drive its mirror's local countdown instead. */
-  private flush(force = false): boolean {
-    if (!this.host) return false;
-    if (!force && this.pending.length === 0) return false;
+   *  Returns the outcome so tick() can react precisely:
+   *   - "sent"   a snapshot was built + broadcast (state changed this frame)
+   *   - "noop"   nothing to send (no host / no pending events) — safe to tick locally
+   *   - "failed" a throw was contained — do NOT advance the local clock past it. */
+  private flush(force = false): "sent" | "noop" | "failed" {
+    if (!this.host) return "noop";
+    if (!force && this.pending.length === 0) return "noop";
     const events = this.pending;
     this.pending = [];
     // flush() runs every host frame from tick(); a throw here (serialize / send /
@@ -338,10 +341,10 @@ export class KnockBoxController implements GameController {
       const snap = this.buildSnapshot(events);
       this.peer.sendToAll(snap);
       this.mirror.applySnapshot(snap.state, snap.events); // host renders via the same path
-      return true;
+      return "sent";
     } catch (err) {
       log.error(`flush failed (${events.length} events dropped): ${String(err)}`, err);
-      return false;
+      return "failed";
     }
   }
 

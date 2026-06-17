@@ -289,16 +289,16 @@ export class AcScoreReplay extends AcElement {
                    strip appearing on a play never shifts the layout below it. -->
               <div class="sr-effects">
                 ${this.effects.length
-                  ? this.effects.map((n) => {
+                  ? this.effects.map((eff) => {
                       const tgt = this.controller.match.state.players.find(
-                        (p) => p.id === n.targetId,
+                        (p) => p.id === eff.targetId,
                       );
                       const who = tgt?.id === this.controller.humanId ? "You" : (tgt?.name ?? "");
                       return html`<div
-                        class="sr-effect ${n.reflected ? "is-reflected" : ""}"
+                        class="sr-effect ${eff.reflected ? "is-reflected" : ""}"
                         style="--accent:${tgt ? playerAccentVar(tgt.accentIndex) : ""};"
                       >
-                        ${n.reflected ? "⛊ " : ""}<b>${n.source}</b> → ${who} · ${n.text}
+                        ${eff.reflected ? "⛊ " : ""}<b>${eff.source}</b> → ${who} · ${eff.text}
                       </div>`;
                     })
                   : html`<div class="sr-effect is-placeholder" aria-hidden="true">·</div>`}

@@ -65,7 +65,12 @@ export class AcHud extends AcElement {
     const me = s.players.find((p) => p.id === human);
     this.humanBay = me ? [...me.bay] : [];
     this.humanSlots = me?.slots ?? 3;
-    this.opponents = s.players.filter((p) => p.id !== human);
+    // Sort opponents by their (stable) accent index for display, not by array
+    // order: the host reshuffles `players` every era for turn order, which would
+    // otherwise make the opponent tiles jump seats between eras.
+    this.opponents = s.players
+      .filter((p) => p.id !== human)
+      .sort((a, b) => a.accentIndex - b.accentIndex);
     // The last-place player is exempt from the banned-letter tax (they picked
     // it). Surface it so keeping points on a banned word never reads as a bug.
     this.humanExempt = !!me && !!s.bannedLetter && m.isExempt(me);

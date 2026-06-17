@@ -44,8 +44,9 @@ export class AcWordHistory extends AcElement {
 
   private renderRow(s: Submission): TemplateResult {
     const b = s.breakdown;
-    // The engine cards as an overlapping fan; each card's delta + running-score
-    // chip is revealed on hover (no room for it inline once cards overlap).
+    // The engine cards as an overlapping fan. The per-card delta + running score is
+    // shown always-on in the .go-wh-deltas row below (so it's readable on touch),
+    // and additionally as a hover chip aligned to each card (progressive enhancement).
     const fanCards: FanCard[] = b.steps.map((step) => ({
       id: step.cardId,
       dimmed: !step.triggered,
@@ -81,6 +82,19 @@ export class AcWordHistory extends AcElement {
             >
           </span>
         </div>
+
+        ${b.steps.length === 0
+          ? nothing
+          : html`<div class="go-wh-deltas" aria-label="per-card scoring">
+              ${b.steps.map(
+                (step) => html`
+                  <span class="go-wh-delta-chip ${step.triggered ? "" : "is-dim"}">
+                    <span class="go-wh-delta">${step.triggered ? step.valueText : "—"}</span>
+                    <span class="go-wh-run">${fmtScore(step.runningScore)}</span>
+                  </span>
+                `,
+              )}
+            </div>`}
       </div>
     `;
   }

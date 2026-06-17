@@ -55,7 +55,11 @@ export class AcCardFan extends AcElement {
     this.resizeObs?.disconnect();
   }
 
-  /** Card footprint from the cascaded --gc-w (matches the cards' own width). */
+  /** Card footprint from the cascaded --gc-w (matches the cards' own width).
+   *  CONTRACT: --gc-w must be set on an ANCESTOR of the fan (it cascades in here).
+   *  `ac-card[mini]` sets --gc-w on the card itself, which does NOT reach this host —
+   *  so any surface using mini cards in a fan must also restate --gc-w on an ancestor,
+   *  or the overlap math silently falls back to 132 and desyncs from the real cards. */
   private cardWidth(): number {
     const w = parseFloat(getComputedStyle(this).getPropertyValue("--gc-w"));
     return Number.isFinite(w) && w > 0 ? w : 132;
@@ -73,7 +77,6 @@ export class AcCardFan extends AcElement {
           (c, i) => html`
             <ac-card
               role="listitem"
-              data-slot=${i}
               .cardId=${c.id}
               ?isNew=${c.isNew ?? false}
               ?mini=${this.mini}

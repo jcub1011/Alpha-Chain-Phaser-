@@ -12,8 +12,10 @@
  * multiplayer modes, so it is resolved lazily through a getter wired once at
  * boot (see main.ts). Before the plugin is ready, or in solo mode, that sink is
  * a no-op — best-effort, matching the addon's own contract. Only the (already
- * prefixed) message string is shipped to the server; rich detail args stay on
- * the local console so game state is never sent over the wire.
+ * prefixed) message string is shipped to the server; rich `detail` args stay on
+ * the local console and are never sent over the wire. Callers MUST keep PII
+ * (player names, submitted words) out of the message string and pass it as a
+ * detail arg instead — the shipped line should carry only opaque ids.
  */
 
 export type LogLevel = "trace" | "debug" | "info" | "warn" | "error" | "critical";

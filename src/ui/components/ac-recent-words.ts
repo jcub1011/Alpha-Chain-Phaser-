@@ -28,10 +28,19 @@ export class AcRecentWords extends AcElement {
       // Prepend a word only when its engine replay finishes (ac-score-revealed),
       // not on the raw `submission` event — otherwise the chip's score spoils the
       // result before the animation lands. Mirrors <ac-leaderboard>.
-      window.removeEventListener("ac-score-revealed", this.onRevealed!);
+      if (this.onRevealed) window.removeEventListener("ac-score-revealed", this.onRevealed);
       this.onRevealed = (ev: Event): void => {
         const sub = (ev as CustomEvent<{ submission: Submission }>).detail?.submission;
-        if (sub) this.items = [sub, ...this.items].slice(0, 24);
+        if (!sub) return;
+        // Guard against a double-dispatch (e.g. two theaters): skip if this exact
+        // submission is already at the head rather than listing the word twice.
+        const head = this.items[0];
+        const dup =
+          head &&
+          head.playerId === sub.playerId &&
+          head.word === sub.word &&
+          head.breakdown.seed === sub.breakdown.seed;
+        if (!dup) this.items = [sub, ...this.items].slice(0, 24);
       };
       window.addEventListener("ac-score-revealed", this.onRevealed);
 

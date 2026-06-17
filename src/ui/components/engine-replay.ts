@@ -31,9 +31,19 @@ export const sleep = (ms: number, signal: AbortSignal): Promise<void> =>
   });
 
 /** Pop a contribution chip off the firing card — the point delta as the headline,
- *  the operator (×3 / +12 / FX) as a sub-label — floating up off the card and fading. */
-function popChip(rect: Rectish, delta: number, op: string, color: string): void {
-  if (prefersReducedMotion()) return;
+ *  the operator (×3 / +12 / FX) as a sub-label — floating up off the card and fading.
+ *  Tied to the run's `signal`: aborting the walk (new submission / phase change) cancels
+ *  and removes any chip still on screen, so they never linger into the next play. The
+ *  hold duration scales with `stepMs` so fast (bot) pacing doesn't stack many long chips. */
+function popChip(
+  rect: Rectish,
+  delta: number,
+  op: string,
+  color: string,
+  stepMs: number,
+  signal: AbortSignal,
+): void {
+  if (prefersReducedMotion() || signal.aborted) return;
   const headline = delta !== 0 ? `${delta > 0 ? "+" : ""}${fmtScore(delta)}` : op;
   // Only show the operator sub-label when it adds info (e.g. ×2 over a +54
   // headline); for additive cards the operator equals the delta, so skip it.
@@ -49,6 +59,9 @@ function popChip(rect: Rectish, delta: number, op: string, color: string): void 
     sub ? `<span class="sr-chip-op">${sub}</span>` : ""
   }`;
   document.body.appendChild(el);
+  // Hold long enough to read, but bounded by the step pacing so a fast walk doesn't
+  // pile up many overlapping long-lived chips.
+  const duration = Math.min(2200, Math.max(1000, stepMs * 3));
   const anim = el.animate(
     [
       { transform: "translate(-50%, calc(-100% + 2px)) scale(0.7)", opacity: 0, offset: 0 },
@@ -56,9 +69,20 @@ function popChip(rect: Rectish, delta: number, op: string, color: string): void 
       { transform: "translate(-50%, calc(-100% - 16px)) scale(1.0)", opacity: 1, offset: 0.8 }, // long hold (readable)
       { transform: "translate(-50%, calc(-100% - 48px)) scale(0.95)", opacity: 0, offset: 1 }, // float + fade
     ],
-    { duration: 2200, easing: "cubic-bezier(0.2,0.8,0.2,1)" },
+    { duration, easing: "cubic-bezier(0.2,0.8,0.2,1)" },
   );
-  anim.onfinish = () => el.remove();
+  const cleanup = (): void => el.remove();
+  anim.onfinish = cleanup;
+  // The walk is cancelable; if it aborts mid-flight, cancel the animation and pull
+  // the chip rather than leaving it floating over the next submission's replay.
+  signal.addEventListener(
+    "abort",
+    () => {
+      anim.cancel();
+      cleanup();
+    },
+    { once: true },
+  );
 }
 
 /** A quick side-to-side wobble on a card that didn't activate, so a skip reads as a
@@ -122,7 +146,7 @@ export async function runEngineReplay(sub: Submission, opts: EngineReplayOpts): 
       const at: Rectish = (card ?? fan).getBoundingClientRect();
       const delta = step.runningScore - prev;
       const intensity = Math.min(1, 0.3 + Math.abs(delta) / Math.max(40, total));
-      popChip(at, delta, step.valueText, color);
+      popChip(at, delta, step.valueText, color, stepMs, signal);
       fx.burstAt(at, intensity, colorNum);
       if (shakeTarget && delta >= 60) fx.shake(Math.min(0.7, delta / 220), shakeTarget);
       // Ramp the score across the step rather than before it, so an activated card
