@@ -6,7 +6,7 @@
 
 import "./styles/index.css";
 import { Dictionary } from "./game/dictionary";
-import { DEFAULT_SETTINGS } from "./game/settings";
+import { loadSettings } from "./game/settings";
 import { detectLaunch } from "./net/launch";
 import { fx } from "./ui/fx/fx";
 // Side-effect import registers <ac-app>; the type import is erased at build.
@@ -49,7 +49,7 @@ async function boot(): Promise<void> {
   const app = document.querySelector("ac-app") as AcApp;
   app.launchMode = launchMode;
   app.dict = dict;
-  app.settings = { ...DEFAULT_SETTINGS };
+  app.settings = loadSettings();
   fx.setShakeTarget(app);
 
   // 5. Dismiss the loading screen.

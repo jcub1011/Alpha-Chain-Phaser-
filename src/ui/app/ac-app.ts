@@ -200,6 +200,7 @@ export class AcApp extends AcElement {
       return this.net
         ? html`<ac-net-lobby
             .controller=${this.net}
+            .settings=${this.settings}
             @ac-net-start=${this.onNetStart}
           ></ac-net-lobby>`
         : html`

@@ -6,7 +6,7 @@
 import { html, type PropertyValues, type TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type { AlphaChainSettings, BotDifficulty } from "../../game/types";
-import { DEFAULT_SETTINGS } from "../../game/settings";
+import { DEFAULT_SETTINGS, saveSettings } from "../../game/settings";
 import { AcElement } from "../app/AcElement";
 
 const DIFFS: BotDifficulty[] = ["easy", "medium", "hard"];
@@ -30,10 +30,12 @@ export class AcLobby extends AcElement {
     const raw = (this.draft[key] as number) + delta;
     const next = Math.round(Math.max(min, Math.min(max, raw)) * 10) / 10; // tame fp drift
     this.draft = { ...this.draft, [key]: next };
+    saveSettings(this.draft);
   }
 
   private set<K extends keyof AlphaChainSettings>(key: K, value: AlphaChainSettings[K]): void {
     this.draft = { ...this.draft, [key]: value };
+    saveSettings(this.draft);
   }
 
   private start(): void {

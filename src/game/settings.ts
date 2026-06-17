@@ -18,6 +18,42 @@ export const DEFAULT_SETTINGS: AlphaChainSettings = {
   botDifficulty: "medium",
 };
 
+/** localStorage key under which the last-used settings are persisted. */
+const STORAGE_KEY = "alphachain.settings";
+
+/**
+ * Load persisted settings, merged over defaults with per-key type validation.
+ * Unknown keys are dropped, missing keys fall back to defaults (forward-compatible
+ * when new settings are added), and corrupt/legacy values are ignored. Any parse
+ * error or absent localStorage yields a fresh copy of the defaults.
+ */
+export function loadSettings(): AlphaChainSettings {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return { ...DEFAULT_SETTINGS };
+    const stored = JSON.parse(raw) as Record<string, unknown>;
+    const result = { ...DEFAULT_SETTINGS };
+    for (const key of Object.keys(DEFAULT_SETTINGS) as (keyof AlphaChainSettings)[]) {
+      const value = stored[key];
+      if (typeof value === typeof DEFAULT_SETTINGS[key]) {
+        (result[key] as unknown) = value;
+      }
+    }
+    return result;
+  } catch {
+    return { ...DEFAULT_SETTINGS };
+  }
+}
+
+/** Persist settings (best-effort — swallows private-mode / quota errors). */
+export function saveSettings(settings: AlphaChainSettings): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+  } catch {
+    // Persistence is best-effort; ignore storage failures.
+  }
+}
+
 /** Engine constants (ported from AlphaChainGameState.cs). */
 export const MIN_SHOT_CLOCK_SECONDS = 3;
 export const MAX_WORD_SCORE = 10000;

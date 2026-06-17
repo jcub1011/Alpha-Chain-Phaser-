@@ -5,9 +5,9 @@
  * Emits `ac-net-start` with the chosen settings (host only).
  */
 
-import { html, type TemplateResult } from "lit";
+import { html, type PropertyValues, type TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import { DEFAULT_SETTINGS } from "../../game/settings";
+import { DEFAULT_SETTINGS, saveSettings } from "../../game/settings";
 import type { AlphaChainSettings } from "../../game/types";
 import type { KnockBoxController } from "../../net/knockBoxController";
 import { AcElement } from "../app/AcElement";
@@ -15,6 +15,7 @@ import { AcElement } from "../app/AcElement";
 @customElement("ac-net-lobby")
 export class AcNetLobby extends AcElement {
   @property({ attribute: false }) controller!: KnockBoxController;
+  @property({ attribute: false }) settings: AlphaChainSettings = { ...DEFAULT_SETTINGS };
   @state() private draft: AlphaChainSettings = { ...DEFAULT_SETTINGS };
   private unsub?: () => void;
 
@@ -27,6 +28,11 @@ export class AcNetLobby extends AcElement {
     this.unsub?.();
   }
 
+  override willUpdate(changed: PropertyValues): void {
+    // The persisted settings arrive as a property after first paint; sync the draft.
+    if (changed.has("settings") && this.settings) this.draft = { ...this.settings };
+  }
+
   private step<K extends keyof AlphaChainSettings>(
     key: K,
     delta: number,
@@ -36,10 +42,12 @@ export class AcNetLobby extends AcElement {
     const raw = (this.draft[key] as number) + delta;
     const next = Math.round(Math.max(min, Math.min(max, raw)) * 10) / 10; // tame fp drift
     this.draft = { ...this.draft, [key]: next };
+    saveSettings(this.draft);
   }
 
   private set<K extends keyof AlphaChainSettings>(key: K, value: AlphaChainSettings[K]): void {
     this.draft = { ...this.draft, [key]: value };
+    saveSettings(this.draft);
   }
 
   private start(): void {
