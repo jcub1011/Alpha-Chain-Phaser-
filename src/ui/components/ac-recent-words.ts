@@ -17,14 +17,37 @@ export class AcRecentWords extends AcElement {
 
   @state() private items: Submission[] = [];
 
+  /** Window listener for the deferred score reveal (engine-replay completion). */
+  private onRevealed?: (e: Event) => void;
+
   override willUpdate(changed: PropertyValues): void {
     if (changed.has("controller") && this.controller) {
       this.clearSubs();
       this.items = [...this.controller.match.state.history].slice(-24).reverse();
-      this.listen(this.controller.events, "submission", ({ submission }) => {
-        this.items = [submission, ...this.items].slice(0, 24);
+
+      // Prepend a word only when its engine replay finishes (ac-score-revealed),
+      // not on the raw `submission` event — otherwise the chip's score spoils the
+      // result before the animation lands. Mirrors <ac-leaderboard>.
+      window.removeEventListener("ac-score-revealed", this.onRevealed!);
+      this.onRevealed = (ev: Event): void => {
+        const sub = (ev as CustomEvent<{ submission: Submission }>).detail?.submission;
+        if (sub) this.items = [sub, ...this.items].slice(0, 24);
+      };
+      window.addEventListener("ac-score-revealed", this.onRevealed);
+
+      // Safety net for any reveal that didn't fire (e.g. an aborted replay): resync
+      // from history at phase boundaries only. Safe there because the era-end
+      // transition already waits out the replay; resyncing on turnArmed would spoil
+      // (history is credited immediately on submission).
+      this.listen(this.controller.events, "phaseChanged", () => {
+        this.items = [...this.controller.match.state.history].slice(-24).reverse();
       });
     }
+  }
+
+  override disconnectedCallback(): void {
+    super.disconnectedCallback();
+    if (this.onRevealed) window.removeEventListener("ac-score-revealed", this.onRevealed);
   }
 
   override render(): TemplateResult {

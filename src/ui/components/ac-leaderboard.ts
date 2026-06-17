@@ -11,12 +11,17 @@ import type { PlayerState, Submission } from "../../game/types";
 import { fmtScore, playerAccentVar } from "../app/util";
 import { AcElement } from "../app/AcElement";
 
+/** A snapshot of the fields a row renders — captured at refresh time so the
+ *  displayed score/order can't track live `PlayerState` mutations (a submission
+ *  credits `player.score` immediately, before its engine replay finishes). */
+type LbRow = Pick<PlayerState, "id" | "name" | "accentIndex" | "score" | "eliminated">;
+
 @customElement("ac-leaderboard")
 export class AcLeaderboard extends AcElement {
   @property({ attribute: false }) controller!: GameController;
   @property({ type: Boolean, reflect: true }) strip = false;
 
-  @state() private rows: PlayerState[] = [];
+  @state() private rows: LbRow[] = [];
   @state() private activeId = "";
   @state() private pop: { id: string; amount: number; key: number } | null = null;
 
@@ -31,7 +36,16 @@ export class AcLeaderboard extends AcElement {
         this.activeId = this.controller.match.current?.id ?? "";
       };
       const refresh = (): void => {
-        this.rows = this.controller.match.standings();
+        // Snapshot (not live refs) so an in-between re-render — e.g. setActive on
+        // turnArmed, which fires right after a submission credits the score — can't
+        // surface the new score/order before the engine replay reveals it.
+        this.rows = this.controller.match.standings().map((p) => ({
+          id: p.id,
+          name: p.name,
+          accentIndex: p.accentIndex,
+          score: p.score,
+          eliminated: p.eliminated,
+        }));
         setActive();
       };
       // Move only the active-row glow on turn/timeout changes; do NOT pull fresh

@@ -41,7 +41,9 @@ function popChip(rect: Rectish, delta: number, op: string, color: string): void 
   const el = document.createElement("div");
   el.className = "sr-chip";
   el.style.left = `${rect.left + rect.width / 2}px`;
-  el.style.top = `${rect.top + rect.height * 0.15}px`;
+  // Anchor at the card's top edge; the -100% Y in the keyframes lifts the chip
+  // fully clear of the card (by its own height) so it reads ABOVE, not over it.
+  el.style.top = `${rect.top}px`;
   el.style.color = color;
   el.innerHTML = `<span class="sr-chip-delta">${headline}</span>${
     sub ? `<span class="sr-chip-op">${sub}</span>` : ""
@@ -49,11 +51,12 @@ function popChip(rect: Rectish, delta: number, op: string, color: string): void 
   document.body.appendChild(el);
   const anim = el.animate(
     [
-      { transform: "translate(-50%, 0) scale(0.6)", opacity: 0 },
-      { transform: "translate(-50%, -10px) scale(1.12)", opacity: 1, offset: 0.25 },
-      { transform: "translate(-50%, -46px) scale(1)", opacity: 0 },
+      { transform: "translate(-50%, calc(-100% + 2px)) scale(0.7)", opacity: 0, offset: 0 },
+      { transform: "translate(-50%, calc(-100% - 10px)) scale(1.16)", opacity: 1, offset: 0.09 }, // pop in above card
+      { transform: "translate(-50%, calc(-100% - 16px)) scale(1.0)", opacity: 1, offset: 0.8 }, // long hold (readable)
+      { transform: "translate(-50%, calc(-100% - 48px)) scale(0.95)", opacity: 0, offset: 1 }, // float + fade
     ],
-    { duration: 900, easing: "cubic-bezier(0.2,0.8,0.2,1)" },
+    { duration: 2200, easing: "cubic-bezier(0.2,0.8,0.2,1)" },
   );
   anim.onfinish = () => el.remove();
 }
