@@ -39,6 +39,21 @@ export class AcWordEntry extends AcElement {
   private draftTimer: ReturnType<typeof setTimeout> | null = null;
   private lastDraftAt = 0;
 
+  override connectedCallback(): void {
+    super.connectedCallback();
+    window.addEventListener("pointerdown", this.onGlobalPointerDown);
+  }
+
+  /** On the human's turn, any pointer-down in the app pulls focus back to the
+   *  input — except a tap on GO (let it submit) or on the input itself (don't
+   *  disturb caret/selection). */
+  private onGlobalPointerDown = (e: PointerEvent): void => {
+    if (!this.live || !this.input) return;
+    const t = e.target as HTMLElement | null;
+    if (!t || t.closest(".we-go") || t.closest(".we-input")) return;
+    this.input.focus();
+  };
+
   override willUpdate(changed: PropertyValues): void {
     if (changed.has("controller") && this.controller) {
       this.clearSubs();
@@ -155,6 +170,7 @@ export class AcWordEntry extends AcElement {
 
   override disconnectedCallback(): void {
     super.disconnectedCallback();
+    window.removeEventListener("pointerdown", this.onGlobalPointerDown);
     if (this.draftTimer !== null) clearTimeout(this.draftTimer);
     this.draftTimer = null;
   }

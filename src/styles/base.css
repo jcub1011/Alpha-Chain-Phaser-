@@ -21,6 +21,17 @@ body {
   -webkit-tap-highlight-color: transparent;
   -webkit-text-size-adjust: 100%;
   overscroll-behavior: none;
+  /* Clicking a card or label should interact, never highlight text. Inherited
+     by everything; re-enabled below for editable fields. */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Keep text selectable/editable inside form fields (the word entry, lobby inputs). */
+input,
+textarea {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 body {
