@@ -18,7 +18,7 @@
 import { html, nothing, type TemplateResult } from "lit";
 import { customElement, property, query, state } from "lit/decorators.js";
 import type { GameController } from "../../net/controller";
-import type { BayCard, Submission } from "../../game/types";
+import type { BayCard, EngineEffectNotice, Submission } from "../../game/types";
 import { fmtScore, playerAccentVar } from "../app/util";
 import { prefersReducedMotion } from "../../theme";
 import { fx } from "../fx/fx";
@@ -52,6 +52,9 @@ export class AcScoreReplay extends AcElement {
   @state() private activated: boolean[] = [];
   /** Measured width of the fan, drives the overlap math. */
   @state() private fanWidth = 0;
+  /** Off-turn effects (siphons banked + aggression hits) that fired as this word
+   *  resolved — shown once the engine walk settles, empty while idle. */
+  @state() private effects: EngineEffectNotice[] = [];
   @query(".sr-num") private numEl?: HTMLElement;
   @query(".sr-fan") private fanEl?: HTMLElement;
 
@@ -102,6 +105,7 @@ export class AcScoreReplay extends AcElement {
     );
     this.cards = human ? [...human.bay] : [];
     this.activated = [];
+    this.effects = [];
     this.current = -1;
     this.revealed = -1;
     this.heading = "YOUR ENGINE";
@@ -157,6 +161,7 @@ export class AcScoreReplay extends AcElement {
     const player = this.controller.match.state.players.find((p) => p.id === sub.playerId);
     this.cards = player ? [...player.bay] : [];
     this.activated = sub.breakdown.steps.map((s) => s.triggered);
+    this.effects = [];
     this.current = -1;
     this.revealed = -1;
     this.heading = isHuman ? "YOUR ENGINE" : `${sub.displayName}'s engine`;
@@ -189,6 +194,7 @@ export class AcScoreReplay extends AcElement {
       this.revealed = this.cards.length - 1; // gray out every card that didn't fire
       if (this.numEl) this.numEl.textContent = fmtScore(sub.score);
       this.numEl?.classList.add(sub.taxed ? "is-taxed" : "is-final");
+      this.effects = sub.effects ?? [];
       this.announceRevealed(sub);
       return;
     }
@@ -240,6 +246,7 @@ export class AcScoreReplay extends AcElement {
     }
 
     if (signal.aborted) return;
+    this.effects = sub.effects ?? [];
     this.announceRevealed(sub);
   }
 
@@ -283,6 +290,24 @@ export class AcScoreReplay extends AcElement {
                     </div>`
                   : nothing}
                 <div class="sr-num">0</div>
+              </div>
+              <!-- Always rendered: a hidden placeholder pill reserves the row so the
+                   strip appearing on a play never shifts the layout below it. -->
+              <div class="sr-effects">
+                ${this.effects.length
+                  ? this.effects.map((n) => {
+                      const tgt = this.controller.match.state.players.find(
+                        (p) => p.id === n.targetId,
+                      );
+                      const who = tgt?.id === this.controller.humanId ? "You" : (tgt?.name ?? "");
+                      return html`<div
+                        class="sr-effect ${n.reflected ? "is-reflected" : ""}"
+                        style="--accent:${tgt ? playerAccentVar(tgt.accentIndex) : ""};"
+                      >
+                        ${n.reflected ? "⛊ " : ""}<b>${n.source}</b> → ${who} · ${n.text}
+                      </div>`;
+                    })
+                  : html`<div class="sr-effect is-placeholder" aria-hidden="true">·</div>`}
               </div>
             `
           : nothing}

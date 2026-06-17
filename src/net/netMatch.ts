@@ -95,6 +95,11 @@ export class NetMatch implements MatchLike {
   isExempt(player: PlayerState): boolean {
     return this.computeLastPlaceId() === player.id;
   }
+  personalBansFor(_playerId: string): string[] {
+    // Personal bans live in the host's CardBanService and aren't mirrored to
+    // guests yet; surface nothing rather than a stale guess.
+    return [];
+  }
   hidesInput(playerId: string): boolean {
     const p = this._state.players.find((x) => x.id === playerId);
     if (!p) return false;

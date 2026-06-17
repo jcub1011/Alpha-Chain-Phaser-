@@ -485,7 +485,10 @@ const CARD_DEFS: Record<CardId, CardDef> = {
       const banned = c.services?.cardBan.letterFor(owner.id, CardId.TollBooth);
       if (banned && res.word.includes(banned)) {
         const amount = clampScore(res.earnedScore * 0.2 * c.magnification());
-        if (amount > 0) owner.score += amount;
+        if (amount > 0) {
+          owner.score += amount;
+          c.effects?.bankSiphon(owner.id, amount, "The Toll Booth");
+        }
       }
     },
   },
@@ -507,7 +510,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
       const amount = clampScore(res.wouldBeScore * 0.5 * c.magnification());
       if (amount <= 0) return;
       owner.score += amount;
-      c.effects?.recordSiphon(owner.id, amount);
+      c.effects?.bankSiphon(owner.id, amount, "Tax Collector");
     },
   },
 
@@ -528,7 +531,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
       const amount = clampScore(res.remainingSeconds * c.magnification());
       if (amount > 0) {
         owner.score += amount;
-        c.effects?.recordSiphon(owner.id, amount);
+        c.effects?.bankSiphon(owner.id, amount, "Chrono Syphon");
       }
     },
   },

@@ -173,7 +173,9 @@ export class MatchController {
 
     this.events.on("phaseChanged", (phase) => log.info(`phase → ${phase} (era ${this.state.era})`));
     this.events.on("subPhaseChanged", ({ intermissionPhase, currentTutorial }) =>
-      log.debug(`sub-phase → intermission=${intermissionPhase ?? "-"}, tutorial=${currentTutorial ?? "-"}`),
+      log.debug(
+        `sub-phase → intermission=${intermissionPhase ?? "-"}, tutorial=${currentTutorial ?? "-"}`,
+      ),
     );
     this.events.on("turnArmed", ({ playerIndex, requiredLetter, clockTotal }) =>
       log.info(
@@ -190,7 +192,9 @@ export class MatchController {
     );
     this.events.on("timeout", ({ playerId }) => log.warn(`timeout: ${playerName(playerId)}`));
     this.events.on("intermission", ({ lastPlaceId, dealt }) =>
-      log.info(`intermission: last=${playerName(lastPlaceId)}, dealt ${Object.keys(dealt).length} bays`),
+      log.info(
+        `intermission: last=${playerName(lastPlaceId)}, dealt ${Object.keys(dealt).length} bays`,
+      ),
     );
     this.events.on("gameOver", ({ winnerId }) =>
       log.info(`game over: winner=${winnerId ? playerName(winnerId) : "none"}`),
@@ -422,6 +426,11 @@ export class MatchController {
    *  player tied at the lowest score. Tracks live standings (GDD §2.2). */
   isExempt(player: PlayerState): boolean {
     return this.computeLastPlaceId() === player.id;
+  }
+
+  /** Personal banned letters in force for a player this era (Toll Booth / Roulette Wheel). */
+  personalBansFor(playerId: string): string[] {
+    return this.services.cardBan.bansFor(playerId);
   }
 
   submitWord(playerId: string, rawWord: string): SubmitResult {

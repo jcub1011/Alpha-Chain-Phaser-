@@ -4,6 +4,8 @@
 
 .hud {
   height: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
   display: grid;
   grid-template-columns: minmax(0, 1fr) clamp(264px, 22vw, 340px);
   gap: var(--sp-4);
@@ -11,6 +13,7 @@
 }
 .stage {
   min-width: 0;
+  max-width: 1200px;
   display: flex;
   flex-direction: column;
   gap: var(--sp-3);
@@ -80,6 +83,20 @@
   font-size: 0.6rem;
   letter-spacing: 0.14em;
   animation: ac-pulse 1.8s ease-in-out infinite;
+}
+/* The human's personal banned letter(s) (Toll Booth / Roulette Wheel) — distinct
+   from the shared era ban above: smaller, amber, tagged YOURS. */
+.cmd-personal {
+  margin-top: 0.15rem;
+  padding: 0.1em 0.5em;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--ac-amber) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ac-amber) 55%, transparent);
+  color: var(--ac-amber);
+  font-family: var(--font-mono);
+  font-weight: 800;
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
 }
 
 /* ── Shot clock ────────────────────────────────────────────────────────── */
@@ -270,6 +287,43 @@
 .sr-num.is-taxed {
   color: var(--ac-danger);
   text-shadow: var(--ac-glow-danger);
+}
+/* Off-turn effects that fired as this word resolved (siphons banked + aggression
+   hits) — every player's, named to its card and target. */
+.sr-effects {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.4rem;
+  width: 100%;
+}
+.sr-effect {
+  padding: 0.15em 0.6em;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--accent, var(--ac-cyan)) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent, var(--ac-cyan)) 45%, transparent);
+  color: var(--ac-ink-soft);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  animation: ac-num-bump 0.4s ease-out;
+}
+.sr-effect b {
+  color: var(--accent, var(--ac-cyan));
+}
+.sr-effect.is-reflected {
+  border-style: dashed;
+}
+/* Invisible stand-in that holds the strip's row height when no effects fired,
+   so the strip toggling on/off between plays never shifts the layout. */
+.sr-effect.is-placeholder {
+  visibility: hidden;
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sr-effect {
+    animation: none;
+  }
 }
 
 /* Floating contribution chip popped off a card (appended to <body>, fixed):
@@ -482,6 +536,7 @@
 /* ── Leaderboard ───────────────────────────────────────────────────────── */
 .rail {
   min-width: 0;
+  max-width: 320px;
 }
 .rail-panel {
   position: sticky;

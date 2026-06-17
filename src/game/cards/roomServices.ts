@@ -189,6 +189,13 @@ export class EngineEffects {
     this.siphons.push({ playerId, amount });
   }
 
+  /** Bank a siphon AND emit a named notice so the UI can attribute it to a card. */
+  bankSiphon(playerId: string, amount: number, source: string): void {
+    if (amount <= 0) return;
+    this.siphons.push({ playerId, amount });
+    this.notices.push({ source, targetId: playerId, text: `+${amount} banked` });
+  }
+
   /** Return and clear siphons accumulated since the last drain. */
   takeSiphons(): { playerId: string; amount: number }[] {
     const out = this.siphons;

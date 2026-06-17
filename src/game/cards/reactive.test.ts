@@ -72,6 +72,12 @@ describe("Tax Collector — only banks off an opponent's taxed word", () => {
     expect(m.state.players[1].score).toBe(52); // 50 + floor(1.5+0.5)=2
     expect(m.state.players[2].score).toBe(52);
     expect(r.submission!.siphonedBy).toEqual(expect.arrayContaining(["p2", "p3"]));
+    expect(r.submission!.effects).toEqual(
+      expect.arrayContaining([
+        { source: "Tax Collector", targetId: "p2", text: "+2 banked" },
+        { source: "Tax Collector", targetId: "p3", text: "+2 banked" },
+      ]),
+    );
   });
 
   it("collects nothing when the victim is last-place exempt (word not taxed)", () => {
@@ -141,6 +147,25 @@ describe("The Toll Booth — no toll on an opponent's taxed word", () => {
     expect(r.submission!.taxed).toBe(true);
     expect(m.state.players[0].score).toBe(0); // toll skipped on a taxed word
   });
+
+  it("banks 20% (and announces it) when an opponent's clean word uses the letter", () => {
+    const m = make(2);
+    m.state.players[0].bay = [{ id: "TollBooth" }];
+    m.services.cardBan.roll("p1", "TollBooth", "z");
+    m.state.players[0].score = 0;
+    m.state.currentPlayerIndex = 1; // p2's turn, free choice
+    m.state.requiredLetter = "";
+    const r = m.submitWord("p2", "zebra"); // clean word containing the toll letter 'z'
+    expect(r.submission!.taxed).toBe(false);
+    expect(r.submission!.taxBounty).toBeGreaterThan(0);
+    expect(m.state.players[0].score).toBe(r.submission!.taxBounty); // owner banked the toll
+    expect(r.submission!.siphonedBy).toContain("p1");
+    expect(r.submission!.effects).toContainEqual({
+      source: "The Toll Booth",
+      targetId: "p1",
+      text: `+${r.submission!.taxBounty} banked`,
+    });
+  });
 });
 
 describe("Chrono Syphon — every opponent banks the leftover seconds", () => {
@@ -151,9 +176,15 @@ describe("Chrono Syphon — every opponent banks the leftover seconds", () => {
     m.tick(5); // burn 5s of p1's 20s clock → 15 remaining
     const remaining = Math.floor(m.state.clockRemaining);
     expect(remaining).toBe(15);
-    m.submitWord("p1", "cat");
+    const r = m.submitWord("p1", "cat");
     expect(m.state.players[1].score).toBe(remaining);
     expect(m.state.players[2].score).toBe(remaining);
+    expect(r.submission!.effects).toEqual(
+      expect.arrayContaining([
+        { source: "Chrono Syphon", targetId: "p2", text: `+${remaining} banked` },
+        { source: "Chrono Syphon", targetId: "p3", text: `+${remaining} banked` },
+      ]),
+    );
   });
 });
 

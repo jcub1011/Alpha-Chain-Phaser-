@@ -32,6 +32,7 @@ export class AcHud extends AcElement {
   @state() private currentName = "";
   @state() private isHumanTurn = false;
   @state() private humanExempt = false;
+  @state() private personalBans: string[] = [];
   @state() private humanBay: BayCard[] = [];
   @state() private humanSlots = 3;
   @state() private opponents: PlayerState[] = [];
@@ -68,6 +69,7 @@ export class AcHud extends AcElement {
     // The last-place player is exempt from the banned-letter tax (they picked
     // it). Surface it so keeping points on a banned word never reads as a bug.
     this.humanExempt = !!me && !!s.bannedLetter && m.isExempt(me);
+    this.personalBans = me ? m.personalBansFor(me.id) : [];
   }
 
   override render(): TemplateResult {
@@ -99,6 +101,17 @@ export class AcHud extends AcElement {
                     class="cmd-exempt"
                     title="You're in last place — the banned letter won't tax you."
                     >EXEMPT</span
+                  >`
+                : nothing}
+              ${this.personalBans.length
+                ? html`<span
+                    class="cmd-personal"
+                    title="Your personal banned letter${this.personalBans.length > 1
+                      ? "s"
+                      : ""} — using ${this.personalBans.length > 1
+                      ? "any of these"
+                      : "this letter"} taxes your word to zero."
+                    >YOURS: ${this.personalBans.map((l) => l.toUpperCase()).join(" ")}</span
                   >`
                 : nothing}
             </div>
