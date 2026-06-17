@@ -259,6 +259,12 @@ export class MatchController {
     return this.state.players[this.state.currentPlayerIndex];
   }
 
+  /** Seconds left on the pre-round Countdown (private state), so the net layer
+   *  can stamp its absolute expiry into snapshots. Only meaningful in Countdown. */
+  get countdownSecondsRemaining(): number {
+    return this.countdownRemaining;
+  }
+
   private get activePlayers(): PlayerState[] {
     return this.state.players.filter((p) => !p.eliminated);
   }

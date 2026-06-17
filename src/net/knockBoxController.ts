@@ -46,7 +46,11 @@ export interface NetPeer {
 const REPLAYED_EVENTS: (keyof MatchEvents)[] = [
   "phaseChanged",
   "subPhaseChanged",
-  "countdownTick",
+  // countdownTick is intentionally NOT replayed: the pre-round countdown is now
+  // driven on every client from the snapshot's absolute-expiry anchor (see
+  // NetMatch.localClockTick), so it stays drift-proof without per-second events.
+  // The Countdown-start snapshot still propagates via the phaseChanged above,
+  // which beginCountdown() emits first.
   "turnArmed",
   "submission",
   "rejected",
@@ -94,8 +98,11 @@ export class KnockBoxController implements GameController {
     /** RNG for the host's MatchController (per-era turn shuffle). Injectable for
      *  deterministic tests; production uses Math.random. */
     private readonly rng: () => number = Math.random,
+    /** Monotonic clock (ms) for the mirror's anchor-based countdowns. Injectable
+     *  for deterministic tests; production uses performance.now. */
+    private readonly now: () => number = () => performance.now(),
   ) {
-    this.mirror = new NetMatch((intent) => this.dispatch(intent));
+    this.mirror = new NetMatch((intent) => this.dispatch(intent), this.now);
     this.match = this.mirror;
     peer.events.on("ready", this.onReady);
     peer.events.on("message", this.onMessage);
@@ -241,7 +248,7 @@ export class KnockBoxController implements GameController {
         if (!this.peer.isHost) {
           this.hostId = payload.hostId;
           log.debug(`guest applying snapshot (${payload.events.length} events)`);
-          this.mirror.applySnapshot(payload.state, payload.events);
+          this.mirror.applySnapshot(payload.state, payload.events, payload.clock);
         }
         break;
     }
@@ -340,7 +347,7 @@ export class KnockBoxController implements GameController {
     try {
       const snap = this.buildSnapshot(events);
       this.peer.sendToAll(snap);
-      this.mirror.applySnapshot(snap.state, snap.events); // host renders via the same path
+      this.mirror.applySnapshot(snap.state, snap.events, snap.clock); // host renders via the same path
       return "sent";
     } catch (err) {
       log.error(`flush failed (${events.length} events dropped): ${String(err)}`, err);
@@ -357,16 +364,28 @@ export class KnockBoxController implements GameController {
   }
 
   private buildSnapshot(events: WireEvent[]): SnapshotMsg {
-    const s = this.host!.state;
+    const host = this.host!;
+    const s = host.state;
+    // One Date.now() reading anchors all three expiries: clients take the
+    // (expiresAt − sentAt) difference, so the host/client clock offset cancels.
+    const sentAt = Date.now();
+    const expiry = (seconds: number): number => sentAt + seconds * 1000;
     return {
       t: "snap",
       state: serializeState(s),
       events,
       hostId: this.peer.playerId ?? "",
-      serverClock: {
-        currentPlayerIndex: s.currentPlayerIndex,
-        clockTotal: s.clockTotal,
-        clockRemaining: s.clockRemaining,
+      clock: {
+        sentAt,
+        clockExpiresAt: s.phase === "Round" && s.clockRemaining > 0 ? expiry(s.clockRemaining) : null,
+        subTimerExpiresAt:
+          (s.phase === "Tutorial" || s.phase === "Intermission") && s.subTimerRemaining > 0
+            ? expiry(s.subTimerRemaining)
+            : null,
+        countdownExpiresAt:
+          s.phase === "Countdown" && host.countdownSecondsRemaining > 0
+            ? expiry(host.countdownSecondsRemaining)
+            : null,
       },
     };
   }

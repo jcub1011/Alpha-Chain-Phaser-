@@ -31,8 +31,24 @@ export interface SnapshotMsg {
   events: WireEvent[];
   /** The host's player id, so guests can detect a host departure authoritatively. */
   hostId: string;
-  /** Turn-clock anchor so guests run a smooth local countdown (see controller). */
-  serverClock: { currentPlayerIndex: number; clockTotal: number; clockRemaining: number };
+  /**
+   * Absolute-expiry anchor for the visible countdowns, so clients display the
+   * correct remaining time regardless of frame timing or how far they've lagged
+   * (instead of accumulating per-frame drift). Each `*ExpiresAt` is a host
+   * `Date.now()` epoch-ms instant — UTC, no timezone — and is non-null only when
+   * its phase is active. Clients work in durations (`expiresAt − sentAt`) so the
+   * host↔client wall-clock difference cancels (see NetMatch.applySnapshot).
+   */
+  clock: {
+    /** Host `Date.now()` when this snapshot was built (epoch UTC ms). */
+    sentAt: number;
+    /** When the Round shot clock hits 0, or null outside Round. */
+    clockExpiresAt: number | null;
+    /** When the Tutorial/Intermission sub-timer hits 0, or null otherwise. */
+    subTimerExpiresAt: number | null;
+    /** When the pre-round Countdown hits 0, or null outside Countdown. */
+    countdownExpiresAt: number | null;
+  };
 }
 
 /** Guest → host on (re)entry: "send me the current state." */
