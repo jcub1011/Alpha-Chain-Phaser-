@@ -160,6 +160,28 @@ describe("MatchController", () => {
     expect(m.current.id).toBe("p2"); // advanced past the timed-out player
   });
 
+  it("auto-submits the current player's drafted word when the shot clock times out", () => {
+    m.setDraft("p1", "cat"); // streamed in as the player types
+    m.tick(m.state.clockTotal + 1); // run the shot clock out
+    expect(m.state.players[0].score).toBe(3); // "cat" was auto-submitted, not lost
+    expect(m.current.id).toBe("p2"); // turn advanced via submission
+    expect(m.state.requiredLetter).toBe("t");
+  });
+
+  it("times out (no score) when the drafted word is illegal", () => {
+    m.setDraft("p1", "zzzz"); // not a dictionary word
+    m.tick(m.state.clockTotal + 1);
+    expect(m.state.players[0].score).toBe(0); // bad draft falls through to a normal timeout
+    expect(m.current.id).toBe("p2");
+  });
+
+  it("ignores a draft from a player whose turn it is not", () => {
+    m.setDraft("p2", "cat"); // p2 is not the current player
+    m.tick(m.state.clockTotal + 1);
+    expect(m.state.players[0].score).toBe(0); // p1's timeout must not submit p2's draft
+    expect(m.current.id).toBe("p2");
+  });
+
   it("returns an empty id (rather than throwing) when no active players remain", () => {
     // Defensive: the FSM guards this via gameOver(), but computeLastPlaceId must
     // not index into an empty active set if it is ever called bare.

@@ -90,4 +90,34 @@ describe("createLogger", () => {
     });
     expect(() => createLogger("net").error("boom")).not.toThrow();
   });
+
+  // In production (DEV=false) the console is normally quiet for info/debug, but a server
+  // sink means a local console copy is kept as a backup against best-effort transport loss.
+  it("in production, still mirrors to the console when a server sink is present", async () => {
+    vi.stubEnv("DEV", false);
+    vi.resetModules();
+    const mod = await import("./log");
+    const kb = fakeKbLogger();
+    mod.attachKnockBoxSink(() => kb);
+
+    mod.createLogger("net").info("hi");
+
+    expect(console.info).toHaveBeenCalledWith("[net] hi"); // local backup
+    expect(kb.info).toHaveBeenCalledWith("[net] hi"); // and shipped to the server
+    vi.unstubAllEnvs();
+  });
+
+  it("in production with no server sink, suppresses info/debug but still prints errors", async () => {
+    vi.stubEnv("DEV", false);
+    vi.resetModules();
+    const mod = await import("./log");
+    mod.attachKnockBoxSink(() => undefined);
+
+    mod.createLogger("net").info("quiet");
+    expect(console.info).not.toHaveBeenCalled();
+
+    mod.createLogger("net").error("loud");
+    expect(console.error).toHaveBeenCalledWith("[net] loud"); // error/critical always print
+    vi.unstubAllEnvs();
+  });
 });

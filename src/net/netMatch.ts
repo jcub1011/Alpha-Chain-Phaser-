@@ -118,7 +118,8 @@ export class NetMatch implements MatchLike {
     this.sendIntent({ kind: "skipTutorial" });
   }
   skipOptimize(): void {
-    // Optimize is timer-only in networked play (guests never fast-forward it).
+    // Route to the host, which fast-forwards the shared optimize dwell authoritatively.
+    this.sendIntent({ kind: "lockInOptimize" });
   }
   randomBanLetter(): string {
     // The host re-validates; this only feeds the UI's timeout-default path.

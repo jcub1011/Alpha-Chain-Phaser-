@@ -12,7 +12,9 @@ import type { WireMatchState } from "./serialize";
 export type Intent =
   | { kind: "startMatch"; settings: AlphaChainSettings } // host's own start, looped through
   | { kind: "submit"; word: string }
+  | { kind: "draftWord"; word: string } // current player's in-progress word, for timeout auto-submit
   | { kind: "reorderBay"; engine: string[]; discard: string[] }
+  | { kind: "lockInOptimize" } // any player locking in fast-forwards the shared optimize dwell
   | { kind: "sniperBan"; letter: string }
   | { kind: "skipTutorial" }; // host-only: skip the on-screen tutorial dwell
 

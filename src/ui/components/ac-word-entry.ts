@@ -35,6 +35,9 @@ export class AcWordEntry extends AcElement {
   @query(".we-input") private input?: HTMLInputElement;
 
   private wantFocus = false;
+  /** Throttle for streaming the in-progress word to the host (timeout auto-submit). */
+  private draftTimer: ReturnType<typeof setTimeout> | null = null;
+  private lastDraftAt = 0;
 
   override willUpdate(changed: PropertyValues): void {
     if (changed.has("controller") && this.controller) {
@@ -126,6 +129,36 @@ export class AcWordEntry extends AcElement {
     }
   }
 
+  /** Stream the in-progress word to the controller so the authoritative engine can
+   *  auto-submit it on a shot-clock timeout (networked play; no-op in solo). Throttled
+   *  with a guaranteed trailing send so a fast typist doesn't flood the relay yet the
+   *  final value always lands well before the clock expires. Must not touch @state —
+   *  the input is read-at-submit and never re-renders while typing. */
+  private onInput(): void {
+    if (!this.live || !this.input) return;
+    const THROTTLE = 120;
+    const now = Date.now();
+    const elapsed = now - this.lastDraftAt;
+    if (this.draftTimer !== null) clearTimeout(this.draftTimer);
+    if (elapsed >= THROTTLE) {
+      this.lastDraftAt = now;
+      this.controller.reportDraft(this.input.value.trim());
+      return;
+    }
+    this.draftTimer = setTimeout(() => {
+      this.draftTimer = null;
+      if (!this.live || !this.input) return;
+      this.lastDraftAt = Date.now();
+      this.controller.reportDraft(this.input.value.trim());
+    }, THROTTLE - elapsed);
+  }
+
+  override disconnectedCallback(): void {
+    super.disconnectedCallback();
+    if (this.draftTimer !== null) clearTimeout(this.draftTimer);
+    this.draftTimer = null;
+  }
+
   override render(): TemplateResult {
     const free = !this.requiredLetter;
     return html`
@@ -144,6 +177,7 @@ export class AcWordEntry extends AcElement {
           placeholder=${this.live ? "type a word…" : this.onDeck ? "get ready — you're up next…" : "waiting…"}
           ?disabled=${!this.live}
           @keydown=${this.onKey}
+          @input=${this.onInput}
         />
         <button class="we-go ac-btn" ?disabled=${!this.live} @click=${this.submit}>GO</button>
       </div>

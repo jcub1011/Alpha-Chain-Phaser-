@@ -165,9 +165,17 @@ export class AcApp extends AcElement {
     const step = (now: number): void => {
       const dt = Math.min((now - this.last) / 1000, MAX_DT);
       this.last = now;
-      // tick() is internally gated to Countdown/Round; harmless otherwise.
-      if (this.controller && this.phase !== "GameOver") this.controller.tick(dt);
-      this.raf = requestAnimationFrame(step);
+      try {
+        // tick() is internally gated to Countdown/Round; harmless otherwise.
+        if (this.controller && this.phase !== "GameOver") this.controller.tick(dt);
+      } catch (err) {
+        // A thrown frame must never kill the loop — on the host that would freeze the
+        // game permanently (the rAF re-arm below would be skipped). Log and keep ticking;
+        // the error reaches the KnockBox server log so the root cause stays visible.
+        log.error(`tick failed: ${String(err)}`, err);
+      } finally {
+        this.raf = requestAnimationFrame(step);
+      }
     };
     this.raf = requestAnimationFrame(step);
   }

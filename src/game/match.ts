@@ -97,6 +97,10 @@ export class MatchController {
   private prevWordLength = 0;
   /** Leader the Bounty Hunter watches; fixed at each round's start (not live). */
   private roundLeaderId = "";
+  /** The current player's in-progress word, streamed in via setDraft, so a shot-clock
+   *  timeout can auto-submit it. Transient (not part of MatchState; never serialized);
+   *  reset on every turn arm. */
+  private currentDraft = "";
   readonly state: MatchState;
 
   /** Card-contributed, player-keyed room state (shield, guards, bans, penalties). */
@@ -373,6 +377,7 @@ export class MatchController {
    *  advance the turn order or touch the round counters. */
   private armCurrentTurn(): void {
     const p = this.current;
+    this.currentDraft = ""; // each turn starts with a blank draft (no stale carry-over)
     // Per-turn room state re-arms (currently a no-op seam; A5 uses it).
     this.services.fireTurnStarted(p);
     let armed = armedClockSeconds(this.state.settings.shotClockSeconds, p.bay);
@@ -578,7 +583,21 @@ export class MatchController {
     fireBayHook(this.bayEval(owner, word, taxed), "onTurnEnded", { resolution: res });
   }
 
+  /** Record the current player's in-progress word so a shot-clock timeout can
+   *  auto-submit it. The authoritative twin of the solo UI's clockTick auto-submit
+   *  (ac-word-entry): over the network the display mirror can't outrace the real
+   *  clock, so the host engine must own the auto-submit. Ignored unless it's
+   *  `playerId`'s live turn. */
+  setDraft(playerId: string, word: string): void {
+    if (this.state.phase !== "Round" || playerId !== this.current.id) return;
+    this.currentDraft = word;
+  }
+
   private timeoutCurrent(): void {
+    // Auto-submit the live player's drafted word if it stands on its own; a blank or
+    // illegal draft falls through to a normal timeout below.
+    const draft = this.currentDraft.trim();
+    if (draft && this.submitWord(this.current.id, draft).accepted) return;
     const p = this.current;
     if (this.state.settings.survivalMode) p.eliminated = true;
     // Required letter is unchanged: the next player still faces it.
@@ -643,8 +662,38 @@ export class MatchController {
   }
 
   private beginOptimize(): void {
+    // Fresh lock-in slate every optimize: nobody has committed their engine yet.
+    for (const p of this.state.players) p.lockedIn = false;
     this.armSubTimer(this.state.settings.intermissionCardSelectSeconds);
     this.setIntermissionPhase("optimize", null);
+  }
+
+  /** A player commits their engine during optimize. The shared dwell ends only once
+   *  every active human player has locked in (bots are auto-locked) — otherwise we
+   *  wait for the rest, or for the timer fallback (tickIntermission → completeOptimize).
+   *  Host-authoritative: each client's LOCK IN routes here as a lockInOptimize intent. */
+  lockInOptimize(playerId: string): void {
+    if (this.state.phase !== "Intermission" || this.state.intermissionPhase !== "optimize") return;
+    const p = this.state.players.find((x) => x.id === playerId);
+    if (!p || p.eliminated) return;
+    p.lockedIn = true;
+    if (this.allHumansLockedIn()) this.completeOptimize();
+  }
+
+  /** Whether every active human player has locked in their engine (bots don't optimize). */
+  private allHumansLockedIn(): boolean {
+    return this.activePlayers.filter((p) => !p.isBot).every((p) => p.lockedIn);
+  }
+
+  /** Re-evaluate optimize completion without a new lock-in — used when a player leaves
+   *  mid-optimize, so a now-eliminated straggler can't strand everyone who already locked in. */
+  recheckOptimizeCompletion(): void {
+    if (
+      this.state.phase === "Intermission" &&
+      this.state.intermissionPhase === "optimize" &&
+      this.allHumansLockedIn()
+    )
+      this.completeOptimize();
   }
 
   /** Optimize timer elapsed (or was skipped): drop the discard bin, then ban (via Tax). */
@@ -656,6 +705,7 @@ export class MatchController {
     for (const p of this.state.players) {
       p.bay = p.bay.filter((b) => !b.discarded);
       if (p.bay.length > p.slots) p.bay = p.bay.slice(0, p.slots);
+      p.lockedIn = false; // optimize is over; clear the lock-in slate
     }
     if (this.shouldShowTutorial("tax")) this.enterIntermissionTutorial("tax");
     else this.beginSniperBan();

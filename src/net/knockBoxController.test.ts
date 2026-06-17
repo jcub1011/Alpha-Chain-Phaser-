@@ -137,6 +137,62 @@ describe("KnockBoxController — host-authoritative sync", () => {
     expect(guestSawSubmission).toBe("cat");
   });
 
+  it("counts the host's own display shot clock down between snapshots", () => {
+    const hub = new Hub();
+    const hostPeer = new FakePeer(hub, "host", true, roster);
+    const guestPeer = new FakePeer(hub, "guest", false, roster);
+    const hostCtl = new KnockBoxController(hostPeer, dict, orderPreservingRng);
+    new KnockBoxController(guestPeer, dict, orderPreservingRng);
+    hostPeer.fireReady();
+    guestPeer.fireReady();
+
+    hostCtl.startMatch({
+      ...DEFAULT_SETTINGS,
+      enableTutorials: false,
+      preRoundCountdownSeconds: 1,
+      eraInterval: 9,
+      eraCount: 1,
+    });
+    hostCtl.tick(1); // burn the countdown → Round; the turn-arm snapshot resets the clock to full
+    expect(hostCtl.match.state.phase).toBe("Round");
+
+    // A frame with no replayed event (no submission / turn-arm) sends no snapshot. The
+    // host must still drive its own render mirror, or its displayed clock would freeze.
+    const before = hostCtl.match.state.clockRemaining;
+    hostCtl.tick(0.1);
+    expect(hostCtl.match.state.clockRemaining).toBeLessThan(before);
+  });
+
+  it("auto-submits the current player's drafted word when their shot clock times out", () => {
+    const hub = new Hub();
+    const hostPeer = new FakePeer(hub, "host", true, roster);
+    const guestPeer = new FakePeer(hub, "guest", false, roster);
+    const hostCtl = new KnockBoxController(hostPeer, dict, orderPreservingRng);
+    const guestCtl = new KnockBoxController(guestPeer, dict, orderPreservingRng);
+    hostPeer.fireReady();
+    guestPeer.fireReady();
+
+    hostCtl.startMatch({
+      ...DEFAULT_SETTINGS,
+      enableTutorials: false,
+      preRoundCountdownSeconds: 1,
+      eraInterval: 9,
+      eraCount: 1,
+    });
+    hostCtl.tick(1); // burn the countdown → Round, host (player 0) is up
+    expect(hostCtl.match.current.id).toBe("host");
+
+    // The host streams its in-progress word (draftWord intent), then its clock expires.
+    hostCtl.reportDraft("cat");
+    hostCtl.tick(hostCtl.match.state.clockRemaining + 1); // blow the shot clock
+
+    // The drafted word was auto-submitted authoritatively and converged to the guest.
+    expect(hostCtl.match.state.players[0].score).toBe(3);
+    expect(guestCtl.match.state.players[0].score).toBe(3);
+    expect([...guestCtl.match.state.usedWords]).toContain("cat");
+    expect(hostCtl.match.current.id).toBe("guest"); // turn advanced via submission
+  });
+
   it("syncs the host's Shiritori tutorial phase to the guest, and host-skip advances both", () => {
     const hub = new Hub();
     const hostPeer = new FakePeer(hub, "host", true, roster);
@@ -223,5 +279,62 @@ describe("KnockBoxController — edge cases", () => {
     guestCtl.match.state.players[0].score = -999;
     guestPeer.fireResumed();
     expect(guestCtl.match.state.players[0].score).toBe(0); // host's real score, re-pushed
+  });
+});
+
+describe("KnockBoxController — intermission optimize", () => {
+  // Drive a one-round era to its end so the match enters the "optimize" intermission.
+  const startToOptimize = () => {
+    const hub = new Hub();
+    const hostPeer = new FakePeer(hub, "host", true, roster);
+    const guestPeer = new FakePeer(hub, "guest", false, roster);
+    const hostCtl = new KnockBoxController(hostPeer, dict, orderPreservingRng);
+    const guestCtl = new KnockBoxController(guestPeer, dict, orderPreservingRng);
+    hostPeer.fireReady();
+    guestPeer.fireReady();
+    hostCtl.startMatch({
+      ...DEFAULT_SETTINGS,
+      enableTutorials: false,
+      preRoundCountdownSeconds: 1,
+      eraInterval: 1, // a single full round ends the era
+      eraCount: 2, // ...into an intermission, not game over
+    });
+    hostCtl.tick(1); // burn the countdown → Round
+    hostCtl.submitWord("cat"); // host (player 0): "" → t
+    guestCtl.submitWord("tiger"); // guest (player 1): t → r — wraps the round, ends the era
+    hostCtl.tick(10); // burn the era-end settle dwell → enterIntermission → optimize
+    return { hostCtl, guestCtl };
+  };
+
+  it("reaches the optimize sub-phase on both host and guest without throwing", () => {
+    let ctls!: ReturnType<typeof startToOptimize>;
+    expect(() => (ctls = startToOptimize())).not.toThrow();
+    expect(ctls.hostCtl.match.state.phase).toBe("Intermission");
+    expect(ctls.hostCtl.match.state.intermissionPhase).toBe("optimize");
+    expect(ctls.guestCtl.match.state.intermissionPhase).toBe("optimize"); // converged
+  });
+
+  it("waits for every human to lock in before advancing optimize (lockInOptimize intent)", () => {
+    const { hostCtl, guestCtl } = startToOptimize();
+    expect(guestCtl.match.state.intermissionPhase).toBe("optimize");
+
+    // One player's LOCK IN routes a lockInOptimize intent to the host, which records it
+    // but does NOT end the shared dwell — the other human hasn't locked in yet.
+    guestCtl.match.skipOptimize();
+    expect(hostCtl.match.state.intermissionPhase).toBe("optimize");
+    expect(guestCtl.match.state.intermissionPhase).toBe("optimize");
+
+    // Once the last human (the host plays by default) locks in too, optimize advances
+    // for everyone. With tutorials off, optimize → sniperBan.
+    hostCtl.match.skipOptimize();
+    expect(hostCtl.match.state.intermissionPhase).toBe("sniperBan");
+    expect(guestCtl.match.state.intermissionPhase).toBe("sniperBan"); // converged
+  });
+
+  it("ticks the host's own optimize sub-timer down between snapshots", () => {
+    const { hostCtl } = startToOptimize();
+    const before = hostCtl.match.state.subTimerRemaining;
+    hostCtl.tick(0.1); // a frame with no replayed event — the host must drive its mirror
+    expect(hostCtl.match.state.subTimerRemaining).toBeLessThan(before);
   });
 });

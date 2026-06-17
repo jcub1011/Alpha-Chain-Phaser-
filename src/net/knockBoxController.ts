@@ -133,7 +133,12 @@ export class KnockBoxController implements GameController {
     if (dt <= 0) return;
     if (this.host) {
       this.host.tick(dt); // authoritative clock + timeouts
-      this.flush();
+      // The host renders from its own mirror too, but the per-frame clock/sub-timer
+      // ticks aren't replayed events, so flush() only resnaps on a real state change.
+      // On the frames in between, drive the mirror's smooth countdown exactly like a
+      // guest so the host's displayed timers don't sit frozen between snapshots.
+      const sent = this.flush();
+      if (!sent) this.mirror.localClockTick(dt);
     } else {
       this.mirror.localClockTick(dt); // smooth guest countdown, never times out
     }
@@ -144,6 +149,12 @@ export class KnockBoxController implements GameController {
     // The UI is event-driven (rejected/submission re-emitted on the mirror), so the
     // synchronous return is neutral.
     return { accepted: false };
+  }
+
+  reportDraft(word: string): void {
+    // Stream the in-progress word to the host so its authoritative clock can auto-submit
+    // it on timeout. The host loops its own draft through dispatch → applyIntent too.
+    this.dispatch({ kind: "draftWord", word });
   }
 
   destroy(): void {
@@ -186,6 +197,9 @@ export class KnockBoxController implements GameController {
       // Mirror the Blazor HasLeft: mark eliminated so turns skip them.
       const p = this.host.state.players.find((x) => x.id === leftId);
       if (p) p.eliminated = true;
+      // A departure during optimize may have removed the last player we were waiting
+      // on — re-evaluate so the remaining locked-in players aren't stranded.
+      this.host.recheckOptimizeCompletion();
       this.broadcast();
     } else if (!this.peer.isHost && leftId && leftId === this.hostId) {
       // The host left and there is no host migration — the session is over.
@@ -235,38 +249,60 @@ export class KnockBoxController implements GameController {
   // ── Host authority ───────────────────────────────────────────────────────────
   private applyIntent(fromId: string, action: Intent): void {
     log.debug(`host applying intent ${action.kind} from ${fromId}`);
-    if (action.kind === "startMatch") {
-      if (fromId !== this.peer.playerId) return; // only the host starts
-      this.beginHostMatch(action.settings);
-      return;
+    // A thrown intent must never tear down the host (it would freeze the match for
+    // everyone). Contain it, log it (reaches the KnockBox server log), and carry on.
+    try {
+      if (action.kind === "startMatch") {
+        if (fromId !== this.peer.playerId) return; // only the host starts
+        this.beginHostMatch(action.settings);
+        return;
+      }
+      const h = this.host;
+      if (!h) return;
+      switch (action.kind) {
+        case "submit":
+          h.submitWord(fromId, action.word);
+          break;
+        case "draftWord":
+          // Stream the live player's in-progress word so timeoutCurrent can auto-submit
+          // it. Sets no state and emits no event, so the trailing flush() no-ops — no
+          // snapshot needed (the draft is host-only and never serialized).
+          h.setDraft(fromId, action.word);
+          break;
+        case "reorderBay":
+          if (h.state.phase === "Intermission" && h.state.intermissionPhase === "optimize") {
+            h.setPlayerBay(fromId, action.engine, action.discard);
+            // setPlayerBay emits no match event, so the trailing flush() would no-op
+            // and clients would never see the reorder. Force a snapshot.
+            this.flush(true);
+          }
+          break;
+        case "lockInOptimize":
+          // Record this player's engine lock-in. Optimize advances only once every
+          // active human has locked in (decided inside lockInOptimize); the timer is
+          // the fallback. The flag-set alone emits no event, so force a snapshot below
+          // so the lock-in status — or the resulting advance — reaches every client.
+          if (h.state.phase === "Intermission" && h.state.intermissionPhase === "optimize") {
+            h.lockInOptimize(fromId);
+            this.flush(true);
+          }
+          break;
+        case "sniperBan":
+          if (
+            h.state.phase === "Intermission" &&
+            h.state.intermissionPhase === "sniperBan" &&
+            h.computeLastPlaceId() === fromId
+          )
+            h.applySniperBanAndAdvance(action.letter);
+          break;
+        case "skipTutorial":
+          if (fromId === this.peer.playerId) h.skipTutorial(); // only the host may skip
+          break;
+      }
+      this.flush();
+    } catch (err) {
+      log.error(`applyIntent(${action.kind}) failed: ${String(err)}`, err);
     }
-    const h = this.host;
-    if (!h) return;
-    switch (action.kind) {
-      case "submit":
-        h.submitWord(fromId, action.word);
-        break;
-      case "reorderBay":
-        if (h.state.phase === "Intermission" && h.state.intermissionPhase === "optimize") {
-          h.setPlayerBay(fromId, action.engine, action.discard);
-          // setPlayerBay emits no match event, so the trailing flush() would no-op
-          // and clients would never see the reorder. Force a snapshot.
-          this.flush(true);
-        }
-        break;
-      case "sniperBan":
-        if (
-          h.state.phase === "Intermission" &&
-          h.state.intermissionPhase === "sniperBan" &&
-          h.computeLastPlaceId() === fromId
-        )
-          h.applySniperBanAndAdvance(action.letter);
-        break;
-      case "skipTutorial":
-        if (fromId === this.peer.playerId) h.skipTutorial(); // only the host may skip
-        break;
-    }
-    this.flush();
   }
 
   private beginHostMatch(settings: AlphaChainSettings): void {
@@ -287,15 +323,26 @@ export class KnockBoxController implements GameController {
     this.flush(true);
   }
 
-  /** Flush buffered host events as a snapshot to everyone (and the host's own mirror). */
-  private flush(force = false): void {
-    if (!this.host) return;
-    if (!force && this.pending.length === 0) return;
+  /** Flush buffered host events as a snapshot to everyone (and the host's own mirror).
+   *  Returns whether a snapshot was actually applied this call — the host's tick() uses
+   *  that to decide whether to drive its mirror's local countdown instead. */
+  private flush(force = false): boolean {
+    if (!this.host) return false;
+    if (!force && this.pending.length === 0) return false;
     const events = this.pending;
     this.pending = [];
-    const snap = this.buildSnapshot(events);
-    this.peer.sendToAll(snap);
-    this.mirror.applySnapshot(snap.state, snap.events); // host renders via the same path
+    // flush() runs every host frame from tick(); a throw here (serialize / send /
+    // snapshot-apply) must not kill the loop. Contain + log; pending is already cleared
+    // so the next frame starts clean rather than re-throwing on the same events.
+    try {
+      const snap = this.buildSnapshot(events);
+      this.peer.sendToAll(snap);
+      this.mirror.applySnapshot(snap.state, snap.events); // host renders via the same path
+      return true;
+    } catch (err) {
+      log.error(`flush failed (${events.length} events dropped): ${String(err)}`, err);
+      return false;
+    }
   }
 
   private broadcast(): void {

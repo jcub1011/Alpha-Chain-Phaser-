@@ -131,6 +131,10 @@ export interface PlayerState {
   bay: BayCard[];
   /** Engine Bay slot capacity (starts at 3, +1 per intermission). */
   slots: number;
+  /** True once the player has locked in their engine during the optimize sub-phase.
+   *  Optimize completes when every active human player is locked in (or the timer
+   *  elapses). Reset on entry to optimize and cleared when it completes. */
+  lockedIn?: boolean;
 }
 
 /** One entry in a per-card score trace. */

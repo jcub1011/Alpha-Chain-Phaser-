@@ -100,6 +100,11 @@ export class LocalController implements GameController {
     return this.match.submitWord(this.humanId, word);
   }
 
+  reportDraft(): void {
+    // No-op: solo auto-submits on timeout via the synchronous UI clockTick path
+    // (ac-word-entry), so the engine's draft auto-submit never needs to fire here.
+  }
+
   destroy(): void {
     this.botCountdown = null;
     this.botPlayerId = null;

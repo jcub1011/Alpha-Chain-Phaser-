@@ -14,7 +14,6 @@
 import { html, nothing, type PropertyValues, type TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type { GameController } from "../../net/controller";
-import { LocalController } from "../../net/localController";
 import { legalBanLetters } from "../../game/settings";
 import { createLogger } from "../../log";
 import { AcElement } from "../app/AcElement";
@@ -154,11 +153,12 @@ export class AcIntermission extends AcElement {
     this.commit();
   }
 
-  /** LOCK IN: commit the order; in solo, fast-forward the optimize dwell. */
+  /** LOCK IN: commit the order, then fast-forward the optimize dwell. Solo advances
+   *  the match directly; networked play routes a lockInOptimize intent to the host. */
   private lockIn(): void {
     log.debug(`locked in engine (${this.engine.length} cards, ${this.discard.length} discarded)`);
     this.commit();
-    if (this.controller instanceof LocalController) this.controller.match.skipOptimize();
+    this.controller.match.skipOptimize();
   }
 
   private pickBan(letter: string): void {
@@ -215,6 +215,13 @@ export class AcIntermission extends AcElement {
 
   private renderOptimize(): TemplateResult {
     const free = Math.max(0, this.slots - this.engine.length);
+    // Lock-in is per-player: optimize ends once every active human locks in (or the
+    // timer elapses). Once you've locked in, wait on the rest rather than ending it
+    // for everyone. (Solo never sets these, so it always shows a live LOCK IN button.)
+    const players = this.controller.match.state.players;
+    const humans = players.filter((p) => !p.isBot && !p.eliminated);
+    const lockedCount = humans.filter((p) => p.lockedIn).length;
+    const locked = !!players.find((p) => p.id === this.controller.humanId)?.lockedIn;
     return html`
       <div class="im-card ac-panel">
         <header class="im-head">
@@ -257,7 +264,11 @@ export class AcIntermission extends AcElement {
           </div>
         </div>
 
-        <button class="ac-btn im-lock" @click=${() => this.lockIn()}>LOCK IN</button>
+        ${locked
+          ? html`<button class="ac-btn im-lock" disabled>
+              LOCKED IN — waiting (${lockedCount}/${humans.length})
+            </button>`
+          : html`<button class="ac-btn im-lock" @click=${() => this.lockIn()}>LOCK IN</button>`}
       </div>
     `;
   }

@@ -67,14 +67,16 @@ export function attachKnockBoxSink(getter: () => KnockBoxLogger | undefined): vo
 
 function emit(level: LogLevel, category: string, message: string, detail: unknown[]): void {
   const line = `[${category}] ${message}`;
+  const kb = knockBoxGetter?.();
 
-  // Console sink — gated to DEV except for error/critical.
-  if (DEV || ALWAYS_CONSOLE.has(level)) {
+  // Console sink — in DEV, always for error/critical, AND whenever we're also shipping
+  // to the server: the server send is best-effort (bounded, drop-oldest, swallowed
+  // failures), so a local console copy preserves the line if a frame is lost on transport.
+  if (DEV || ALWAYS_CONSOLE.has(level) || kb) {
     console[CONSOLE_METHOD[level]](line, ...detail);
   }
 
   // KnockBox server sink — best-effort, message only (no game state on the wire).
-  const kb = knockBoxGetter?.();
   if (kb) {
     try {
       kb[level](line);

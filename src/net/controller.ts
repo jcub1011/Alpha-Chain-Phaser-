@@ -52,6 +52,9 @@ export interface GameController {
   tick(dtSeconds: number): void;
   /** Submit a word as the local human. */
   submitWord(word: string): SubmitResult;
+  /** Report the local human's in-progress word so a shot-clock timeout can auto-submit
+   *  it (networked play streams it to the host; solo is a no-op — the UI handles it). */
+  reportDraft(word: string): void;
   /** Tear down timers/listeners. */
   destroy(): void;
 }
