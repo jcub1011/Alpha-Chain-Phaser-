@@ -154,9 +154,9 @@ describe("MatchController", () => {
     expect(p1.bay.map((b) => b.id)).toEqual(["A", "B"]);
   });
 
-  it("times out the current player and skips their turn (no score)", () => {
+  it("times out the current player, docks the base penalty, and skips their turn", () => {
     m.tick(m.state.clockTotal + 1); // run the shot clock out
-    expect(m.state.players[0].score).toBe(0);
+    expect(m.state.players[0].score).toBe(-10); // flat base timeout penalty
     expect(m.current.id).toBe("p2"); // advanced past the timed-out player
   });
 
@@ -168,17 +168,17 @@ describe("MatchController", () => {
     expect(m.state.requiredLetter).toBe("t");
   });
 
-  it("times out (no score) when the drafted word is illegal", () => {
+  it("takes the base timeout penalty when the drafted word is illegal", () => {
     m.setDraft("p1", "zzzz"); // not a dictionary word
     m.tick(m.state.clockTotal + 1);
-    expect(m.state.players[0].score).toBe(0); // bad draft falls through to a normal timeout
+    expect(m.state.players[0].score).toBe(-10); // bad draft falls through to a real timeout
     expect(m.current.id).toBe("p2");
   });
 
   it("ignores a draft from a player whose turn it is not", () => {
     m.setDraft("p2", "cat"); // p2 is not the current player
     m.tick(m.state.clockTotal + 1);
-    expect(m.state.players[0].score).toBe(0); // p1's timeout must not submit p2's draft
+    expect(m.state.players[0].score).toBe(-10); // p1 times out (base penalty); p2's draft unused
     expect(m.current.id).toBe("p2");
   });
 
@@ -188,6 +188,65 @@ describe("MatchController", () => {
     m.state.players.forEach((p) => (p.eliminated = true));
     expect(() => m.computeLastPlaceId()).not.toThrow();
     expect(m.computeLastPlaceId()).toBe("");
+  });
+});
+
+describe("shot-clock timeout penalty", () => {
+  const armed = (overrides: Partial<AlphaChainSettings> = {}) => {
+    const m = makeMatch({ preRoundCountdownSeconds: 3, eraInterval: 4, eraCount: 1, ...overrides });
+    m.start();
+    m.tick(3); // burn countdown → p1's turn armed (empty bay → 20s clock)
+    return m;
+  };
+  const runClockOut = (m: MatchController) => m.tick(m.state.clockTotal + 1);
+
+  it("docks the flat base penalty when a player times out with no clock cards", () => {
+    const m = armed();
+    m.state.players[0].score = 50;
+    runClockOut(m);
+    expect(m.state.players[0].score).toBe(40); // base 10
+    expect(m.current.id).toBe("p2"); // turn still advances
+  });
+
+  it("stacks each glass-cannon card's drain on top of the base", () => {
+    const m = armed();
+    m.state.players[0].bay = [{ id: "Redline" }];
+    m.state.players[0].score = 100;
+    runClockOut(m);
+    expect(m.state.players[0].score).toBe(78); // 100 − (10 + 12)
+  });
+
+  it("lets the score go negative (consistent with drains)", () => {
+    const m = armed();
+    m.state.players[0].bay = [{ id: "PanicButton" }]; // base 10 + 20
+    m.state.players[0].score = 5;
+    runClockOut(m);
+    expect(m.state.players[0].score).toBe(-25); // 5 − 30
+  });
+
+  it("emits a timed-out submission carrying the penalty breakdown", () => {
+    const m = armed();
+    m.state.players[0].bay = [{ id: "TheVault" }];
+    m.state.players[0].score = 20;
+    let captured: import("./types").Submission | undefined;
+    m.events.on("submission", ({ submission }) => {
+      if (submission.timedOut) captured = submission;
+    });
+    let penalty = -1;
+    m.events.on("timeout", (e) => (penalty = e.penalty));
+    runClockOut(m);
+    expect(captured?.timedOut).toBe(true);
+    expect(captured?.score).toBe(-15); // −(10 + 5)
+    expect(penalty).toBe(15);
+    expect(m.state.players[0].score).toBe(5); // 20 − 15
+  });
+
+  it("Insurance refunds the base penalty (general onTimeout-style reaction)", () => {
+    const m = armed();
+    m.state.players[0].bay = [{ id: "Insurance" }];
+    m.state.players[0].score = 30;
+    runClockOut(m);
+    expect(m.state.players[0].score).toBe(30); // −10 base + 10 refund = net 0
   });
 });
 
@@ -202,7 +261,13 @@ describe("turn order shuffles every era", () => {
   const makeThree = (rng: () => number) =>
     new MatchController(
       threeSeeds,
-      { ...DEFAULT_SETTINGS, enableTutorials: false, preRoundCountdownSeconds: 1, eraInterval: 9, eraCount: 1 },
+      {
+        ...DEFAULT_SETTINGS,
+        enableTutorials: false,
+        preRoundCountdownSeconds: 1,
+        eraInterval: 9,
+        eraCount: 1,
+      },
       { isWord: (w) => WORDS.has(w), rng },
     );
 

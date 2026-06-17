@@ -18,6 +18,7 @@
 
 import { add, clampScore, fx, mul, RARE_START, skip, type ModifierCard } from "./card";
 import { CardFamily, CardId, CardOp } from "../types";
+import type { PlayerState } from "../types";
 
 /** Round to one decimal (per-letter multiplier steps are 0.1) for clean chips. */
 const round1 = (n: number): number => Math.round(n * 10) / 10;
@@ -110,9 +111,9 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     color: "#e9c46a",
     family: CardFamily.Letter,
     op: CardOp.Additive,
-    magnitudeText: "+1/uniq",
-    description: "+1 per distinct letter.",
-    fold: (v, c) => add(v, c.distinctLetters * c.magnification()),
+    magnitudeText: "+2/uniq",
+    description: "+2 per distinct letter.",
+    fold: (v, c) => add(v, 2 * c.distinctLetters * c.magnification()),
   },
 
   HighRoller: {
@@ -133,9 +134,9 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     color: "#ffb020",
     family: CardFamily.Economy,
     op: CardOp.Additive,
-    magnitudeText: "+2/right",
-    description: "+2 for every card placed to the right of this one in the bay.",
-    fold: (v, c) => (c.cardsToRight > 0 ? add(v, 2 * c.cardsToRight * c.magnification()) : skip(v)),
+    magnitudeText: "+3/right",
+    description: "+3 for every card placed to the right of this one in the bay.",
+    fold: (v, c) => (c.cardsToRight > 0 ? add(v, 3 * c.cardsToRight * c.magnification()) : skip(v)),
   },
 
   Scavenger: {
@@ -143,12 +144,12 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     color: "#c08552",
     family: CardFamily.Economy,
     op: CardOp.Additive,
-    magnitudeText: "+1/word",
+    magnitudeText: "+2/word",
     description:
-      "+1 for every previously submitted word (any player's) that contains your word's starting letter.",
+      "+2 for every previously submitted word (any player's) that contains your word's starting letter.",
     fold: (v, c) => {
       const n = c.history.filter((h) => h.word.includes(c.startsWith)).length;
-      return n > 0 ? add(v, n * c.magnification()) : skip(v);
+      return n > 0 ? add(v, 2 * n * c.magnification()) : skip(v);
     },
   },
 
@@ -216,11 +217,11 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     color: "#ff8c42",
     family: CardFamily.Letter,
     op: CardOp.Multiplicative,
-    magnitudeText: "×1.1+",
-    description: "×1.1 at 7 letters, +0.1 per letter beyond (8 → ×1.2, 9 → ×1.3, …).",
+    magnitudeText: "×1.2+",
+    description: "×1.2 at 7 letters, +0.1 per letter beyond (8 → ×1.3, 9 → ×1.4, …).",
     fold: (v, c) => {
       const L = c.resolveWordLength();
-      return L > 6 ? mul(v, round1(1 + 0.1 * (L - 6)) * c.magnification()) : skip(v);
+      return L > 6 ? mul(v, round1(1.1 + 0.1 * (L - 6)) * c.magnification()) : skip(v);
     },
   },
 
@@ -242,9 +243,10 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     family: CardFamily.Clock,
     op: CardOp.Multiplicative,
     magnitudeText: "×1.5",
-    description: "×1.5 always; permanently −10% shot clock.",
+    description: "×1.5 always; permanently −10% shot clock. Time out and lose 5 points.",
     clock: { pctDelta: -0.1 },
     fold: (v, c) => mul(v, 1.5 * c.magnification()),
+    timeoutFold: (v, c) => add(v, -5 * c.magnification()),
   },
 
   Redline: {
@@ -253,9 +255,10 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     family: CardFamily.Clock,
     op: CardOp.Multiplicative,
     magnitudeText: "×2",
-    description: "×2 always; permanently −20% shot clock.",
+    description: "×2 always; permanently −20% shot clock. Time out and lose 12 points.",
     clock: { pctDelta: -0.2 },
     fold: (v, c) => mul(v, 2 * c.magnification()),
+    timeoutFold: (v, c) => add(v, -12 * c.magnification()),
   },
 
   PanicButton: {
@@ -263,12 +266,13 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     color: "#ff2e6e",
     family: CardFamily.Clock,
     op: CardOp.Multiplicative,
-    magnitudeText: "×1.35–2.7",
+    magnitudeText: "×1.3–2.5",
     description:
-      "Halves your shot clock. ×1.35 normally — but ×2.7 if you submit before the final 2 seconds.",
+      "Halves your shot clock. ×1.3 normally — but ×2.5 if you submit before the final 2 seconds. Time out and lose 20 points.",
     clock: { pctDelta: -0.5 },
-    // ×2.7 when there are >=2s left (submitted early), else ×1.35.
-    fold: (v, c) => mul(v, (c.clockRemaining >= 2 ? 2.7 : 1.35) * c.magnification()),
+    // ×2.5 when there are >=2s left (submitted early), else ×1.3.
+    fold: (v, c) => mul(v, (c.clockRemaining >= 2 ? 2.5 : 1.3) * c.magnification()),
+    timeoutFold: (v, c) => add(v, -20 * c.magnification()),
   },
 
   AnchorChain: {
@@ -278,11 +282,12 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     op: CardOp.Multiplicative,
     magnitudeText: "×0.5/ltr",
     description:
-      "Locks your shot clock to a strict, unmodifiable 5s for the era. In exchange: ×(0.5 per letter).",
+      "Locks your shot clock to a strict, unmodifiable 5s for the era. In exchange: ×(0.5 per letter). Time out and lose 10 points.",
     // ×(0.5 per letter), Forgery-aware (resolveWordLength) — Forgery's whole point
     // is to inflate length scoring. Diverges from the C# AnchorChainCard, which
     // used the real length (an oversight in that port).
     fold: (v, c) => mul(v, 0.5 * c.resolveWordLength() * c.magnification()),
+    timeoutFold: (v, c) => add(v, -10 * c.magnification()),
     shotClockOverride: () => 5,
   },
 
@@ -293,9 +298,10 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     op: CardOp.Multiplicative,
     magnitudeText: "×1.5",
     description:
-      "Caps your shot clock at 5s. When your word is longer than 6 letters, ×1.5 to your score so far.",
+      "Caps your shot clock at 5s. When your word is longer than 6 letters, ×1.5 to your score so far. Time out and lose 8 points.",
     // Per-word ×1.5 folded at its own slot (boosts the seed + everything to its left).
     fold: (v, c) => (c.resolveWordLength() > 6 ? mul(v, 1.5 * c.magnification()) : skip(v)),
+    timeoutFold: (v, c) => add(v, -8 * c.magnification()),
     shotClockCap: () => 5,
   },
 
@@ -319,13 +325,14 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     op: CardOp.Multiplicative,
     magnitudeText: "≤×(ltr/2)",
     description:
-      "When your word is longer than 6 letters, ×(1 ÷ [remaining ÷ total clock]), capped at half your letter count.",
+      "When your word is longer than 6 letters, ×(1 ÷ [remaining ÷ total clock]), capped at half your letter count. Time out and lose 10 points.",
     fold: (v, c) => {
       if (c.resolveWordLength() <= 6) return skip(v);
       const cap = Math.floor(c.resolveWordLength() / 2);
       const factor = c.clockRemaining <= 0 ? cap : Math.min(c.clockTotal / c.clockRemaining, cap);
       return mul(v, factor * c.magnification());
     },
+    timeoutFold: (v, c) => add(v, -10 * c.magnification()),
   },
 
   Blindfold: {
@@ -334,8 +341,10 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     family: CardFamily.Clock,
     op: CardOp.Multiplicative,
     magnitudeText: "×1.8",
-    description: "×1.8 always; hides your own input box while you type (no peeking at typos).",
+    description:
+      "×1.8 always; hides your own input box while you type (no peeking at typos). Time out and lose 8 points.",
     fold: (v, c) => mul(v, 1.8 * c.magnification()),
+    timeoutFold: (v, c) => add(v, -8 * c.magnification()),
     hidesInput: () => true,
   },
 
@@ -346,8 +355,8 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     family: CardFamily.Clock,
     op: CardOp.Fx,
     magnitudeText: "FX",
-    description: "+30% shot clock (neutralises Redline / Vault).",
-    clock: { pctDelta: 0.3 },
+    description: "+40% shot clock (buys time for long words; neutralises Redline / Vault).",
+    clock: { pctDelta: 0.4 },
     fold: (v) => fx(v),
   },
 
@@ -500,14 +509,14 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     family: CardFamily.Economy,
     op: CardOp.Fx,
     magnitudeText: "FX",
-    description: "When an opponent eats the Zero-Point Tax, collect half the would-be score.",
+    description: "When an opponent eats the Zero-Point Tax, collect 60% of the would-be score.",
     fold: (v) => fx(v),
     onOpponentWordResolved: (c) => {
       const res = c.resolution;
       if (!res || !res.taxed || res.siphonSuppressed || res.wouldBeScore <= 0) return;
       const owner = c.player;
       if (!owner || owner.id === res.submitterId) return;
-      const amount = clampScore(res.wouldBeScore * 0.5 * c.magnification());
+      const amount = clampScore(res.wouldBeScore * 0.6 * c.magnification());
       if (amount <= 0) return;
       owner.score += amount;
       c.effects?.bankSiphon(owner.id, amount, "Tax Collector");
@@ -521,14 +530,14 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     op: CardOp.Fx,
     magnitudeText: "FX",
     description:
-      "Banks +1 for every whole second left on an opponent's shot clock when they submit.",
+      "Banks +2 for every whole second left on an opponent's shot clock when they submit.",
     fold: (v) => fx(v),
     onOpponentWordResolved: (c) => {
       const res = c.resolution;
       if (!res || res.remainingSeconds <= 0) return;
       const owner = c.player;
       if (!owner || owner.id === res.submitterId) return;
-      const amount = clampScore(res.remainingSeconds * c.magnification());
+      const amount = clampScore(res.remainingSeconds * 2 * c.magnification());
       if (amount > 0) {
         owner.score += amount;
         c.effects?.bankSiphon(owner.id, amount, "Chrono Syphon");
@@ -618,6 +627,147 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     intercept: (owner, services) => {
       services.shield.decay(owner.id, 0.1);
       return true;
+    },
+  },
+
+  // ── Rebalance additions: archetypes to rival the speed build ────────────────
+  // Long-word / Wordsmith — reward big words and the time to type them.
+  TheLexicon: {
+    name: "The Lexicon",
+    color: "#7bb0ff",
+    family: CardFamily.Letter,
+    op: CardOp.Multiplicative,
+    magnitudeText: "×2 @9+",
+    description:
+      "×2 when your word is 9+ letters — and +15% shot clock, so you have time to type it.",
+    clock: { pctDelta: 0.15 },
+    fold: (v, c) => (c.resolveWordLength() >= 9 ? mul(v, 2 * c.magnification()) : skip(v)),
+  },
+
+  Stonemason: {
+    name: "Stonemason",
+    color: "#b5651d",
+    family: CardFamily.Letter,
+    op: CardOp.Additive,
+    magnitudeText: "+4/ltr",
+    description: "+4 per letter, but only when the word is 8+ letters.",
+    fold: (v, c) => {
+      const L = c.resolveWordLength();
+      return L >= 8 ? add(v, 4 * L * c.magnification()) : skip(v);
+    },
+  },
+
+  // Economy / Parasite — bank off opponents (Loan Shark taxes the big scorers).
+  LoanShark: {
+    name: "Loan Shark",
+    color: "#2f8f5b",
+    family: CardFamily.Economy,
+    op: CardOp.Fx,
+    magnitudeText: "FX",
+    description: "Bank 15% of any opponent's word that scores more than 30 points.",
+    fold: (v) => fx(v),
+    onOpponentWordResolved: (c) => {
+      const res = c.resolution;
+      if (!res || res.taxed || res.earnedScore <= 30) return;
+      const owner = c.player;
+      if (!owner || owner.id === res.submitterId) return;
+      const amount = clampScore(res.earnedScore * 0.15 * c.magnification());
+      if (amount > 0) {
+        owner.score += amount;
+        c.effects?.bankSiphon(owner.id, amount, "Loan Shark");
+      }
+    },
+  },
+
+  Numismatist: {
+    name: "Numismatist",
+    color: "#caa24a",
+    family: CardFamily.Economy,
+    op: CardOp.Additive,
+    magnitudeText: "+6/rare",
+    description: "+6 for every rare letter (Q, X, Z, J) and +2 per distinct letter.",
+    fold: (v, c) => {
+      const rare = [...c.word].filter((ch) => RARE_START.has(ch)).length;
+      return add(v, (6 * rare + 2 * c.distinctLetters) * c.magnification());
+    },
+  },
+
+  // Aggression / Control — deny tempo (now sharper because timeouts cost points).
+  TheSniper: {
+    name: "The Sniper",
+    color: "#ff5252",
+    family: CardFamily.Utility,
+    op: CardOp.Fx,
+    magnitudeText: "FX",
+    description:
+      "At turn end, shave 20% off the next shot clock of the single highest-scoring opponent above you.",
+    fold: (v) => fx(v),
+    roomServices: ["timePenalty"],
+    onTurnEnded: (c) => {
+      const owner = c.player;
+      const fx2 = c.effects;
+      if (!owner || !fx2) return;
+      let top: PlayerState | null = null;
+      for (const opp of fx2.orderedActivePlayers()) {
+        if (opp.id === owner.id) continue;
+        if (!top || opp.score > top.score) top = opp;
+      }
+      if (top && top.score > owner.score) {
+        const shave = Math.max(1, Math.round(fx2.armedClockOf(top) * 0.2 * c.magnification()));
+        fx2.timeShave(owner, top, shave, "The Sniper");
+      }
+    },
+  },
+
+  TheLeech: {
+    name: "The Leech",
+    color: "#7a4fb0",
+    family: CardFamily.Economy,
+    op: CardOp.Fx,
+    magnitudeText: "FX",
+    description: "At turn end, drain 3 points from every player scoring higher than you.",
+    fold: (v) => fx(v),
+    onTurnEnded: (c) => {
+      const owner = c.player;
+      const fx2 = c.effects;
+      if (!owner || !fx2) return;
+      const amount = Math.max(1, Math.round(3 * c.magnification()));
+      for (const opp of fx2.orderedActivePlayers()) {
+        if (opp.id === owner.id || opp.score <= owner.score) continue;
+        fx2.drain(owner, opp, amount, "The Leech");
+      }
+    },
+  },
+
+  // Defensive / Combo engine.
+  Insurance: {
+    name: "Insurance",
+    color: "#4cc2ff",
+    family: CardFamily.Utility,
+    op: CardOp.Fx,
+    magnitudeText: "FX",
+    description:
+      "Scores nothing on a normal word — but if you time out, regain 10 points (offsetting the base timeout penalty).",
+    fold: (v) => fx(v),
+    // The proof that the timeout pass is general, not debuff-only: a REWARD fold.
+    timeoutFold: (v) => add(v, 10),
+  },
+
+  TheFlywheel: {
+    name: "The Flywheel",
+    color: "#8f8cff",
+    family: CardFamily.Letter,
+    op: CardOp.Multiplicative,
+    magnitudeText: "×1.15+",
+    description: "×1.15 for each other multiplier card in your bay (capped at ×2.3).",
+    fold: (v, c) => {
+      const ids = c.bayCardIds ?? [];
+      const others = ids.filter(
+        (id, i) => i !== c.cardIndex && getCard(id)?.op === CardOp.Multiplicative,
+      ).length;
+      if (others === 0) return skip(v);
+      const factor = Math.min(2.3, round1(1 + 0.15 * others));
+      return mul(v, factor * c.magnification());
     },
   },
 };

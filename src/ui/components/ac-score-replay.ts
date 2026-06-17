@@ -158,7 +158,11 @@ export class AcScoreReplay extends AcElement {
     this.effects = [];
     this.current = -1;
     this.revealed = -1;
-    this.heading = isHuman ? "YOUR ENGINE" : `${sub.displayName}'s engine`;
+    this.heading = sub.timedOut
+      ? "TIMED OUT"
+      : isHuman
+        ? "YOUR ENGINE"
+        : `${sub.displayName}'s engine`;
     this.accent = playerAccentVar(sub.accentIndex);
     this.word = sub.word.toUpperCase();
     this.active = true;
@@ -187,7 +191,7 @@ export class AcScoreReplay extends AcElement {
     if (prefersReducedMotion()) {
       this.revealed = this.cards.length - 1; // gray out every card that didn't fire
       if (this.numEl) this.numEl.textContent = fmtScore(sub.score);
-      this.numEl?.classList.add(sub.taxed ? "is-taxed" : "is-final");
+      this.numEl?.classList.add(sub.taxed || sub.timedOut ? "is-taxed" : "is-final");
       this.effects = sub.effects ?? [];
       this.announceRevealed(sub);
       return;
@@ -226,6 +230,12 @@ export class AcScoreReplay extends AcElement {
       await this.ramp(sub.breakdown.finalBeforeTax, 0, 420, signal);
       fx.shake(0.8, theater);
       await new Promise((r) => setTimeout(r, 500));
+    } else if (sub.timedOut) {
+      // Settle on the net (negative) penalty in the taxed/red style — the per-card
+      // red drains already popped during the walk.
+      if (this.numEl) this.numEl.textContent = fmtScore(sub.score);
+      this.numEl?.classList.add("is-taxed");
+      if (sub.score < 0) fx.shake(Math.min(0.7, Math.abs(sub.score) / 80), theater);
     } else {
       if (this.numEl) this.numEl.textContent = fmtScore(sub.score);
       this.numEl?.classList.add("is-final");

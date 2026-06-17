@@ -599,6 +599,11 @@
   pointer-events: none;
   animation: ac-float-up 1.1s ease-out forwards;
 }
+/* A point loss (e.g. a shot-clock timeout penalty) floats up in danger red. */
+.lb-pop.is-neg {
+  color: var(--ac-danger);
+  text-shadow: 0 0 8px color-mix(in srgb, var(--ac-danger) 60%, transparent);
+}
 
 /* Mobile leaderboard strip (hidden on desktop). */
 .lb-strip {

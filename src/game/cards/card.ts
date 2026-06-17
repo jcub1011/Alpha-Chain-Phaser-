@@ -43,6 +43,9 @@ export interface EvalContext {
   baseClockSeconds: number;
   /** Words submitted so far this match (Blueprint / Scavenger read this). */
   history: readonly Submission[];
+  /** The card ids occupying the bay, in slot order (The Flywheel counts the other
+   *  multipliers). Optional: bay-independent clock/score literals may omit it. */
+  bayCardIds?: readonly string[];
 
   // ── Capability accessors injected by the evaluator (§5.2). They let a card
   //    "walk the bay up to itself" without knowing about other cards. Each
@@ -112,6 +115,16 @@ export interface ModifierCard {
    * is not met.
    */
   fold(value: number, ctx: EvalContext): FoldResult;
+
+  /**
+   * The timeout twin of `fold`: when this card's owner lets the shot clock
+   * expire, fold the card into the running PENALTY (the breakdown seeds negative
+   * at −BASE_TIMEOUT_PENALTY, then walks left → right exactly like scoring, so
+   * the same engine-replay animates it). Optional — a card without it is inert on
+   * a timeout. General-purpose and magnification-aware via `ctx`: a card may
+   * subtract points (glass cannons), add them (Insurance), or scale.
+   */
+  timeoutFold?(value: number, ctx: EvalContext): FoldResult;
 
   // ── Capability hooks (all optional; presence = opting in) ──
   /** IShotClockOverride — pins the clock to a fixed value (Anchor Chain). */

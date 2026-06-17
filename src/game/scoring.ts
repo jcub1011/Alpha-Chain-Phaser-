@@ -8,9 +8,9 @@
 
 import { getCard } from "./cards/library";
 import { buildMagnifier } from "./cards/magnifier";
-import type { EvalContext, ModifierCard } from "./cards/card";
+import { skip, type EvalContext, type ModifierCard } from "./cards/card";
 import type { EngineEffects, RoomServices } from "./cards/roomServices";
-import { isVowel, MAX_WORD_SCORE, MIN_SHOT_CLOCK_SECONDS } from "./settings";
+import { BASE_TIMEOUT_PENALTY, isVowel, MAX_WORD_SCORE, MIN_SHOT_CLOCK_SECONDS } from "./settings";
 import type { BayCard, PlayerState, ScoreBreakdown, ScoreStep, Submission } from "./types";
 
 /** The per-word facts shared by every card, before bay-position context. */
@@ -143,6 +143,7 @@ export function makeBayEvaluator(
     bayLength: bay.length,
     baseClockSeconds: opts.baseClockSeconds ?? opts.clockTotal,
     history: opts.history ?? [],
+    bayCardIds: bay.map((slot) => slot.id),
     resolveWordLength: () => perceivedLengthAt(index),
     vowelIndices: () => classifyIndices(base.word, vowelClassifierAt(index)),
     consonantIndices: () => classifyIndices(base.word, consonantClassifierAt(index)),
@@ -192,6 +193,40 @@ export function scoreWord(
     taxed: opts.taxed,
     finalScore: opts.taxed ? 0 : finalBeforeTax,
   };
+}
+
+/**
+ * The penalty a player suffers when their shot clock expires, as a breakdown the
+ * SAME engine-replay animates (so the UI shows which cards hurt and by how much).
+ * Mirrors `scoreWord`: seeds at −BASE_TIMEOUT_PENALTY (the flat base loss), then
+ * folds each card's `timeoutFold` left → right (a card without one is an inert,
+ * skipped step). One step per bay slot keeps the array aligned 1:1 with the
+ * replay fan. `finalScore` is the net signed delta (usually negative) the caller
+ * adds to the owner's score. There is no word, so the bay is evaluated against "".
+ */
+export function scoreTimeout(bay: readonly BayCard[], opts: ScoreOptions): ScoreBreakdown {
+  const { resolved, ctxFor } = makeBayEvaluator("", bay, opts);
+  const seed = -BASE_TIMEOUT_PENALTY;
+  let value = seed;
+  const steps: ScoreStep[] = [];
+
+  resolved.forEach((card, index) => {
+    if (!card) return;
+    const ctx = ctxFor(index);
+    const r = card.timeoutFold ? card.timeoutFold(value, ctx) : skip(value);
+    value = r.value;
+    steps.push({
+      cardId: card.id,
+      name: card.name,
+      family: card.family,
+      triggered: r.triggered,
+      valueText: r.valueText,
+      runningScore: roundHalfUp(value),
+    });
+  });
+
+  const finalScore = roundHalfUp(value);
+  return { word: "", seed, steps, finalBeforeTax: finalScore, taxed: false, finalScore };
 }
 
 // ── Whole-bay capability helpers (used by match.ts; mirror the C# extensions) ──

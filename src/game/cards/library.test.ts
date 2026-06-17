@@ -78,10 +78,10 @@ describe("The Blueprint — +3/ltr when word ≥ previous word length", () => {
   });
 });
 
-describe("Letter Hoarder — +1/distinct letter", () => {
+describe("Letter Hoarder — +2/distinct letter", () => {
   it("counts distinct letters, not total", () => {
-    // "tatter" → {t,a,e,r} = 4 distinct. seed 6 + 4.
-    expect(score("tatter", ["LetterHoarder"])).toBe(10);
+    // "tatter" → {t,a,e,r} = 4 distinct. seed 6 + 4×2.
+    expect(score("tatter", ["LetterHoarder"])).toBe(14);
   });
 });
 
@@ -99,9 +99,9 @@ describe("High Roller — +10 per rare letter (Q, X, Z, J)", () => {
   });
 });
 
-describe("Booster Pack — +2 per card to its right", () => {
-  it("adds 2 for each card placed after it", () => {
-    expect(score("cat", ["BoosterPack", "TheAnchor"])).toBe(15); // 3 +2(right) +10
+describe("Booster Pack — +3 per card to its right", () => {
+  it("adds 3 for each card placed after it", () => {
+    expect(score("cat", ["BoosterPack", "TheAnchor"])).toBe(16); // 3 +3(right) +10
   });
   it("adds nothing when it is the rightmost card", () => {
     const r = scoreWord("cat", bay("TheAnchor", "BoosterPack"), opts);
@@ -110,10 +110,10 @@ describe("Booster Pack — +2 per card to its right", () => {
   });
 });
 
-describe("Scavenger — +1 per prior word containing the start letter", () => {
+describe("Scavenger — +2 per prior word containing the start letter", () => {
   it("counts history words that include the start letter", () => {
-    // start 't'; "cat" and "art" contain t, "dog" does not → +2.
-    expect(score("tap", ["Scavenger"], { history: hist("cat", "art", "dog") })).toBe(5);
+    // start 't'; "cat" and "art" contain t, "dog" does not → 2 words × +2.
+    expect(score("tap", ["Scavenger"], { history: hist("cat", "art", "dog") })).toBe(7);
   });
   it("skips with no qualifying history", () => {
     const r = scoreWord("tap", bay("Scavenger"), { ...opts, history: hist("dog") });
@@ -232,6 +232,44 @@ describe("The Titanium Mirror — passive ×1.0 with no shield state", () => {
   });
 });
 
+// ── Rebalance additions: pure scoring cards ──────────────────────────────────
+
+describe("The Lexicon — ×2 at 9+ letters", () => {
+  it("skips below 9 letters", () => {
+    expect(scoreWord("elephant", bay("TheLexicon"), opts).steps[0].triggered).toBe(false);
+  });
+  it("doubles at 9+", () => {
+    expect(score("wonderful", ["TheLexicon"])).toBe(18); // 9 × 2
+  });
+});
+
+describe("Stonemason — +4/ltr at 8+", () => {
+  it("skips below 8 letters", () => {
+    expect(scoreWord("monster", bay("Stonemason"), opts).steps[0].triggered).toBe(false);
+  });
+  it("pays +4/letter at 8+", () => {
+    expect(score("elephant", ["Stonemason"])).toBe(40); // 8 + 8×4
+  });
+});
+
+describe("Numismatist — +6 per rare letter, +2 per distinct", () => {
+  it("rewards rare letters and variety", () => {
+    // "quiz": 2 rare (q,z), 4 distinct → 6×2 + 2×4 = 20. seed 4 + 20.
+    expect(score("quiz", ["Numismatist"])).toBe(24);
+  });
+});
+
+describe("The Flywheel — ×1.15 per other multiplier (cap ×2.3)", () => {
+  it("skips with no other multiplier card in the bay", () => {
+    expect(scoreWord("cat", bay("TheFlywheel"), opts).steps[0].triggered).toBe(false);
+  });
+  it("scales by the count of other multiplier cards", () => {
+    // [Vault ×1.5][Redline ×2][Flywheel]: 2 other multipliers → ×1.3.
+    // 3 ×1.5 = 4.5 ×2 = 9 ×1.3 = 11.7 → 12.
+    expect(score("cat", ["TheVault", "Redline", "TheFlywheel"])).toBe(12);
+  });
+});
+
 // ── FX / hook-only cards: an inert "FX" step that never moves the score ───────
 
 describe("FX cards fold inert (behaviour lives in the lifecycle hooks)", () => {
@@ -251,6 +289,10 @@ describe("FX cards fold inert (behaviour lives in the lifecycle hooks)", () => {
     "FlakCannon",
     "BountyHunter",
     "BaitAndSwitch",
+    "LoanShark",
+    "TheSniper",
+    "TheLeech",
+    "Insurance",
   ];
   for (const id of FX_CARDS) {
     it(`${id} emits an FX step and leaves the value unchanged`, () => {

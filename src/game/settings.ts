@@ -74,6 +74,10 @@ export const MIN_SHOT_CLOCK_SECONDS = 3;
 export const MAX_WORD_SCORE = 10000;
 export const MODIFIER_SLOTS_START = 3;
 
+/** Flat points a player loses when their shot clock expires, before any per-card
+ *  `timeoutFold` reactions (glass-cannon drains, Insurance's refund) fold in. */
+export const BASE_TIMEOUT_PENALTY = 10;
+
 export const VOWELS = new Set(["a", "e", "i", "o", "u"]);
 export const isVowel = (c: string): boolean => VOWELS.has(c.toLowerCase());
 

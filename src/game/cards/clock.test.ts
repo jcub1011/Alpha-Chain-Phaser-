@@ -6,8 +6,8 @@ const bay = (...ids: string[]): BayCard[] => ids.map((id) => ({ id }));
 const opts = { prevWordLength: 0, clockRemaining: 10, clockTotal: 20, taxed: false };
 
 describe("armedClockSeconds — layered clock", () => {
-  it("sums fractional deltas (Vault −10% + Heat Sink +30%)", () => {
-    expect(armedClockSeconds(20, bay("TheVault", "HeatSink"))).toBe(24); // +20%
+  it("sums fractional deltas (Vault −10% + Heat Sink +40%)", () => {
+    expect(armedClockSeconds(20, bay("TheVault", "HeatSink"))).toBe(26); // +30%
   });
 
   it("magnifies a clock delta (Redline −20% behind a glass → −30%)", () => {
@@ -35,23 +35,23 @@ describe("armedClockSeconds — layered clock", () => {
 });
 
 describe("time-aware scoring", () => {
-  it("Panic Button ×2.7 when submitted early (>=2s left)", () => {
-    // "elephant"=8, plenty of time → ×2.7 → 8 × 2.7 = 21.6 → 22.
+  it("Panic Button ×2.5 when submitted early (>=2s left)", () => {
+    // "elephant"=8, plenty of time → ×2.5 → 8 × 2.5 = 20.
     const r = scoreWord("elephant", bay("PanicButton"), {
       ...opts,
       clockRemaining: 10,
       clockTotal: 20,
     });
-    expect(r.finalScore).toBe(22);
+    expect(r.finalScore).toBe(20);
   });
 
-  it("Panic Button ×1.35 in the danger zone (<2s left)", () => {
+  it("Panic Button ×1.3 in the danger zone (<2s left)", () => {
     const r = scoreWord("elephant", bay("PanicButton"), {
       ...opts,
       clockRemaining: 1,
       clockTotal: 20,
     });
-    expect(r.finalScore).toBe(11); // 8 × 1.35 = 10.8 → 11
+    expect(r.finalScore).toBe(10); // 8 × 1.3 = 10.4 → 10
   });
 
   it("Speedracer caps at half the letter count", () => {

@@ -177,12 +177,12 @@ describe("Chrono Syphon — every opponent banks the leftover seconds", () => {
     const remaining = Math.floor(m.state.clockRemaining);
     expect(remaining).toBe(15);
     const r = m.submitWord("p1", "cat");
-    expect(m.state.players[1].score).toBe(remaining);
-    expect(m.state.players[2].score).toBe(remaining);
+    expect(m.state.players[1].score).toBe(remaining * 2); // +2 per whole second
+    expect(m.state.players[2].score).toBe(remaining * 2);
     expect(r.submission!.effects).toEqual(
       expect.arrayContaining([
-        { source: "Chrono Syphon", targetId: "p2", text: `+${remaining} banked` },
-        { source: "Chrono Syphon", targetId: "p3", text: `+${remaining} banked` },
+        { source: "Chrono Syphon", targetId: "p2", text: `+${remaining * 2} banked` },
+        { source: "Chrono Syphon", targetId: "p3", text: `+${remaining * 2} banked` },
       ]),
     );
   });

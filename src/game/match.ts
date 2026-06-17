@@ -23,6 +23,7 @@ import {
   baySuccessionExempt,
   fireBayHook,
   makeBayEvaluator,
+  scoreTimeout,
   scoreWord,
   type BayEvaluator,
 } from "./scoring";
@@ -79,7 +80,7 @@ export interface MatchEvents {
   clockTick: number; // shot-clock seconds remaining
   submission: { submission: Submission; bounties: { playerId: string; amount: number }[] };
   rejected: { playerId: string; reason: NonNullable<SubmitResult["reason"]> };
-  timeout: { playerId: string };
+  timeout: { playerId: string; penalty: number };
   intermission: { lastPlaceId: string; dealt: Record<string, string[]> };
   gameOver: { winnerId: string | null; standings: PlayerState[] };
 }
@@ -616,14 +617,56 @@ export class MatchController {
 
   private timeoutCurrent(): void {
     // Auto-submit the live player's drafted word if it stands on its own; a blank or
-    // illegal draft falls through to a normal timeout below.
+    // illegal draft falls through to a real timeout below.
     const draft = this.currentDraft.trim();
     if (draft && this.submitWord(this.current.id, draft).accepted) return;
+    const s = this.state;
     const p = this.current;
-    if (this.state.settings.survivalMode) p.eliminated = true;
+
+    // A real timeout is scored like a word: a penalty walk (the flat base loss
+    // plus each glass-cannon card's drain, and any Insurance refund) the engine
+    // theater replays card-by-card. finalScore is the net signed delta.
+    const breakdown = scoreTimeout(p.bay, {
+      prevWordLength: this.prevWordLength,
+      clockRemaining: s.clockRemaining,
+      clockTotal: s.clockTotal,
+      taxed: false,
+      baseClockSeconds: s.settings.shotClockSeconds,
+      history: s.history,
+      services: this.services,
+      effects: this.effects,
+      player: p,
+      players: s.players,
+      clock: this.clockController,
+    });
+    // Apply the (negative) net delta to the score. No floor at 0 — scores can
+    // already go negative via drains (Bounty Hunter / The Leech), and clamping
+    // here would hide the penalty whenever the player is at or below it.
+    p.score += breakdown.finalScore;
+    const penalty = -breakdown.finalScore;
+
+    // A synthetic "timed-out" submission drives the same theater + leaderboard
+    // reveal as a scored word. It is NOT pushed to history (no real word, so it
+    // never feeds Scavenger / the word feed / the used-word set).
+    const submission: Submission = {
+      playerId: p.id,
+      displayName: p.name,
+      accentIndex: p.accentIndex,
+      word: draft || "—",
+      score: breakdown.finalScore,
+      taxed: false,
+      taxBounty: 0,
+      breakdown,
+      timedOut: true,
+    };
+
+    if (s.settings.survivalMode) p.eliminated = true;
     // Required letter is unchanged: the next player still faces it.
-    this.events.emit("timeout", { playerId: p.id });
-    this.endTurn();
+    this.events.emit("timeout", { playerId: p.id, penalty });
+    this.events.emit("submission", { submission, bounties: [] });
+    // There is now a replay to watch (the penalty walk), so settle like a real
+    // submission — an era-ending timeout waits it out before transitioning.
+    this.endTurn(true);
   }
 
   // ── Intermission ─────────────────────────────────────────────────────────────

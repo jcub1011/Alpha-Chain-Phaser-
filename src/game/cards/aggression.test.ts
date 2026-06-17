@@ -77,3 +77,47 @@ describe("The Bounty Hunter — docks the round leader on a short word", () => {
     expect(m.state.players[0].score).toBe(3 - 15);
   });
 });
+
+describe("Loan Shark — banks 15% of an opponent's big word", () => {
+  it("skims a word scoring over 30", () => {
+    const m = make();
+    m.state.players[0].bay = [
+      { id: "TheAnchor" },
+      { id: "TheAnchor" },
+      { id: "TheAnchor" },
+      { id: "Redline" },
+    ];
+    m.state.players[1].bay = [{ id: "LoanShark" }];
+    m.submitWord("p1", "cat"); // (3 +10+10+10) ×2 = 66 → 15% = 9.9 → 10 banked by p2
+    expect(m.state.players[1].score).toBe(10);
+  });
+
+  it("ignores a word scoring 30 or less", () => {
+    const m = make();
+    m.state.players[0].bay = [{ id: "TheAnchor" }];
+    m.state.players[1].bay = [{ id: "LoanShark" }];
+    m.submitWord("p1", "cat"); // 13 ≤ 30 → nothing banked
+    expect(m.state.players[1].score).toBe(0);
+  });
+});
+
+describe("The Leech — drains players ahead at turn end", () => {
+  it("drains 3 from each higher-scoring player when its owner's turn ends", () => {
+    const m = make();
+    m.state.players[0].bay = [{ id: "TheLeech" }];
+    m.state.players[1].score = 100; // ahead of p1
+    m.submitWord("p1", "cat"); // p1 (3) turn ends → Leech drains p2
+    expect(m.state.players[1].score).toBe(97); // 100 − 3
+  });
+});
+
+describe("The Sniper — shaves 20% off the top scorer's next clock", () => {
+  it("shaves the single highest-scoring opponent above its owner", () => {
+    const m = make();
+    m.state.players[0].bay = [{ id: "TheSniper" }];
+    m.state.players[1].score = 999;
+    m.submitWord("p1", "cat"); // p1 turn ends → Sniper shaves p2, who arms next
+    expect(m.current.id).toBe("p2");
+    expect(m.state.clockTotal).toBe(16); // 20 − 20%
+  });
+});

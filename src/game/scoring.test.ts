@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { armedClockSeconds, roundHalfUp, scoreWord } from "./scoring";
+import { armedClockSeconds, roundHalfUp, scoreTimeout, scoreWord } from "./scoring";
 import type { BayCard } from "./types";
 
 const bay = (...ids: string[]): BayCard[] => ids.map((id) => ({ id }));
@@ -62,6 +62,37 @@ describe("scoreWord — sequential fold", () => {
   });
 });
 
+describe("scoreTimeout — the penalty walk (mirrors scoreWord)", () => {
+  it("an empty bay loses only the flat base penalty", () => {
+    expect(scoreTimeout(bay(), opts).finalScore).toBe(-10);
+  });
+
+  it("a glass-cannon card folds in its own drain (Vault −5)", () => {
+    expect(scoreTimeout(bay("TheVault"), opts).finalScore).toBe(-15); // -10 base, -5 Vault
+  });
+
+  it("stacks multiple speed cards", () => {
+    expect(scoreTimeout(bay("TheVault", "Redline"), opts).finalScore).toBe(-27); // -10 -5 -12
+  });
+
+  it("a Magnifying Glass magnifies the loss too (Redline ×1.5)", () => {
+    expect(scoreTimeout(bay("MagnifyingGlass", "Redline"), opts).finalScore).toBe(-28); // -10 + (-12×1.5)
+  });
+
+  it("Insurance refunds the base penalty — a general, non-debuff reaction", () => {
+    expect(scoreTimeout(bay("Insurance"), opts).finalScore).toBe(0); // -10 base + 10 refund
+  });
+
+  it("emits one step per bay slot (aligned to the replay fan); inert cards skip", () => {
+    const bd = scoreTimeout(bay("TheVault", "TheAnchor"), opts);
+    expect(bd.seed).toBe(-10);
+    expect(bd.steps).toHaveLength(2);
+    expect(bd.steps[0].triggered).toBe(true); // Vault drains
+    expect(bd.steps[1].triggered).toBe(false); // The Anchor is inert on a timeout
+    expect(bd.taxed).toBe(false);
+  });
+});
+
 describe("roundHalfUp", () => {
   it("rounds .5 up", () => {
     expect(roundHalfUp(1.5)).toBe(2);
@@ -75,7 +106,7 @@ describe("armedClockSeconds", () => {
     expect(armedClockSeconds(20, bay("TheVault"))).toBe(18); // -10%
     expect(armedClockSeconds(20, bay("Redline"))).toBe(16); // -20%
     expect(armedClockSeconds(20, bay("TheVault", "Redline"))).toBe(14); // -30%
-    expect(armedClockSeconds(20, bay("Redline", "HeatSink"))).toBe(22); // -20% +30%
+    expect(armedClockSeconds(20, bay("Redline", "HeatSink"))).toBe(24); // -20% +40%
   });
 
   it("never falls below the 3s floor", () => {

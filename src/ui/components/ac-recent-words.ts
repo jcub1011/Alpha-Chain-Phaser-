@@ -31,7 +31,7 @@ export class AcRecentWords extends AcElement {
       if (this.onRevealed) window.removeEventListener("ac-score-revealed", this.onRevealed);
       this.onRevealed = (ev: Event): void => {
         const sub = (ev as CustomEvent<{ submission: Submission }>).detail?.submission;
-        if (!sub) return;
+        if (!sub || sub.timedOut) return; // a timeout is no word — keep it out of the feed
         // Guard against a double-dispatch (e.g. two theaters): skip if this exact
         // submission is already at the head rather than listing the word twice.
         const head = this.items[0];

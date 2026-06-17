@@ -62,7 +62,7 @@ export class AcLeaderboard extends AcElement {
       this.onRevealed = (ev: Event): void => {
         const sub = (ev as CustomEvent<{ submission: Submission }>).detail?.submission;
         refresh();
-        if (sub && sub.score > 0)
+        if (sub && sub.score !== 0)
           this.pop = {
             id: sub.playerId,
             amount: sub.score,
@@ -100,8 +100,10 @@ export class AcLeaderboard extends AcElement {
               ${p.eliminated ? html`<span class="lb-tag">OUT</span>` : nothing}
               <span class="lb-score">${fmtScore(p.score)}</span>
               ${this.pop && this.pop.id === p.id
-                ? html`<span class="lb-pop" @animationend=${() => (this.pop = null)}
-                    >+${fmtScore(this.pop.amount)}</span
+                ? html`<span
+                    class="lb-pop ${this.pop.amount < 0 ? "is-neg" : ""}"
+                    @animationend=${() => (this.pop = null)}
+                    >${this.pop.amount > 0 ? "+" : ""}${fmtScore(this.pop.amount)}</span
                   >`
                 : nothing}
             </li>

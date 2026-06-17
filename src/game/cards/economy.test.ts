@@ -34,7 +34,7 @@ describe("Chrono Syphon — banks an opponent's leftover seconds", () => {
     m.tick(5); // 5s of p1's clock burned
     const remaining = Math.floor(m.state.clockRemaining);
     m.submitWord("p1", "cat");
-    expect(m.state.players[1].score).toBe(remaining);
+    expect(m.state.players[1].score).toBe(remaining * 2); // +2 per whole second
   });
 });
 

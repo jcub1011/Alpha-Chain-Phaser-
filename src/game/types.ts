@@ -27,7 +27,7 @@ export const CardOp = {
 export type CardOp = (typeof CardOp)[keyof typeof CardOp];
 
 /**
- * Single source of truth for the 41 modifier-card ids. The string VALUES are
+ * Single source of truth for the 49 modifier-card ids. The string VALUES are
  * load-bearing and must stay byte-identical: they match the SVG symbol ids in
  * cards.svg (`<use href="#${id}">`) and travel over the wire as BayCard.id.
  * Reference cards by `CardId.X` instead of a bare literal so typos are caught
@@ -76,6 +76,15 @@ export const CardId = {
   BountyHunter: "BountyHunter",
   BaitAndSwitch: "BaitAndSwitch",
   TitaniumMirror: "TitaniumMirror",
+  // ── Rebalance additions (more viable archetypes vs. the speed build) ──
+  TheLexicon: "TheLexicon",
+  Stonemason: "Stonemason",
+  LoanShark: "LoanShark",
+  Numismatist: "Numismatist",
+  TheSniper: "TheSniper",
+  TheLeech: "TheLeech",
+  Insurance: "Insurance",
+  TheFlywheel: "TheFlywheel",
 } as const;
 export type CardId = (typeof CardId)[keyof typeof CardId];
 
@@ -183,6 +192,10 @@ export interface Submission {
   effects?: EngineEffectNotice[];
   /** Ids of players who siphoned points from this submission (tax/toll/chrono). */
   siphonedBy?: string[];
+  /** True when this "submission" is a shot-clock timeout: there is no real word,
+   *  `breakdown` is the penalty walk, and `score` is the (negative) net delta. The
+   *  theater shows a "TIMED OUT" heading and ramps the readout down. */
+  timedOut?: boolean;
 }
 
 /**
