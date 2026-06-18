@@ -120,11 +120,26 @@ export class AcWordEntry extends AcElement {
       this.input.focus();
       // On mobile the soft keyboard can cover the field on short viewports; pull it
       // into view so the player can always see what they're typing. Gated to
-      // hover-less (touch) pointers so it never yanks the desktop layout.
-      if (window.matchMedia("(hover: none)").matches) {
+      // hover-less (touch) pointers so it never yanks the desktop layout, and only
+      // when the field is actually off-screen — don't re-center a visible field.
+      if (window.matchMedia("(hover: none)").matches && !this.isInputFullyVisible()) {
         this.input.scrollIntoView({ block: "center" });
       }
     }
+  }
+
+  /** True when the input's bounding box sits entirely within the layout viewport. */
+  private isInputFullyVisible(): boolean {
+    if (!this.input) return false;
+    const rect = this.input.getBoundingClientRect();
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+    const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+    return (
+      rect.top >= 0 &&
+      rect.left >= 0 &&
+      rect.bottom <= viewportHeight &&
+      rect.right <= viewportWidth
+    );
   }
 
   private shake(): void {
