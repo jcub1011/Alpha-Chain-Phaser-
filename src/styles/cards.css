@@ -49,6 +49,7 @@ ac-card-fan {
 }
 .card-fan {
   position: relative;
+  isolation: isolate;
   height: calc(var(--gc-h) + 16px);
 }
 .card-fan ac-card,

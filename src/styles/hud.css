@@ -23,6 +23,9 @@
 
 /* ── Command rail ──────────────────────────────────────────────────────── */
 .command {
+  position: sticky;
+  top: 0;
+  z-index: 5;
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
@@ -677,11 +680,6 @@ ac-leaderboard[strip] .lb-pop {
   .lb-strip {
     display: block;
     order: -1;
-  }
-  .command {
-    position: sticky;
-    top: 0;
-    z-index: 5;
   }
   ac-engine-bay:not([mini]) {
     --gc-w: 108px;
