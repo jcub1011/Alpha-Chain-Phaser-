@@ -77,6 +77,25 @@ export class AcHud extends AcElement {
     this.personalBans = me ? m.personalBansFor(me.id) : [];
   }
 
+  /** Group personal bans by their source card so duplicate ban-rolling cards
+   *  (e.g. two Toll Booths) share one card pill rather than cluttering the rail
+   *  with a pill per glyph. Preserves first-appearance order; dedupes identical
+   *  letters within a group. */
+  private groupedBans(): { cardName: string; letters: string[] }[] {
+    const groups: { cardName: string; letters: string[] }[] = [];
+    const byName = new Map<string, string[]>();
+    for (const b of this.personalBans) {
+      let letters = byName.get(b.cardName);
+      if (!letters) {
+        letters = [];
+        byName.set(b.cardName, letters);
+        groups.push({ cardName: b.cardName, letters });
+      }
+      if (!letters.includes(b.letter)) letters.push(b.letter);
+    }
+    return groups;
+  }
+
   override render(): TemplateResult {
     const c = this.controller;
     const eraInterval = c.match.state.settings.eraInterval;
@@ -113,13 +132,22 @@ export class AcHud extends AcElement {
                       >${this.personalBans.length > 1 ? "your bans" : "your ban"}</span
                     >
                     <div class="cmd-personal-row">
-                      ${this.personalBans.map(
-                        (b) => html`<div
+                      ${this.groupedBans().map(
+                        (g) => html`<div
                           class="cmd-personal-item"
-                          title="Personal banned letter from ${b.cardName} — using it taxes your word to zero."
+                          title="Personal banned letter${g.letters.length > 1
+                            ? "s"
+                            : ""} from ${g.cardName} — using ${g.letters.length > 1
+                            ? "any of them"
+                            : "it"} taxes your word to zero."
                         >
-                          <span class="cmd-banned is-personal">${b.letter.toUpperCase()}</span>
-                          <span class="cmd-personal-card">${b.cardName}</span>
+                          <div class="cmd-personal-letters">
+                            ${g.letters.map(
+                              (l) =>
+                                html`<span class="cmd-banned is-personal">${l.toUpperCase()}</span>`,
+                            )}
+                          </div>
+                          <span class="cmd-personal-card">${g.cardName}</span>
                         </div>`,
                       )}
                     </div>`

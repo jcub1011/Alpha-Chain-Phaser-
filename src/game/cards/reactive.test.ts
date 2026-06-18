@@ -137,7 +137,7 @@ describe("The Toll Booth — no toll on an opponent's taxed word", () => {
   it("banks nothing when the opponent's letter-using word is itself taxed", () => {
     const m = make(2);
     m.state.players[0].bay = [{ id: "TollBooth" }];
-    m.services.cardBan.roll("p1", "TollBooth", "z");
+    m.services.cardBan.roll("p1", 0, "TollBooth", "z");
     m.state.bannedLetter = "z"; // p2's 'zebra' will be era-taxed
     m.state.players[0].score = 0; // p1 last/exempt (owner; irrelevant here)
     m.state.players[1].score = 100; // p2 not last → its 'z' word is taxed
@@ -151,7 +151,7 @@ describe("The Toll Booth — no toll on an opponent's taxed word", () => {
   it("banks 20% (and announces it) when an opponent's clean word uses the letter", () => {
     const m = make(2);
     m.state.players[0].bay = [{ id: "TollBooth" }];
-    m.services.cardBan.roll("p1", "TollBooth", "z");
+    m.services.cardBan.roll("p1", 0, "TollBooth", "z");
     m.state.players[0].score = 0;
     m.state.currentPlayerIndex = 1; // p2's turn, free choice
     m.state.requiredLetter = "";

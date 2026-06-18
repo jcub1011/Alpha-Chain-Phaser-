@@ -56,30 +56,33 @@ export class EraGuard {
   }
 }
 
-/** Personal banned letters rolled by Roulette Wheel / Toll Booth, per card,
- *  reset each era. A player may hold several (one per ban-rolling card). */
+/** Personal banned letters rolled by Roulette Wheel / Toll Booth, reset each era.
+ *  Keyed by the card's bay SLOT INDEX (not its card id) so duplicate ban-rolling
+ *  cards each keep their own letter — slot indices are stable within an era (the
+ *  bay only reorders at intermission, where bans reset). The card id rides along
+ *  as a value so the HUD can name each ban's source. */
 export class CardBanService {
-  private readonly bans = new Map<string, Map<string, string>>();
-  roll(playerId: string, cardId: string, letter: string): void {
-    const m = this.bans.get(playerId) ?? new Map<string, string>();
-    m.set(cardId, letter);
+  private readonly bans = new Map<string, Map<number, { cardId: string; letter: string }>>();
+  roll(playerId: string, instanceKey: number, cardId: string, letter: string): void {
+    const m = this.bans.get(playerId) ?? new Map<number, { cardId: string; letter: string }>();
+    m.set(instanceKey, { cardId, letter });
     this.bans.set(playerId, m);
   }
-  /** Letters personally banned for this player (deduped). */
+  /** Letters personally banned for this player (deduped) — drives the tax gate. */
   bansFor(playerId: string): string[] {
-    return [...new Set((this.bans.get(playerId) ?? new Map()).values())];
+    return [...new Set([...(this.bans.get(playerId)?.values() ?? [])].map((b) => b.letter))];
   }
   /** Each personal ban paired with the card id that rolled it (for display).
-   *  Not deduped by letter: if two cards roll the same letter, each keeps its
-   *  own entry, since their rules differ. */
+   *  Not deduped: each card instance contributes its own entry. */
   entriesFor(playerId: string): { cardId: string; letter: string }[] {
-    return [...(this.bans.get(playerId) ?? new Map<string, string>()).entries()].map(
-      ([cardId, letter]) => ({ cardId, letter }),
-    );
+    return [...(this.bans.get(playerId)?.values() ?? [])].map((b) => ({
+      cardId: b.cardId,
+      letter: b.letter,
+    }));
   }
-  /** The letter a specific card rolled (for chip display). */
-  letterFor(playerId: string, cardId: string): string | null {
-    return this.bans.get(playerId)?.get(cardId) ?? null;
+  /** The letter a specific card instance rolled (Toll Booth toll lookup). */
+  letterFor(playerId: string, instanceKey: number): string | null {
+    return this.bans.get(playerId)?.get(instanceKey)?.letter ?? null;
   }
   resetEra(playerId: string): void {
     this.bans.delete(playerId);

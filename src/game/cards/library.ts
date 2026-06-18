@@ -467,7 +467,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     onEraStart: (c) => {
       if (!c.player) return;
       const ban = c.services?.banLetters.rollPersonalBan();
-      if (ban) c.services?.cardBan.roll(c.player.id, CardId.RouletteWheel, ban);
+      if (ban) c.services?.cardBan.roll(c.player.id, c.cardIndex, CardId.RouletteWheel, ban);
     },
   },
 
@@ -484,14 +484,14 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     onEraStart: (c) => {
       if (!c.player) return;
       const ban = c.services?.banLetters.rollPersonalBan();
-      if (ban) c.services?.cardBan.roll(c.player.id, CardId.TollBooth, ban);
+      if (ban) c.services?.cardBan.roll(c.player.id, c.cardIndex, CardId.TollBooth, ban);
     },
     onOpponentWordResolved: (c) => {
       const res = c.resolution;
       if (!res || res.taxed || res.earnedScore <= 0) return;
       const owner = c.player;
       if (!owner || owner.id === res.submitterId) return;
-      const banned = c.services?.cardBan.letterFor(owner.id, CardId.TollBooth);
+      const banned = c.services?.cardBan.letterFor(owner.id, c.cardIndex);
       if (banned && res.word.includes(banned)) {
         const amount = clampScore(res.earnedScore * 0.2 * c.magnification());
         if (amount > 0) {
