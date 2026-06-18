@@ -29,7 +29,7 @@ import {
   type BayEvaluator,
 } from "./scoring";
 import { legalBanLetters, MIN_SHOT_CLOCK_SECONDS, MODIFIER_SLOTS_START, isVowel } from "./settings";
-import { CardId } from "./types";
+import { byScoreDesc, CardId } from "./types";
 import type {
   AlphaChainSettings,
   BayCard,
@@ -921,6 +921,11 @@ export class MatchController {
   private armPlayerForEra(p: PlayerState): void {
     this.services.fireEraStarted(p);
     fireBayHook(this.bayEval(p, "", false), "onEraStart");
+    // Stamp the rolled bans onto the player so they ride the snapshot to guests
+    // (the host itself reads the live CardBanService via personalBansFor). This is
+    // the only point bans change — reset in fireEraStarted, rolled in onEraStart —
+    // so each era overwrites cleanly with no stale carryover.
+    p.personalBans = this.personalBansFor(p.id);
   }
 
   // ── Bench / testing (Testing Bay only — never reached in real play) ──────────
@@ -945,9 +950,7 @@ export class MatchController {
   // ── End ────────────────────────────────────────────────────────────────────
   private gameOver(): void {
     this.state.endedAt = Date.now();
-    const standings = [...this.state.players].sort((a, b) =>
-      a.score > b.score ? -1 : a.score < b.score ? 1 : 0,
-    );
+    const standings = [...this.state.players].sort(byScoreDesc);
     this.state.winnerId = standings[0]?.id ?? null;
     this.setPhase("GameOver");
     this.events.emit("gameOver", { winnerId: this.state.winnerId, standings });
@@ -959,9 +962,7 @@ export class MatchController {
   /** Standings sorted high→low (for live leaderboard). Explicit comparison rather
    *  than subtraction so a stray NaN score can't scramble the order. */
   standings(): PlayerState[] {
-    return [...this.state.players].sort((a, b) =>
-      a.score > b.score ? -1 : a.score < b.score ? 1 : 0,
-    );
+    return [...this.state.players].sort(byScoreDesc);
   }
 
   /** Bay cards as resolved ModifierCard objects (UI convenience). */

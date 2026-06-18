@@ -150,6 +150,16 @@ export interface PlayerState {
    *  Optimize completes when every active human player is locked in (or the timer
    *  elapses). Reset on entry to optimize and cleared when it completes. */
   lockedIn?: boolean;
+  /** Personal banned letters in force this era (Toll Booth / Roulette Wheel), each
+   *  tagged with its source card. Host-stamped at era arm so it rides the snapshot
+   *  to guests; the host itself reads the live CardBanService. */
+  personalBans?: { letter: string; cardName: string }[];
+}
+
+/** Compare two players for a high→low leaderboard. Explicit comparison rather than
+ *  `b.score - a.score` so a stray NaN score can't scramble the order. */
+export function byScoreDesc(a: PlayerState, b: PlayerState): number {
+  return a.score > b.score ? -1 : a.score < b.score ? 1 : 0;
 }
 
 /** One entry in a per-card score trace. */

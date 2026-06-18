@@ -11,7 +11,7 @@ import { getCard } from "../game/cards/library";
 import { Emitter } from "../game/emitter";
 import type { MatchEvents } from "../game/match";
 import { DEFAULT_SETTINGS, legalBanLetters } from "../game/settings";
-import type { MatchState, PlayerState } from "../game/types";
+import { byScoreDesc, type MatchState, type PlayerState } from "../game/types";
 import type { MatchLike } from "./controller";
 import type { Intent, SnapshotMsg, WireEvent } from "./messages";
 import { deserializeState, type WireMatchState } from "./serialize";
@@ -125,9 +125,7 @@ export class NetMatch implements MatchLike {
 
   // ── Reads ──
   standings(): PlayerState[] {
-    return [...this._state.players].sort((a, b) =>
-      a.score > b.score ? -1 : a.score < b.score ? 1 : 0,
-    );
+    return [...this._state.players].sort(byScoreDesc);
   }
   computeLastPlaceId(): string {
     const active = this._state.players.filter((p) => !p.eliminated);
@@ -138,10 +136,10 @@ export class NetMatch implements MatchLike {
   isExempt(player: PlayerState): boolean {
     return this.computeLastPlaceId() === player.id;
   }
-  personalBansFor(_playerId: string): { letter: string; cardName: string }[] {
-    // Personal bans live in the host's CardBanService and aren't mirrored to
-    // guests yet; surface nothing rather than a stale guess.
-    return [];
+  personalBansFor(playerId: string): { letter: string; cardName: string }[] {
+    // The host stamps personalBans onto each player at era arm, so the mirrored
+    // snapshot carries them; read straight from the synced state.
+    return this._state.players.find((p) => p.id === playerId)?.personalBans ?? [];
   }
   hidesInput(playerId: string): boolean {
     const p = this._state.players.find((x) => x.id === playerId);

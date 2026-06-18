@@ -119,8 +119,11 @@ export class AcWordEntry extends AcElement {
       this.wantFocus = false;
       this.input.focus();
       // On mobile the soft keyboard can cover the field on short viewports; pull it
-      // into view so the player can always see what they're typing.
-      this.input.scrollIntoView({ block: "center" });
+      // into view so the player can always see what they're typing. Gated to
+      // hover-less (touch) pointers so it never yanks the desktop layout.
+      if (window.matchMedia("(hover: none)").matches) {
+        this.input.scrollIntoView({ block: "center" });
+      }
     }
   }
 
