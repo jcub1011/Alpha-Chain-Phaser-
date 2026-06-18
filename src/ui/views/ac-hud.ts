@@ -32,7 +32,7 @@ export class AcHud extends AcElement {
   @state() private currentName = "";
   @state() private isHumanTurn = false;
   @state() private humanExempt = false;
-  @state() private personalBans: string[] = [];
+  @state() private personalBans: { letter: string; cardName: string }[] = [];
   @state() private humanBay: BayCard[] = [];
   @state() private humanSlots = 3;
   @state() private opponents: PlayerState[] = [];
@@ -109,15 +109,20 @@ export class AcHud extends AcElement {
                   >`
                 : nothing}
               ${this.personalBans.length
-                ? html`<span
-                    class="cmd-personal"
-                    title="Your personal banned letter${this.personalBans.length > 1
-                      ? "s"
-                      : ""} — using ${this.personalBans.length > 1
-                      ? "any of these"
-                      : "this letter"} taxes your word to zero."
-                    >YOURS: ${this.personalBans.map((l) => l.toUpperCase()).join(" ")}</span
-                  >`
+                ? html`<span class="ac-eyebrow"
+                      >${this.personalBans.length > 1 ? "your bans" : "your ban"}</span
+                    >
+                    <div class="cmd-personal-row">
+                      ${this.personalBans.map(
+                        (b) => html`<div
+                          class="cmd-personal-item"
+                          title="Personal banned letter from ${b.cardName} — using it taxes your word to zero."
+                        >
+                          <span class="cmd-banned is-personal">${b.letter.toUpperCase()}</span>
+                          <span class="cmd-personal-card">${b.cardName}</span>
+                        </div>`,
+                      )}
+                    </div>`
                 : nothing}
             </div>
           </section>

@@ -71,6 +71,10 @@
   color: var(--ac-mint);
   text-shadow: var(--ac-glow-mint);
 }
+.cmd-banned.is-personal {
+  color: var(--ac-amber);
+  text-shadow: var(--ac-glow-amber);
+}
 .cmd-exempt {
   margin-top: 0.15rem;
   padding: 0.1em 0.5em;
@@ -84,10 +88,24 @@
   letter-spacing: 0.14em;
   animation: ac-pulse 1.8s ease-in-out infinite;
 }
-/* The human's personal banned letter(s) (Toll Booth / Roulette Wheel) — distinct
-   from the shared era ban above: smaller, amber, tagged YOURS. */
-.cmd-personal {
-  margin-top: 0.15rem;
+/* The human's personal banned letter(s) (Toll Booth / Roulette Wheel) — rendered
+   like the shared era ban above (big amber glyph) but each tagged with a pill
+   naming the card that rolled it. Wraps to handle several at once. */
+.cmd-personal-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-top: 0.1rem;
+}
+.cmd-personal-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+}
+.cmd-personal-card {
   padding: 0.1em 0.5em;
   border-radius: 99px;
   background: color-mix(in srgb, var(--ac-amber) 16%, transparent);
@@ -95,8 +113,10 @@
   color: var(--ac-amber);
   font-family: var(--font-mono);
   font-weight: 800;
-  font-size: 0.62rem;
-  letter-spacing: 0.1em;
+  font-size: 0.58rem;
+  letter-spacing: 0.06em;
+  text-align: center;
+  white-space: nowrap;
 }
 
 /* ── Shot clock ────────────────────────────────────────────────────────── */

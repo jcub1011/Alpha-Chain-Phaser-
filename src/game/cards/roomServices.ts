@@ -69,6 +69,14 @@ export class CardBanService {
   bansFor(playerId: string): string[] {
     return [...new Set((this.bans.get(playerId) ?? new Map()).values())];
   }
+  /** Each personal ban paired with the card id that rolled it (for display).
+   *  Not deduped by letter: if two cards roll the same letter, each keeps its
+   *  own entry, since their rules differ. */
+  entriesFor(playerId: string): { cardId: string; letter: string }[] {
+    return [...(this.bans.get(playerId) ?? new Map<string, string>()).entries()].map(
+      ([cardId, letter]) => ({ cardId, letter }),
+    );
+  }
   /** The letter a specific card rolled (for chip display). */
   letterFor(playerId: string, cardId: string): string | null {
     return this.bans.get(playerId)?.get(cardId) ?? null;

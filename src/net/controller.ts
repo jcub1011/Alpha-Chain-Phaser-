@@ -22,8 +22,9 @@ export interface MatchLike {
   standings(): PlayerState[];
   computeLastPlaceId(): string;
   isExempt(player: PlayerState): boolean;
-  /** Personal banned letters in force for a player this era (Toll Booth / Roulette Wheel). */
-  personalBansFor(playerId: string): string[];
+  /** Personal banned letters in force for a player this era (Toll Booth / Roulette
+   *  Wheel), each tagged with the card that rolled it. */
+  personalBansFor(playerId: string): { letter: string; cardName: string }[];
   /** Whether the player's own input should be masked while typing (Blindfold). */
   hidesInput(playerId: string): boolean;
   setPlayerBay(playerId: string, engineIds: string[], discardIds: string[]): void;
