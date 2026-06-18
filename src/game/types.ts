@@ -120,8 +120,14 @@ export type GamePhase = "Setup" | "Tutorial" | "Countdown" | "Round" | "Intermis
 
 /** A single card occupying a slot in a player's Engine Bay. */
 export interface BayCard {
-  /** Stable ModifierId (matches the SVG symbol id in cards.svg). */
+  /** Stable ModifierId (matches the SVG symbol id in cards.svg). NOT unique: a
+   *  bay may hold several copies of the same card (duplicates are dealt). */
   id: string;
+  /** Per-instance handle that IS unique within a bay, so the optimize UI and
+   *  setPlayerBay can tell duplicate cards apart. Assigned by the host when a
+   *  card enters a bay (deal / bench) and carried over the wire; absent only on
+   *  test-constructed bays that never reach the reorder flow. */
+  uid?: string;
   /** Set true the era a card was dealt, for the "NEW" highlight. */
   isNew?: boolean;
   /** True while the card sits in the optimize discard bin; the card is removed

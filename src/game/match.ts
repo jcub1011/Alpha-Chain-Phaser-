@@ -811,18 +811,32 @@ export class MatchController {
   }
 
   private dealCards(player: PlayerState, count: number): string[] {
-    const owned = new Set(player.bay.map((b) => b.id));
-    const pool = DEALABLE_CARD_IDS.filter((id) => !owned.has(id));
     const dealt: string[] = [];
-    for (let i = 0; i < count && pool.length > 0; i++) {
-      const idx = Math.floor(this.rng() * pool.length);
-      const [id] = pool.splice(idx, 1);
+    for (let i = 0; i < count; i++) {
+      // Duplicates are allowed — a player may stack the same card — so the pool
+      // is NOT filtered by what's already owned. The sole exception is the
+      // Titanium Mirror, capped at one per bay (its shield doesn't stack; GDD
+      // §3.7). Recompute each draw so a Mirror dealt mid-batch excludes itself.
+      const hasMirror = player.bay.some((b) => b.id === CardId.TitaniumMirror);
+      const pool = hasMirror
+        ? DEALABLE_CARD_IDS.filter((id) => id !== CardId.TitaniumMirror)
+        : DEALABLE_CARD_IDS;
+      if (pool.length === 0) break;
+      const id = pool[Math.floor(this.rng() * pool.length)];
       dealt.push(id);
-      player.bay.push({ id, isNew: true });
+      player.bay.push({ id, uid: this.nextBayUid(), isNew: true });
       // A fresh Titanium Mirror resets the player's shield to ×1.0 (GDD §3.7).
       if (id === CardId.TitaniumMirror) this.services.shield.grantFresh(player.id);
     }
     return dealt;
+  }
+
+  /** Monotonic source of per-instance bay-card handles (see BayCard.uid). Lives
+   *  only on the authoritative match; guests receive the resulting uids in the
+   *  synced state, so they never generate their own. */
+  private bayUidSeq = 0;
+  private nextBayUid(): string {
+    return `b${++this.bayUidSeq}`;
   }
 
   /** The current last-place active player (lowest score; first by turn order on ties). */
@@ -839,27 +853,31 @@ export class MatchController {
    *  (discarded: true); discarded cards are dropped once optimize completes
    *  (completeOptimize). The full set is kept until then so the player can freely
    *  move cards between the engine and the bin. */
-  setPlayerBay(playerId: string, engineIds: string[], discardIds: string[]): void {
+  setPlayerBay(playerId: string, engineUids: string[], discardUids: string[]): void {
     const p = this.state.players.find((x) => x.id === playerId);
     if (!p) return;
-    const owned = new Map(p.bay.map((b) => [b.id, b] as const));
+    // Key by the per-instance uid, not the card id, so duplicate cards stay
+    // distinct. Backfill a uid for any card missing one (test-built bays).
+    for (const b of p.bay) b.uid ??= this.nextBayUid();
+    const owned = new Map(p.bay.map((b) => [b.uid!, b] as const));
     const seen = new Set<string>();
-    const take = (id: string, discarded: boolean): BayCard | null => {
-      if (!owned.has(id) || seen.has(id)) return null;
-      seen.add(id);
-      return { ...owned.get(id)!, discarded };
+    const take = (uid: string, discarded: boolean): BayCard | null => {
+      const b = owned.get(uid);
+      if (!b || seen.has(uid)) return null;
+      seen.add(uid);
+      return { ...b, discarded };
     };
     const next: BayCard[] = [];
-    for (const id of engineIds) {
-      const b = take(id, false);
+    for (const uid of engineUids) {
+      const b = take(uid, false);
       if (b) next.push(b);
     }
-    for (const id of discardIds) {
-      const b = take(id, true);
+    for (const uid of discardUids) {
+      const b = take(uid, true);
       if (b) next.push(b);
     }
     // Defensive: keep any owned card the caller omitted (never silently lost).
-    for (const b of p.bay) if (!seen.has(b.id)) next.push({ ...b, discarded: false });
+    for (const b of p.bay) if (!seen.has(b.uid!)) next.push({ ...b, discarded: false });
     p.bay = next;
   }
 
@@ -908,7 +926,7 @@ export class MatchController {
   benchSetBay(playerId: string, orderedIds: string[]): void {
     const p = this.state.players.find((x) => x.id === playerId);
     if (!p) return;
-    p.bay = orderedIds.filter((id) => getCard(id)).map((id) => ({ id }));
+    p.bay = orderedIds.filter((id) => getCard(id)).map((id) => ({ id, uid: this.nextBayUid() }));
     // A fresh Titanium Mirror grants its ×1.0 shield (normally done on deal).
     for (const b of p.bay)
       if (b.id === CardId.TitaniumMirror) this.services.shield.grantFresh(p.id);

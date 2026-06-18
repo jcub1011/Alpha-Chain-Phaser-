@@ -27,7 +27,9 @@ export interface MatchLike {
   personalBansFor(playerId: string): { letter: string; cardName: string }[];
   /** Whether the player's own input should be masked while typing (Blindfold). */
   hidesInput(playerId: string): boolean;
-  setPlayerBay(playerId: string, engineIds: string[], discardIds: string[]): void;
+  /** Commit a player's bay split. The arrays hold per-card uids (BayCard.uid),
+   *  not card ids, so duplicate cards stay distinct. */
+  setPlayerBay(playerId: string, engineUids: string[], discardUids: string[]): void;
   applySniperBanAndAdvance(letter: string): void;
   randomBanLetter(): string;
   /** Skip the on-screen tutorial dwell (host / solo). */

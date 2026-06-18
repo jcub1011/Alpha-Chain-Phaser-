@@ -25,9 +25,13 @@ const log = createLogger("input");
 export class AcIntermission extends AcElement {
   @property({ attribute: false }) controller!: GameController;
 
+  // The two zone lists hold per-card uids (not card ids), so duplicate cards stay
+  // distinct while dragging/reordering. `cardIdByUid` resolves a uid back to its
+  // card id for the <ac-card> face.
   @state() private engine: string[] = [];
   @state() private discard: string[] = [];
   @state() private slots = 3;
+  private cardIdByUid = new Map<string, string>();
 
   private dragId: string | null = null;
   private dragFrom: "engine" | "discard" | null = null;
@@ -40,7 +44,13 @@ export class AcIntermission extends AcElement {
       // player commits, the stored `discarded` flag drives the split.
       const engine: string[] = [];
       const discard: string[] = [];
-      for (const b of me?.bay ?? []) ((b.discarded ?? !!b.isNew) ? discard : engine).push(b.id);
+      const byUid = new Map<string, string>();
+      for (const b of me?.bay ?? []) {
+        const uid = b.uid ?? b.id;
+        byUid.set(uid, b.id);
+        ((b.discarded ?? !!b.isNew) ? discard : engine).push(uid);
+      }
+      this.cardIdByUid = byUid;
       this.engine = engine;
       this.discard = discard;
       this.slots = me?.slots ?? 3;
@@ -177,7 +187,7 @@ export class AcIntermission extends AcElement {
         @drop=${(e: DragEvent) => this.onDropCard(e, id, "engine")}
       >
         <span class="im-slot-no">${i + 1}</span>
-        <ac-card .cardId=${id}></ac-card>
+        <ac-card .cardId=${this.cardIdByUid.get(id) ?? id}></ac-card>
         <div class="im-actions">
           <button @click=${() => this.move(id, -1)} aria-label="move left">◄</button>
           <button @click=${() => this.move(id, 1)} aria-label="move right">►</button>
@@ -197,7 +207,7 @@ export class AcIntermission extends AcElement {
         @dragover=${(e: DragEvent) => e.preventDefault()}
         @drop=${(e: DragEvent) => this.onDropCard(e, id, "discard")}
       >
-        <ac-card .cardId=${id}></ac-card>
+        <ac-card .cardId=${this.cardIdByUid.get(id) ?? id}></ac-card>
         <div class="im-actions">
           <button
             class="im-restore"

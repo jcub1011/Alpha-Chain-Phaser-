@@ -111,7 +111,12 @@ describe("MatchController", () => {
 
     const p1 = m2.state.players[0];
     p1.slots = 2;
-    p1.bay = [{ id: "A" }, { id: "B" }, { id: "C" }];
+    // uid === id here so the setPlayerBay calls (which key by uid) read cleanly.
+    p1.bay = [
+      { id: "A", uid: "A" },
+      { id: "B", uid: "B" },
+      { id: "C", uid: "C" },
+    ];
     // Engine [C, A] in that order, B parked in the discard bin. The full set is
     // retained (with flags) so the player can keep rearranging during optimize.
     m2.setPlayerBay("p1", ["C", "A"], ["B"]);
@@ -133,7 +138,11 @@ describe("MatchController", () => {
 
     const p1 = m2.state.players[0];
     p1.slots = 3;
-    p1.bay = [{ id: "A" }, { id: "B" }, { id: "C" }];
+    p1.bay = [
+      { id: "A", uid: "A" },
+      { id: "B", uid: "B" },
+      { id: "C", uid: "C" },
+    ];
     m2.setPlayerBay("p1", ["B"], ["A", "C"]); // keep only one, discard the rest
     m2.skipOptimize();
     expect(p1.bay.map((b) => b.id)).toEqual(["B"]);
