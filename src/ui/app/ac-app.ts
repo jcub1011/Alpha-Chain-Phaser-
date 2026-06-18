@@ -112,6 +112,9 @@ export class AcApp extends AcElement {
 
   private onNetStart = (e: CustomEvent<AlphaChainSettings>): void => {
     log.info("host requested match start");
+    // Keep ac-app's settings in sync (mirrors solo onStart) so the multiplayer
+    // lobby re-seeds with the host's choices when they return after a match.
+    this.settings = e.detail;
     this.net?.startMatch(e.detail);
   };
 
