@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { MatchController, type PlayerSeed } from "./match";
 import { DEFAULT_SETTINGS } from "./settings";
 import type { AlphaChainSettings } from "./types";
+import { DEALABLE_CARD_IDS, getCard } from "./cards/library";
+import { DEFAULT_MAX_INSTANCES } from "./cards/card";
 
 const WORDS = new Set(["cat", "tiger", "rabbit", "tractor", "rat", "torch", "house", "elephant"]);
 const seeds: PlayerSeed[] = [
@@ -314,5 +316,81 @@ describe("Zero-Point Tax + Tax Collector", () => {
     expect(r.accepted).toBe(true);
     expect(r.submission!.taxed).toBe(true);
     expect(r.submission!.score).toBe(0);
+  });
+});
+
+describe("per-card deal caps", () => {
+  // Drives a 2-player match through the end of era 1 into the optimize sub-phase,
+  // by which point dealCards has dealt `modifiersDealtPerEra` cards to each player.
+  // The human p1 is NOT auto-trimmed during optimize, so its bay holds the full
+  // dealt set for inspection. rng 0.5 keeps p1 the era opener (matches the other
+  // intermission tests) and makes the deal deterministic.
+  const driveToIntermission = (modifiersDealtPerEra: number) => {
+    const m = new MatchController(
+      seeds,
+      {
+        ...DEFAULT_SETTINGS,
+        enableTutorials: false,
+        preRoundCountdownSeconds: 1,
+        eraInterval: 1,
+        eraCount: 3,
+        modifiersDealtPerEra,
+      },
+      { isWord: (w) => WORDS.has(w), rng: () => 0.5 },
+    );
+    m.start();
+    m.tick(1);
+    m.submitWord("p1", "cat");
+    m.submitWord("p2", "tiger"); // wraps era 1 → intermission
+    m.tick(2.001); // burn the era-end settle window into optimize
+    expect(m.state.phase).toBe("Intermission");
+    expect(m.state.intermissionPhase).toBe("optimize");
+    return m;
+  };
+
+  const capOf = (id: string) => getCard(id)?.maxInstances ?? DEFAULT_MAX_INSTANCES;
+  const countIn = (bay: { id: string }[], id: string) => bay.filter((b) => b.id === id).length;
+
+  it("declares the configured deviating caps; everything else defaults", () => {
+    expect(capOf("TitaniumMirror")).toBe(1);
+    expect(capOf("Sesquipedalian")).toBe(1);
+    expect(capOf("AnchorChain")).toBe(1);
+    expect(capOf("HyperDrive")).toBe(1);
+    expect(capOf("Blindfold")).toBe(1);
+    expect(capOf("RouletteWheel")).toBe(1);
+    expect(capOf("TollBooth")).toBe(1);
+    expect(capOf("Redline")).toBe(2);
+    expect(capOf("PanicButton")).toBe(2);
+    expect(capOf("Speedracer")).toBe(2);
+    // No override → falls back to the shared default.
+    expect(getCard("TheAnchor")?.maxInstances).toBeUndefined();
+    expect(capOf("TheAnchor")).toBe(DEFAULT_MAX_INSTANCES);
+  });
+
+  it("caps a repeatedly-drawn card at its maxInstances", () => {
+    const p1 = driveToIntermission(10).state.players[0];
+    expect(p1.bay.length).toBe(10);
+    // With a fixed rng the dealer keeps indexing the same pool slot until that
+    // card hits its cap, then moves on — so the first-picked card lands on EXACTLY
+    // its cap (without the cap it would have swallowed all 10 deals).
+    const firstPicked = DEALABLE_CARD_IDS[Math.floor(0.5 * DEALABLE_CARD_IDS.length)];
+    expect(countIn(p1.bay, firstPicked)).toBe(capOf(firstPicked));
+    for (const id of DEALABLE_CARD_IDS) {
+      expect(countIn(p1.bay, id)).toBeLessThanOrEqual(capOf(id));
+    }
+  });
+
+  it("stops dealing early once every card is capped (no over-deal, no hang)", () => {
+    // Ask for far more than the pool can supply; dealing must stop at the summed
+    // caps rather than loop. This is the all-cards-exhausted safety path.
+    const p1 = driveToIntermission(1000).state.players[0];
+    const expectedTotal = DEALABLE_CARD_IDS.reduce((sum, id) => sum + capOf(id), 0);
+    expect(p1.bay.length).toBe(expectedTotal);
+    // Exhaustion means every card sits at exactly its cap — including the unique
+    // Titanium Mirror at 1 (the old hard-coded one-per-bay rule, now data-driven).
+    for (const id of DEALABLE_CARD_IDS) {
+      expect(countIn(p1.bay, id)).toBe(capOf(id));
+    }
+    expect(countIn(p1.bay, "TitaniumMirror")).toBe(1);
   });
 });

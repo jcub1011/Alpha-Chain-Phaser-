@@ -108,6 +108,10 @@ export interface ModifierCard {
   clock?: ClockModifier;
   /** Reactive economy tag handled by match logic, not the scoring fold. */
   reactive?: "tax-collector";
+  /** Maximum copies of this card a single player may hold in their bay. When the
+   *  dealer would exceed this for a player, the card is dropped from that draw.
+   *  Defaults to {@link DEFAULT_MAX_INSTANCES} (3) when unset. */
+  maxInstances?: number;
 
   /**
    * Fold this card into the running score. FX cards return the value unchanged
@@ -171,6 +175,9 @@ export interface ModifierCard {
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Default cap on copies of a single card per player when `maxInstances` is unset. */
+export const DEFAULT_MAX_INSTANCES = 3;
 
 const RARE_START = new Set(["q", "x", "z", "j"]);
 

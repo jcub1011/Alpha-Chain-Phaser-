@@ -179,6 +179,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
 
   Sesquipedalian: {
     name: "Sesquipedalian",
+    maxInstances: 1,
     color: "#b06bff",
     family: CardFamily.Letter,
     op: CardOp.Multiplicative,
@@ -251,6 +252,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
 
   Redline: {
     name: "Redline",
+    maxInstances: 2,
     color: "#ff4d4d",
     family: CardFamily.Clock,
     op: CardOp.Multiplicative,
@@ -263,6 +265,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
 
   PanicButton: {
     name: "Panic Button",
+    maxInstances: 2,
     color: "#ff2e6e",
     family: CardFamily.Clock,
     op: CardOp.Multiplicative,
@@ -277,6 +280,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
 
   AnchorChain: {
     name: "The Anchor Chain",
+    maxInstances: 1,
     color: "#5b7fb0",
     family: CardFamily.Clock,
     op: CardOp.Multiplicative,
@@ -293,6 +297,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
 
   HyperDrive: {
     name: "Hyper-Drive",
+    maxInstances: 1,
     color: "#46d0ff",
     family: CardFamily.Clock,
     op: CardOp.Multiplicative,
@@ -320,6 +325,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
 
   Speedracer: {
     name: "Speedracer",
+    maxInstances: 2,
     color: "#ffd23f",
     family: CardFamily.Clock,
     op: CardOp.Multiplicative,
@@ -337,6 +343,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
 
   Blindfold: {
     name: "The Blindfold",
+    maxInstances: 1,
     color: "#8a7dff",
     family: CardFamily.Clock,
     op: CardOp.Multiplicative,
@@ -456,6 +463,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
   // ── §3.4 Personal-ban economy ──
   RouletteWheel: {
     name: "The Roulette Wheel",
+    maxInstances: 1,
     color: "#e0457b",
     family: CardFamily.Economy,
     op: CardOp.Multiplicative,
@@ -473,6 +481,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
 
   TollBooth: {
     name: "The Toll Booth",
+    maxInstances: 1,
     color: "#caa24a",
     family: CardFamily.Economy,
     op: CardOp.Fx,
@@ -613,6 +622,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
   // ── §3.7 The Shield ──
   TitaniumMirror: {
     name: "The Titanium Mirror",
+    maxInstances: 1,
     color: "#9fd3e0",
     family: CardFamily.Utility,
     op: CardOp.Multiplicative,

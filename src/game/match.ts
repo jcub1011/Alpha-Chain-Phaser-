@@ -10,6 +10,7 @@
  */
 
 import { DEALABLE_CARD_IDS, getCard } from "./cards/library";
+import { DEFAULT_MAX_INSTANCES } from "./cards/card";
 import type { ModifierCard } from "./cards/card";
 import { BanLetterService, EngineEffects, RoomServices } from "./cards/roomServices";
 import { createLogger } from "../log";
@@ -813,14 +814,17 @@ export class MatchController {
   private dealCards(player: PlayerState, count: number): string[] {
     const dealt: string[] = [];
     for (let i = 0; i < count; i++) {
-      // Duplicates are allowed — a player may stack the same card — so the pool
-      // is NOT filtered by what's already owned. The sole exception is the
-      // Titanium Mirror, capped at one per bay (its shield doesn't stack; GDD
-      // §3.7). Recompute each draw so a Mirror dealt mid-batch excludes itself.
-      const hasMirror = player.bay.some((b) => b.id === CardId.TitaniumMirror);
-      const pool = hasMirror
-        ? DEALABLE_CARD_IDS.filter((id) => id !== CardId.TitaniumMirror)
-        : DEALABLE_CARD_IDS;
+      // A card is dealable to this player only while they hold fewer than its
+      // maxInstances (default 3). Recompute each draw so a cap reached mid-batch
+      // (e.g. a card dealt twice this era) drops it from later draws too. This
+      // subsumes the old one-per-bay Titanium Mirror rule (now maxInstances: 1;
+      // its shield doesn't stack, GDD §3.7). If every dealable card is capped for
+      // this player the pool is empty and dealing stops early below.
+      const pool = DEALABLE_CARD_IDS.filter((id) => {
+        const max = getCard(id)?.maxInstances ?? DEFAULT_MAX_INSTANCES;
+        const owned = player.bay.filter((b) => b.id === id).length;
+        return owned < max;
+      });
       if (pool.length === 0) break;
       const id = pool[Math.floor(this.rng() * pool.length)];
       dealt.push(id);
