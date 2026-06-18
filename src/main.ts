@@ -39,7 +39,9 @@ async function boot(): Promise<void> {
     fetch("assets/cards.svg"),
   ]);
   if (!wordsRes.ok || !spriteRes.ok) {
-    log.error(`asset fetch failed (words=${wordsRes.status}, sprite=${spriteRes.status})`);
+    // Fail fast: reading .text() off a non-OK response would feed the error-page HTML
+    // into the dictionary / sprite as silent garbage. Throw so boot().catch surfaces it.
+    throw new Error(`asset fetch failed (words=${wordsRes.status}, sprite=${spriteRes.status})`);
   }
   const [wordsText, spriteText] = await Promise.all([wordsRes.text(), spriteRes.text()]);
 
@@ -89,7 +91,20 @@ async function boot(): Promise<void> {
   }
 }
 
+/** Surface a fatal boot failure in the first-paint loading screen rather than
+ *  leaving the user on a blank / forever-shimmering screen. */
+function showBootFailure(): void {
+  const bootEl = document.getElementById("boot");
+  if (!bootEl) return;
+  bootEl.classList.remove("is-done"); // keep it visible
+  const sub = bootEl.querySelector(".boot-sub");
+  if (sub) sub.textContent = "couldn't load — please reload";
+  // Drop the indeterminate shimmer so it no longer implies progress is happening.
+  bootEl.querySelector(".boot-bar")?.remove();
+}
+
 installGlobalErrorHandlers();
 boot().catch((err: unknown) => {
   log.critical(`boot failed: ${String(err)}`, err);
+  showBootFailure();
 });

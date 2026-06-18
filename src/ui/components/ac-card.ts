@@ -46,12 +46,20 @@ export class AcCard extends AcElement {
   @property({ type: Boolean, reflect: true }) mini = false;
   /** Whether the card is showing its back (rules text). Full-size only. */
   @property({ type: Boolean, reflect: true }) flipped = false;
+  /** Mini cards: tapped-open state that reveals the description tooltip (and any
+   *  fan chip) on touch, where :hover never fires. */
+  @property({ type: Boolean, reflect: true }) revealed = false;
   /** Visual states used by the score replay. */
   @property({ type: Boolean, reflect: true }) dimmed = false;
   @property({ type: Boolean, reflect: true }) triggered = false;
 
   private onFlip = (): void => {
-    if (this.mini) return;
+    // Mini cards don't flip; tapping toggles the description tooltip (and fan chip)
+    // so opponent-bay details are reachable on touch, where :hover never fires.
+    if (this.mini) {
+      this.revealed = !this.revealed;
+      return;
+    }
     this.flipped = !this.flipped;
   };
 

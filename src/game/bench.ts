@@ -102,7 +102,9 @@ export class BenchScenario {
 
   setScore(playerId: string, score: number): void {
     const p = this.players.find((x) => x.id === playerId);
-    if (p) p.score = Math.max(0, Math.floor(score) || 0);
+    // Allow negative scores so the bench can exercise the negative-scoring feature;
+    // `|| 0` only guards against a NaN input.
+    if (p) p.score = Math.floor(score) || 0;
   }
 
   setBay(playerId: string, ids: string[]): void {

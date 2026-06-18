@@ -210,7 +210,7 @@ ac-word-history {
   display: flex;
   flex-direction: column;
   gap: 0.45rem;
-  max-height: calc(100vh - 8rem);
+  max-height: calc(100dvh - 8rem);
   overflow-y: auto;
 }
 .go-wh-row {

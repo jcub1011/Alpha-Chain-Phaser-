@@ -125,7 +125,9 @@ export class NetMatch implements MatchLike {
 
   // ── Reads ──
   standings(): PlayerState[] {
-    return [...this._state.players].sort((a, b) => b.score - a.score);
+    return [...this._state.players].sort((a, b) =>
+      a.score > b.score ? -1 : a.score < b.score ? 1 : 0,
+    );
   }
   computeLastPlaceId(): string {
     const active = this._state.players.filter((p) => !p.eliminated);
@@ -136,7 +138,7 @@ export class NetMatch implements MatchLike {
   isExempt(player: PlayerState): boolean {
     return this.computeLastPlaceId() === player.id;
   }
-  personalBansFor(_playerId: string): string[] {
+  personalBansFor(_playerId: string): { letter: string; cardName: string }[] {
     // Personal bans live in the host's CardBanService and aren't mirrored to
     // guests yet; surface nothing rather than a stale guess.
     return [];

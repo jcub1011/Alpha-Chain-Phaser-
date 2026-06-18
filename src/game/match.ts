@@ -455,9 +455,13 @@ export class MatchController {
     return this.computeLastPlaceId() === player.id;
   }
 
-  /** Personal banned letters in force for a player this era (Toll Booth / Roulette Wheel). */
-  personalBansFor(playerId: string): string[] {
-    return this.services.cardBan.bansFor(playerId);
+  /** Personal banned letters in force for a player this era (Toll Booth / Roulette
+   *  Wheel), each tagged with the card that rolled it. */
+  personalBansFor(playerId: string): { letter: string; cardName: string }[] {
+    return this.services.cardBan.entriesFor(playerId).map((b) => ({
+      letter: b.letter,
+      cardName: getCard(b.cardId)?.name ?? "",
+    }));
   }
 
   submitWord(playerId: string, rawWord: string): SubmitResult {
@@ -919,7 +923,9 @@ export class MatchController {
   // ── End ────────────────────────────────────────────────────────────────────
   private gameOver(): void {
     this.state.endedAt = Date.now();
-    const standings = [...this.state.players].sort((a, b) => b.score - a.score);
+    const standings = [...this.state.players].sort((a, b) =>
+      a.score > b.score ? -1 : a.score < b.score ? 1 : 0,
+    );
     this.state.winnerId = standings[0]?.id ?? null;
     this.setPhase("GameOver");
     this.events.emit("gameOver", { winnerId: this.state.winnerId, standings });
@@ -928,9 +934,12 @@ export class MatchController {
   /** Utility for the UI: is `letter` a vowel (for picker grouping). */
   static isVowel = isVowel;
 
-  /** Standings sorted high→low (for live leaderboard). */
+  /** Standings sorted high→low (for live leaderboard). Explicit comparison rather
+   *  than subtraction so a stray NaN score can't scramble the order. */
   standings(): PlayerState[] {
-    return [...this.state.players].sort((a, b) => b.score - a.score);
+    return [...this.state.players].sort((a, b) =>
+      a.score > b.score ? -1 : a.score < b.score ? 1 : 0,
+    );
   }
 
   /** Bay cards as resolved ModifierCard objects (UI convenience). */

@@ -43,7 +43,7 @@ export class LocalController implements GameController {
 
     this.match.events.on("turnArmed", ({ playerIndex }) => {
       const p = this.match.state.players[playerIndex];
-      if (p.isBot) this.scheduleBotTurn(p.id);
+      if (p?.isBot) this.scheduleBotTurn(p.id);
       else {
         this.botCountdown = null;
         this.botPlayerId = null;

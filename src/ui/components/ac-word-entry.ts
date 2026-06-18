@@ -118,6 +118,9 @@ export class AcWordEntry extends AcElement {
     if (this.wantFocus && this.input) {
       this.wantFocus = false;
       this.input.focus();
+      // On mobile the soft keyboard can cover the field on short viewports; pull it
+      // into view so the player can always see what they're typing.
+      this.input.scrollIntoView({ block: "center" });
     }
   }
 
@@ -190,7 +193,11 @@ export class AcWordEntry extends AcElement {
           autocapitalize="off"
           autocorrect="off"
           spellcheck="false"
-          placeholder=${this.live ? "type a word…" : this.onDeck ? "get ready — you're up next…" : "waiting…"}
+          placeholder=${this.live
+            ? "type a word…"
+            : this.onDeck
+              ? "get ready — you're up next…"
+              : "waiting…"}
           ?disabled=${!this.live}
           @keydown=${this.onKey}
           @input=${this.onInput}

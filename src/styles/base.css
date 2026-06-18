@@ -85,6 +85,12 @@ ac-app {
   position: fixed;
   inset: 0;
   display: block;
+  /* Keep content clear of notches / rounded corners / the home indicator on devices
+     that report safe-area insets. These resolve to 0 elsewhere, so desktop is
+     unaffected; box-sizing keeps the padded box within the fixed inset:0 bounds. */
+  box-sizing: border-box;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
 }
 
 /* Screen-shake, driven by fx.shake() toggling .is-shaking + --shake. */

@@ -525,7 +525,7 @@
   flex-direction: column;
   gap: 0.5rem;
   padding: var(--sp-3);
-  max-height: calc(100vh - 2 * var(--sp-4));
+  max-height: calc(100dvh - 2 * var(--sp-4));
   overflow-y: auto;
 }
 .lb {

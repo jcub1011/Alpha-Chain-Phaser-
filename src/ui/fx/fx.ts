@@ -48,6 +48,24 @@ class Fx {
     });
     this.game.events.once(Phaser.Core.Events.READY, () => {
       this.scene = this.game!.scene.getScene("Fx") as FxScene;
+      this.installContextLossGuards();
+    });
+  }
+
+  /** Guard against WebGL context loss. On mobile Safari and backgrounded tabs the
+   *  GPU can drop the canvas context; without intervention the FX particles then
+   *  silently never render again. We preventDefault on loss so the browser attempts
+   *  a restore, log both transitions, and re-resolve the scene once it's back. */
+  private installContextLossGuards(): void {
+    const canvas = this.game?.canvas;
+    if (!canvas) return;
+    canvas.addEventListener("webglcontextlost", (e: Event) => {
+      e.preventDefault(); // ask the browser to attempt a restore
+      log.warn("WebGL context lost; FX particles paused until restore");
+    });
+    canvas.addEventListener("webglcontextrestored", () => {
+      log.warn("WebGL context restored; resuming FX");
+      this.scene = this.game?.scene.getScene("Fx") as FxScene | undefined;
     });
   }
 

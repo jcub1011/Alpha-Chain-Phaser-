@@ -71,8 +71,16 @@ function popChip(
     ],
     { duration, easing: "cubic-bezier(0.2,0.8,0.2,1)" },
   );
-  const cleanup = (): void => el.remove();
+  let backstop = 0;
+  const cleanup = (): void => {
+    window.clearTimeout(backstop);
+    el.remove();
+  };
   anim.onfinish = cleanup;
+  // Backstop: if onfinish never fires (animation interrupted, node detached early),
+  // force-remove shortly after the run would have ended so a chip can never linger
+  // over the next play. el.remove() is idempotent, so racing onfinish is harmless.
+  backstop = window.setTimeout(cleanup, duration + 400);
   // The walk is cancelable; if it aborts mid-flight, cancel the animation and pull
   // the chip rather than leaving it floating over the next submission's replay.
   signal.addEventListener(

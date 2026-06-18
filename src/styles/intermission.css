@@ -2,7 +2,7 @@
 
 .im-card {
   width: min(94vw, 760px);
-  max-height: 88vh;
+  max-height: 88dvh;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -113,17 +113,19 @@
   display: flex;
   gap: 0.3rem;
 }
+/* Mobile-first: comfortable ~44px touch targets. The compact desktop sizing is
+   restored in the (min-width: 60rem) block below. */
 .im-actions button {
   appearance: none;
-  min-width: 1.8rem;
-  height: 1.6rem;
-  padding: 0 0.35rem;
+  min-width: 2.75rem;
+  height: 2.75rem;
+  padding: 0 0.5rem;
   border: 1px solid var(--ac-border-strong);
   border-radius: var(--r-xs);
   background: rgba(255, 255, 255, 0.04);
   color: var(--ac-ink);
   cursor: pointer;
-  font-size: 0.7rem;
+  font-size: 0.9rem;
 }
 .im-actions button:hover {
   border-color: var(--ac-cyan);
@@ -140,6 +142,15 @@
   opacity: 0.4;
   cursor: not-allowed;
 }
+/* Compact action buttons on pointer-capable / wider screens. */
+@media (min-width: 60rem) {
+  .im-actions button {
+    min-width: 1.8rem;
+    height: 1.6rem;
+    padding: 0 0.35rem;
+    font-size: 0.7rem;
+  }
+}
 .im-empty {
   color: var(--ac-ink-faint);
   font-size: 0.85rem;
@@ -153,8 +164,14 @@
 /* Sniper-ban grid. */
 .ban-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(2.6rem, 1fr));
+  /* ~48px minimum keys on mobile; tighter on wider screens (below). */
+  grid-template-columns: repeat(auto-fit, minmax(3rem, 1fr));
   gap: 0.5rem;
+}
+@media (min-width: 60rem) {
+  .ban-grid {
+    grid-template-columns: repeat(auto-fit, minmax(2.6rem, 1fr));
+  }
 }
 .ban-key {
   appearance: none;
