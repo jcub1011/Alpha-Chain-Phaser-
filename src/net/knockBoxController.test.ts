@@ -24,6 +24,8 @@ class FakePeer implements NetPeer {
       this.listeners[e] = (this.listeners[e] ?? []).filter((f) => f !== fn);
     },
   };
+  /** Every logPlay(metadata) call this peer received, in order — for game-log assertions. */
+  logCalls: Record<string, unknown>[] = [];
   constructor(
     private readonly hub: Hub,
     public playerId: string,
@@ -61,6 +63,9 @@ class FakePeer implements NetPeer {
   }
   setLobbyOpen(): void {
     /* no-op locally */
+  }
+  logPlay(metadata: Record<string, unknown>): void {
+    this.logCalls.push(metadata);
   }
 }
 
@@ -464,5 +469,102 @@ describe("KnockBoxController — absolute-expiry timer anchoring", () => {
     }
     expect(seen).toContain(4);
     expect(seen).toContain(1);
+  });
+});
+
+describe("KnockBoxController — game log (Play Log)", () => {
+  // Spin up a host+guest session ready to start matches. The match settings used below
+  // make a single full round (host + guest each play once) end the only era → game over.
+  const session = () => {
+    const hub = new Hub();
+    const hostPeer = new FakePeer(hub, "host", true, roster);
+    const guestPeer = new FakePeer(hub, "guest", false, roster);
+    const hostCtl = new KnockBoxController(hostPeer, dict, orderPreservingRng);
+    const guestCtl = new KnockBoxController(guestPeer, dict, orderPreservingRng);
+    hostPeer.fireReady();
+    guestPeer.fireReady();
+    return { hostPeer, guestPeer, hostCtl, guestCtl };
+  };
+
+  // Drive one full match to GameOver: host plays "cat" (→ t), guest plays "tiger" (→ r),
+  // which wraps the round and ends the single era; the settle dwell then triggers gameOver.
+  const playToGameOver = (hostCtl: KnockBoxController, guestCtl: KnockBoxController): void => {
+    hostCtl.startMatch({
+      ...DEFAULT_SETTINGS,
+      enableTutorials: false,
+      preRoundCountdownSeconds: 1,
+      eraInterval: 1, // a single full round ends the era
+      eraCount: 1, // ...and that one era ends the match
+    });
+    hostCtl.tick(1); // burn the countdown → Round
+    hostCtl.submitWord("cat"); // host (player 0): "" → t, scores 3
+    guestCtl.submitWord("tiger"); // guest (player 1): t → r, scores 5 — wraps the round
+    hostCtl.tick(10); // burn the era-end settle dwell → gameOver
+  };
+
+  it("writes one accurate Play Log entry per player when the match ends", () => {
+    const { hostPeer, guestPeer, hostCtl, guestCtl } = session();
+    playToGameOver(hostCtl, guestCtl);
+
+    expect(hostCtl.match.state.phase).toBe("GameOver");
+    expect(guestCtl.match.state.phase).toBe("GameOver");
+
+    // Exactly one entry was logged on each client — not zero, not a per-frame duplicate.
+    expect(hostPeer.logCalls).toHaveLength(1);
+    expect(guestPeer.logCalls).toHaveLength(1);
+
+    // The guest (score 5) beat the host (score 3): each client logs ITS OWN result from
+    // the shared standings, with the winner's name as a shared field.
+    expect(hostPeer.logCalls[0]).toEqual({
+      placement: 2,
+      playerCount: 2,
+      result: "loss",
+      score: 3,
+      eras: 1,
+      words: 2,
+      winner: "Guest",
+    });
+    expect(guestPeer.logCalls[0]).toEqual({
+      placement: 1,
+      playerCount: 2,
+      result: "win",
+      score: 5,
+      eras: 1,
+      words: 2,
+      winner: "Guest",
+    });
+  });
+
+  it("does not re-log on snapshots after the match has ended", () => {
+    const { hostPeer, hostCtl, guestCtl } = session();
+    playToGameOver(hostCtl, guestCtl);
+    expect(hostPeer.logCalls).toHaveLength(1);
+
+    // Further frames (which still flush snapshots, but carry no new gameOver event) must
+    // not append duplicate entries for the same finished game.
+    hostCtl.tick(1);
+    hostCtl.tick(1);
+    expect(hostPeer.logCalls).toHaveLength(1);
+  });
+
+  it("logs a fresh entry for a new match in the same session without polluting it with the old game's data", () => {
+    const { hostPeer, hostCtl, guestCtl } = session();
+
+    // Game 1 → game over → one entry.
+    playToGameOver(hostCtl, guestCtl);
+    expect(hostPeer.logCalls).toHaveLength(1);
+
+    // The host "Return To Lobby" → start another match reusing the SAME controllers/session
+    // (no destroy, no rejoin). A fresh MatchController runs to its own game over.
+    playToGameOver(hostCtl, guestCtl);
+
+    // A second, DISTINCT entry was appended — the first was not overwritten.
+    expect(hostPeer.logCalls).toHaveLength(2);
+
+    // The new entry carries only the new game's data: scores (3, not 6), word count (2,
+    // not 4), and placement are computed fresh — old-game state did not accumulate into it.
+    expect(hostPeer.logCalls[1]).toEqual(hostPeer.logCalls[0]);
+    expect(hostPeer.logCalls[1].score).toBe(3);
+    expect(hostPeer.logCalls[1].words).toBe(2);
   });
 });

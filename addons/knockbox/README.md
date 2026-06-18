@@ -103,7 +103,15 @@ After `ready` fires, `net.playerId`, `net.players`, and `net.isHost` are populat
 | `sendTo(playerId, payload)` | Send to one specific player. |
 | `setLobbyOpen(open)` | **Host only.** Open/close the lobby to new joins. |
 | `kickPlayer(playerId)` | **Host only.** Remove a player (barred from rejoining). |
+| `log.info(msg)` (also `trace`/`debug`/`warn`/`error`/`critical`) | Log a line to the **server** (not the player's console). Best-effort; see below. |
 | `setLaunchParams(ticket, endpoint?)` | Supply credentials manually for local/editor testing. |
+
+`this.knockbox.log.*` ships a diagnostic to the server's log (each method maps to a
+`Microsoft.Extensions.Logging.LogLevel`: `info`→`Information`, `warn`→`Warning`, …). The server
+stamps your game/lobby/player context and logs under the `KnockBox.GameLog` category at `Information`
+and above by default. It's best-effort — a line sent before attach is queued with your other frames,
+but logging must never carry game state. Locally (`knockbox-local.js`) `log.*` prints to the dev
+console for parity.
 
 Sends issued before the socket is ready are queued and flushed once authenticated, so an eager send
 in your `ready` handler is never dropped. Transient drops reconnect automatically with capped
@@ -156,6 +164,32 @@ guests need no model in this mode.
 const authority = new KBAuthority(this.knockbox, model, { perRecipient: true });
 authority.events.on('state-changed', () => this.render(authority.currentView));
 ```
+
+### Pitfalls with replicated state (read if you have timers, motion, or per-player state)
+
+A guest's model / `currentView` is a **render copy of the host's truth** — it's overwritten by the
+next snapshot. The mistakes below pass single-player and **never throw**, so they only surface live.
+The platform guide's **§5a** covers them in full; the essentials for this client:
+
+- **`state-changed` is not per-frame.** It fires on snapshots/deltas/roster changes, never every
+  frame. Anything continuous (a countdown, a tween, interpolated positions) must be advanced by your
+  own update loop on **every** client — the host included. Carry the inputs to that loop in the
+  snapshot (e.g. a `deadlineMs`), not a per-frame number.
+- **Don't mutate the replicated copy to drive behavior.** Change shared state by sending an intent the
+  host resolves; never react to a local event (a click, a tween end, your displayed timer hitting
+  zero) and expect it to beat the host's own update over the wire.
+- **Key per-player state by id.** One player's "ready"/"locked in"/vote isn't the group's.
+
+**Dev guard (per-recipient mode).** In per-recipient mode the helper owns the rendered object —
+`currentView` — and `KBAuthority` deep-freezes it so an accidental write **throws** instead of
+silently diverging. It's **on by default under `knockbox-local.js`** (local dev) and **off in
+production**; override with `{ devChecks: true | false }` (e.g. `false` for a high-frequency game that
+shouldn't freeze large per-frame state even while testing). Scope is deliberately narrow — it freezes
+only `currentView`, never the host's model; in broadcast mode the game owns its own state object, so
+the convention and the TypeScript view type below carry the message there instead.
+
+If your game uses TypeScript, parameterize the view type — `new KBAuthority<MyView>(net, model)` — and
+`currentView` is typed `DeepReadonly<MyView>`, turning a stray write into a compile error.
 
 ## Local testing (no server)
 

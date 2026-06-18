@@ -16,7 +16,7 @@
 
 import type { Dictionary } from "../game/dictionary";
 import { MatchController, type MatchEvents, type PlayerSeed } from "../game/match";
-import type { AlphaChainSettings, SubmitResult } from "../game/types";
+import type { AlphaChainSettings, PlayerState, SubmitResult } from "../game/types";
 import { createLogger, type KnockBoxLogger } from "../log";
 import type { GameController, MatchLike } from "./controller";
 import type { Intent, NetMessage, SnapshotMsg, WireEvent } from "./messages";
@@ -38,6 +38,9 @@ export interface NetPeer {
   sendToAll(payload: unknown): void;
   sendTo(playerId: string, payload: unknown): void;
   setLobbyOpen?(open: boolean): void;
+  /** Records a Play Log entry on the player's KnockBox home page. Present on the real
+   *  WebSocket plugin only; absent on the local-tab peer (calls are a no-op there). */
+  logPlay?(metadata: Record<string, unknown>): void;
   /** Ships diagnostic lines to the server log (the addon's console-like logger). */
   log?: KnockBoxLogger;
 }
@@ -104,6 +107,11 @@ export class KnockBoxController implements GameController {
   ) {
     this.mirror = new NetMatch((intent) => this.dispatch(intent), this.now);
     this.match = this.mirror;
+    // gameOver is a replayed event (see REPLAYED_EVENTS), so the mirror fires it exactly
+    // once per match on every client — and again for each new match the host starts after
+    // "Return To Lobby". That gives one Play Log entry per finished game, never overwriting
+    // the prior one, with no dedupe/reset bookkeeping needed.
+    this.mirror.events.on("gameOver", this.onGameOver);
     peer.events.on("ready", this.onReady);
     peer.events.on("message", this.onMessage);
     peer.events.on("player-joined", this.onRoster);
@@ -172,8 +180,33 @@ export class KnockBoxController implements GameController {
     this.peer.events.off("player-left", this.onLeft as never);
     this.peer.events.off("closed", this.onClosed as never);
     this.peer.events.off("resumed", this.onResumed as never);
+    this.mirror.events.off("gameOver", this.onGameOver);
     this.pending = [];
   }
+
+  /** Write a Play Log entry for THIS player when a match finishes. Runs on every client
+   *  (host + guests) from the mirror's replayed gameOver, each logging its own result from
+   *  the shared standings. logPlay appends a new home-page entry (the real peer only). */
+  private onGameOver = (e: { winnerId: string | null; standings: PlayerState[] }): void => {
+    const me = this.peer.playerId;
+    if (!me) return;
+    const idx = e.standings.findIndex((p) => p.id === me);
+    if (idx < 0) return; // a host who isn't playing (hostPlays=false) has no result to log
+    const self = e.standings[idx];
+    const winner = e.standings.find((p) => p.id === e.winnerId);
+    // logPlay coerces values to strings and drops nullish ones, so numbers are fine here.
+    this.peer.logPlay?.({
+      // Standard keys → rendered as chips on the home page.
+      placement: idx + 1,
+      playerCount: e.standings.length,
+      result: e.winnerId === me ? "win" : "loss",
+      score: self.score,
+      // Extras → shown in the entry's details table.
+      eras: this.mirror.state.settings.eraCount,
+      words: this.mirror.state.history.length,
+      winner: winner?.name ?? "",
+    });
+  };
 
   // ── Transport ────────────────────────────────────────────────────────────────
   private dispatch(action: Intent): void {
