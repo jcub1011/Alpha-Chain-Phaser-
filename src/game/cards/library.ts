@@ -373,7 +373,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     op: CardOp.Fx,
     magnitudeText: "FX",
     description:
-      "For every card placed to the left: Y, W and H count as vowels as well as consonants.",
+      "For every card placed to its right: Y, W and H count as vowels as well as consonants.",
     fold: (v) => fx(v),
     isVowel: (ch) => "aeiouywh".includes(ch),
   },
