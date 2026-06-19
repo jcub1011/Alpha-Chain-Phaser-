@@ -17,7 +17,11 @@ interface LocalPeer {
   start(): void;
   destroy(): void;
 }
-type LocalPeerCtor = new (opts: { mode: "process"; channel: string; playerId: string }) => LocalPeer;
+type LocalPeerCtor = new (opts: {
+  mode: "process";
+  channel: string;
+  playerId: string;
+}) => LocalPeer;
 
 interface Authority {
   currentView: Record<string, unknown> | null;

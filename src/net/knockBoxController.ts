@@ -410,7 +410,8 @@ export class KnockBoxController implements GameController {
       hostId: this.peer.playerId ?? "",
       clock: {
         sentAt,
-        clockExpiresAt: s.phase === "Round" && s.clockRemaining > 0 ? expiry(s.clockRemaining) : null,
+        clockExpiresAt:
+          s.phase === "Round" && s.clockRemaining > 0 ? expiry(s.clockRemaining) : null,
         subTimerExpiresAt:
           (s.phase === "Tutorial" || s.phase === "Intermission") && s.subTimerRemaining > 0
             ? expiry(s.subTimerRemaining)

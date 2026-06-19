@@ -376,20 +376,20 @@
     opacity 0.2s;
 }
 .we.is-live {
-  border-color: var(--ac-cyan);
-  box-shadow: var(--ac-glow-cyan);
+  border-color: var(--ac-amber);
+  box-shadow: var(--ac-glow-amber);
 }
 .we.is-ondeck {
-  border-color: var(--ac-amber);
+  border-color: var(--ac-cyan);
   animation: ac-ondeck-glow 1.6s ease-in-out infinite;
 }
 @keyframes ac-ondeck-glow {
   0%,
   100% {
-    box-shadow: 0 0 10px rgba(255, 176, 32, 0.3);
+    box-shadow: 0 0 10px rgba(0, 229, 255, 0.3);
   }
   50% {
-    box-shadow: 0 0 24px rgba(255, 176, 32, 0.6);
+    box-shadow: 0 0 24px rgba(0, 229, 255, 0.6);
   }
 }
 .we.is-reject {
@@ -682,8 +682,8 @@ ac-leaderboard[strip] .lb-pop {
     order: -1;
   }
   ac-engine-bay:not([mini]) {
-    --gc-w: 108px;
-    --gc-h: 152px;
+    --gc-w: 124px;
+    --gc-h: 176px;
   }
 }
 @media (max-width: 30rem) {
@@ -700,7 +700,7 @@ ac-leaderboard[strip] .lb-pop {
     font-size: 1.3rem;
   }
   ac-engine-bay:not([mini]) {
-    --gc-w: 92px;
-    --gc-h: 132px;
+    --gc-w: 104px;
+    --gc-h: 148px;
   }
 }

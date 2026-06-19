@@ -238,9 +238,9 @@ export class AcIntermission extends AcElement {
           <span class="ac-eyebrow">intermission · optimize</span>
           <h2 class="im-title">Tune your engine</h2>
           <p class="im-sub">
-            Cards score left → right. Drag within the engine to reorder, or use ◄ ►. New cards
-            start in the discard bin — drag one into the engine to slot it in (the rest slide
-            over), or press ＋. Anything left in the bin is discarded when the timer ends.
+            Cards score left → right. Drag within the engine to reorder, or use ◄ ►. New cards start
+            in the discard bin — drag one into the engine to slot it in (the rest slide over), or
+            press ＋. Anything left in the bin is discarded when the timer ends.
           </p>
           <span class="im-timer">${this.seconds}s</span>
         </header>

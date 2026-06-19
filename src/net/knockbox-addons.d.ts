@@ -18,7 +18,11 @@ declare module "*/knockbox-plugin.js" {
 }
 
 declare module "*/knockbox-local.js" {
-  const api: { KnockBoxLocalPlugin?: unknown; KnockBoxLocalPeer?: unknown; _resetLocalHubs?: unknown };
+  const api: {
+    KnockBoxLocalPlugin?: unknown;
+    KnockBoxLocalPeer?: unknown;
+    _resetLocalHubs?: unknown;
+  };
   export default api;
 }
 

@@ -133,22 +133,25 @@ export class AcHud extends AcElement {
                     >
                     <div class="cmd-personal-row">
                       ${this.groupedBans().map(
-                        (g) => html`<div
-                          class="cmd-personal-item"
-                          title="Personal banned letter${g.letters.length > 1
-                            ? "s"
-                            : ""} from ${g.cardName} — using ${g.letters.length > 1
-                            ? "any of them"
-                            : "it"} taxes your word to zero."
-                        >
-                          <div class="cmd-personal-letters">
-                            ${g.letters.map(
-                              (l) =>
-                                html`<span class="cmd-banned is-personal">${l.toUpperCase()}</span>`,
-                            )}
-                          </div>
-                          <span class="cmd-personal-card">${g.cardName}</span>
-                        </div>`,
+                        (g) =>
+                          html`<div
+                            class="cmd-personal-item"
+                            title="Personal banned letter${g.letters.length > 1
+                              ? "s"
+                              : ""} from ${g.cardName} — using ${g.letters.length > 1
+                              ? "any of them"
+                              : "it"} taxes your word to zero."
+                          >
+                            <div class="cmd-personal-letters">
+                              ${g.letters.map(
+                                (l) =>
+                                  html`<span class="cmd-banned is-personal"
+                                    >${l.toUpperCase()}</span
+                                  >`,
+                              )}
+                            </div>
+                            <span class="cmd-personal-card">${g.cardName}</span>
+                          </div>`,
                       )}
                     </div>`
                 : nothing}

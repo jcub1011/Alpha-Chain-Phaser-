@@ -45,7 +45,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     family: CardFamily.Letter,
     op: CardOp.Additive,
     magnitudeText: "+1/ltr",
-    description: "+1 per letter; +2 per letter when the word is 7+ letters.",
+    description: "+1/letter; +2/letter at 7+ letters.",
     fold: (v, c) => {
       const L = c.resolveWordLength();
       return add(v, L * (L >= 7 ? 2 : 1) * c.magnification());
@@ -58,7 +58,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     family: CardFamily.Letter,
     op: CardOp.Additive,
     magnitudeText: "+2/con",
-    description: "+2 per consonant; +3 per consonant when the word is 7+ letters.",
+    description: "+2/consonant; +3/consonant at 7+ letters.",
     fold: (v, c) =>
       add(
         v,
@@ -72,7 +72,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     family: CardFamily.Letter,
     op: CardOp.Additive,
     magnitudeText: "+3/vwl",
-    description: "+3 per vowel; +4 per vowel when the word is 7+ letters.",
+    description: "+3/vowel; +4/vowel at 7+ letters.",
     fold: (v, c) =>
       add(v, c.vowelIndices().length * (c.resolveWordLength() >= 7 ? 4 : 3) * c.magnification()),
   },
@@ -83,7 +83,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     family: CardFamily.Letter,
     op: CardOp.Additive,
     magnitudeText: "+3/ltr",
-    description: "+3 per letter, but only when the word is 6+ letters.",
+    description: "+3/letter, only at 6+ letters.",
     fold: (v, c) => {
       const L = c.resolveWordLength();
       return L >= 6 ? add(v, 3 * L * c.magnification()) : skip(v);
@@ -97,7 +97,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     op: CardOp.Additive,
     magnitudeText: "+3/ltr",
     description:
-      "+3 per letter when your word is at least as long as the previous word (always pays on the first word).",
+      "+3/letter when your word is at least as long as the previous word; always pays on the first word.",
     fold: (v, c) => {
       const L = c.resolveWordLength();
       return c.prevWordLength === 0 || L >= c.prevWordLength
@@ -112,7 +112,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     family: CardFamily.Letter,
     op: CardOp.Additive,
     magnitudeText: "+2/uniq",
-    description: "+2 per distinct letter.",
+    description: "+2/distinct letter.",
     fold: (v, c) => add(v, 2 * c.distinctLetters * c.magnification()),
   },
 
@@ -122,7 +122,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     family: CardFamily.Economy,
     op: CardOp.Additive,
     magnitudeText: "+10/rare",
-    description: "+10 for every rare letter in the word (Q, X, Z, J).",
+    description: "+10 per rare letter (Q, X, Z, J).",
     fold: (v, c) => {
       const rareCount = [...c.word].filter((ch) => RARE_START.has(ch)).length;
       return rareCount > 0 ? add(v, 10 * rareCount * c.magnification()) : skip(v);
@@ -135,7 +135,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     family: CardFamily.Economy,
     op: CardOp.Additive,
     magnitudeText: "+3/right",
-    description: "+3 for every card placed to the right of this one in the bay.",
+    description: "+3 per card to its right in the bay.",
     fold: (v, c) => (c.cardsToRight > 0 ? add(v, 3 * c.cardsToRight * c.magnification()) : skip(v)),
   },
 
@@ -145,8 +145,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     family: CardFamily.Economy,
     op: CardOp.Additive,
     magnitudeText: "+2/word",
-    description:
-      "+2 for every previously submitted word (any player's) that contains your word's starting letter.",
+    description: "+2 per previously submitted word (any player's) containing your starting letter.",
     fold: (v, c) => {
       const n = c.history.filter((h) => h.word.includes(c.startsWith)).length;
       return n > 0 ? add(v, 2 * n * c.magnification()) : skip(v);
@@ -208,7 +207,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     family: CardFamily.Letter,
     op: CardOp.Multiplicative,
     magnitudeText: "×1.5",
-    description: "×1.5 when the word ends in a vowel (and hands an easy letter on).",
+    description: "×1.5 when the word ends in a vowel.",
     fold: (v, c) =>
       c.vowelIndices().includes(c.length - 1) ? mul(v, 1.5 * c.magnification()) : skip(v),
   },
@@ -219,7 +218,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     family: CardFamily.Letter,
     op: CardOp.Multiplicative,
     magnitudeText: "×1.2+",
-    description: "×1.2 at 7 letters, +0.1 per letter beyond (8 → ×1.3, 9 → ×1.4, …).",
+    description: "×1.2 at 7 letters, +0.1 per letter beyond.",
     fold: (v, c) => {
       const L = c.resolveWordLength();
       return L > 6 ? mul(v, round1(1.1 + 0.1 * (L - 6)) * c.magnification()) : skip(v);
@@ -232,7 +231,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     family: CardFamily.Economy,
     op: CardOp.Multiplicative,
     magnitudeText: "×2",
-    description: "×2 when the word has a repeat letter (the 'ff' in coffin), else ×0.5.",
+    description: "×2 with a repeat letter, else ×0.5.",
     fold: (v, c) =>
       c.hasRepeatLetter ? mul(v, 2 * c.magnification()) : mul(v, 0.5 * c.magnification()),
   },
@@ -286,7 +285,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     op: CardOp.Multiplicative,
     magnitudeText: "×0.5/ltr",
     description:
-      "Locks your shot clock to a strict, unmodifiable 5s for the era. In exchange: ×(0.5 per letter). Time out and lose 10 points.",
+      "Locks your shot clock at an unmodifiable 5s for the era. ×0.5 per letter. Time out and lose 10 points.",
     // ×(0.5 per letter), Forgery-aware (resolveWordLength) — Forgery's whole point
     // is to inflate length scoring. Diverges from the C# AnchorChainCard, which
     // used the real length (an oversight in that port).
@@ -303,7 +302,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     op: CardOp.Multiplicative,
     magnitudeText: "×1.5",
     description:
-      "Caps your shot clock at 5s. When your word is longer than 6 letters, ×1.5 to your score so far. Time out and lose 8 points.",
+      "Caps your shot clock at 5s. ×1.5 when the word is 7+ letters. Time out and lose 8 points.",
     // Per-word ×1.5 folded at its own slot (boosts the seed + everything to its left).
     fold: (v, c) => (c.resolveWordLength() > 6 ? mul(v, 1.5 * c.magnification()) : skip(v)),
     timeoutFold: (v, c) => add(v, -8 * c.magnification()),
@@ -317,7 +316,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     op: CardOp.Fx,
     magnitudeText: "FX",
     description:
-      "Lengthens your shot clock by 20%, but words shorter than 6 letters are illegal — they take the Zero-Point Tax.",
+      "+20% shot clock. Words shorter than 6 letters are illegal and take the Zero-Point Tax.",
     clock: { pctDelta: 0.2 },
     fold: (v) => fx(v),
     illegalWord: (c) => c.resolveWordLength() < 6,
@@ -331,7 +330,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     op: CardOp.Multiplicative,
     magnitudeText: "≤×(ltr/2)",
     description:
-      "When your word is longer than 6 letters, ×(1 ÷ [remaining ÷ total clock]), capped at half your letter count. Time out and lose 10 points.",
+      "When the word is 7+ letters, ×(total clock ÷ remaining), capped at half your letter count. Time out and lose 10 points.",
     fold: (v, c) => {
       if (c.resolveWordLength() <= 6) return skip(v);
       const cap = Math.floor(c.resolveWordLength() / 2);
@@ -349,7 +348,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     op: CardOp.Multiplicative,
     magnitudeText: "×1.8",
     description:
-      "×1.8 always; hides your own input box while you type (no peeking at typos). Time out and lose 8 points.",
+      "×1.8 always; hides your own input box while you type. Time out and lose 8 points.",
     fold: (v, c) => mul(v, 1.8 * c.magnification()),
     timeoutFold: (v, c) => add(v, -8 * c.magnification()),
     hidesInput: () => true,
@@ -362,7 +361,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     family: CardFamily.Clock,
     op: CardOp.Fx,
     magnitudeText: "FX",
-    description: "+40% shot clock (buys time for long words; neutralises Redline / Vault).",
+    description: "+40% shot clock.",
     clock: { pctDelta: 0.4 },
     fold: (v) => fx(v),
   },
@@ -374,7 +373,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     op: CardOp.Fx,
     magnitudeText: "FX",
     description:
-      "For every card placed after it, the letters Y, W and H count as a vowel in addition to their consonant role.",
+      "For every card placed to the left: Y, W and H count as vowels as well as consonants.",
     fold: (v) => fx(v),
     isVowel: (ch) => "aeiouywh".includes(ch),
   },
@@ -385,8 +384,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     family: CardFamily.Utility,
     op: CardOp.Fx,
     magnitudeText: "FX",
-    description:
-      "Every length-scoring card placed after it perceives your word as having double the letters.",
+    description: "Every length-scoring card after it sees your word as twice as long.",
     fold: (v) => fx(v),
     // Perceived = double the count seen BEFORE this card (so glasses stack), then
     // scaled by a glass magnifying Forgery itself (×2 → ×3), rounded half-up.
@@ -399,8 +397,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     family: CardFamily.Utility,
     op: CardOp.Fx,
     magnitudeText: "FX",
-    description:
-      "Magnifies the card immediately to its right by ×1.5. Glasses in series compound (two → ×2.25).",
+    description: "Magnifies the card to its right by ×1.5. Glasses in series compound.",
     fold: (v) => fx(v),
     submitMagnifications: (reg, i) => reg.push(i + 1, 1.5 * reg.getMagnification(i)),
   },
@@ -412,7 +409,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     op: CardOp.Fx,
     magnitudeText: "FX",
     description:
-      "Once per era, one of your words may ignore the Succession rule — it need not begin with the previous word's last letter.",
+      "Once per era, one word may ignore the Succession rule — it need not begin with the previous word's last letter.",
     fold: (v) => fx(v),
     roomServices: ["wildcardGuard"],
     // Available until consumed this era; the match consumes it only on an accepted bypass.
@@ -427,7 +424,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     op: CardOp.Fx,
     magnitudeText: "FX",
     description:
-      "If your word is a typo or fails validation, your shot clock resets to full — once per era — instead of ticking away.",
+      "If your word is a typo or fails validation, your shot clock resets to full, once per era.",
     fold: (v) => fx(v),
     roomServices: ["prismGuard"],
     onValidationFailed: (c) => {
@@ -441,8 +438,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     family: CardFamily.Economy,
     op: CardOp.Fx,
     magnitudeText: "FX",
-    description:
-      "When YOUR word is hit by the Zero-Point Tax, no opponent's Tax Collector collects a thing.",
+    description: "When your word is taxed, no opponent's Tax Collector collects from you.",
     fold: (v) => fx(v),
     ownTaxScore: () => 0,
     suppressesSiphon: true,
@@ -455,7 +451,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     op: CardOp.Fx,
     magnitudeText: "FX",
     description:
-      "When your word is taxed, score its first letter through your engine as a clean submission and add that on top.",
+      "When your word is taxed, score its first letter through your engine and add that on top.",
     fold: (v) => fx(v),
     writeOffBonus: (c, score) => (c.word.length > 0 ? score(c.word[0]) : 0),
   },
@@ -469,7 +465,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     op: CardOp.Multiplicative,
     magnitudeText: "×1.75",
     description:
-      "Each era, rolls you a personal banned letter (Zero-Point Tax if you use it). Reward: ×1.75 on every clean word.",
+      "Each era, rolls you a personal banned letter (Zero-Point Tax if you use it). ×1.75 on every clean word.",
     fold: (v, c) => mul(v, 1.75 * c.magnification()),
     roomServices: ["cardBan"],
     onEraStart: (c) => {
@@ -487,7 +483,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     op: CardOp.Fx,
     magnitudeText: "FX",
     description:
-      "Each era, rolls you a personal banned letter. Toll: bank 20% of any opponent's score when their word uses that letter.",
+      "Each era, rolls you a personal banned letter. Bank 20% of any opponent's score when their word uses that letter.",
     fold: (v) => fx(v),
     roomServices: ["cardBan"],
     onEraStart: (c) => {
@@ -518,7 +514,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     family: CardFamily.Economy,
     op: CardOp.Fx,
     magnitudeText: "FX",
-    description: "When an opponent eats the Zero-Point Tax, collect 60% of the would-be score.",
+    description: "When an opponent is taxed, collect 60% of their would-be score.",
     fold: (v) => fx(v),
     onOpponentWordResolved: (c) => {
       const res = c.resolution;
@@ -538,8 +534,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     family: CardFamily.Economy,
     op: CardOp.Fx,
     magnitudeText: "FX",
-    description:
-      "Banks +2 for every whole second left on an opponent's shot clock when they submit.",
+    description: "+2 per whole second left on an opponent's shot clock when they submit.",
     fold: (v) => fx(v),
     onOpponentWordResolved: (c) => {
       const res = c.resolution;
@@ -583,8 +578,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     family: CardFamily.Economy,
     op: CardOp.Fx,
     magnitudeText: "FX",
-    description:
-      "Marks the round leader — if they play a word shorter than 6 letters, they lose 15 points.",
+    description: "If the round leader plays a word shorter than 6 letters, they lose 15 points.",
     fold: (v) => fx(v),
     onOpponentWordResolved: (c) => {
       const res = c.resolution;
@@ -605,7 +599,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     op: CardOp.Fx,
     magnitudeText: "FX",
     description:
-      "When your word is taxed, curse the next player with that exact banned letter for their next turn.",
+      "When your word is taxed, curse the next player with that banned letter for their next turn.",
     fold: (v) => fx(v),
     roomServices: ["hijackBan"],
     onTurnEnded: (c) => {
@@ -628,7 +622,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     op: CardOp.Multiplicative,
     magnitudeText: "shield",
     description:
-      "Passive ×1.0. Blocks and reflects incoming attacks back at their source — but loses 0.1× per block, across eras.",
+      "×1.0. Reflects incoming attacks back at their source, losing 0.1× per block across eras.",
     roomServices: ["shield"],
     fold: (v, c) => {
       const m = c.player && c.services ? c.services.shield.getMultiplier(c.player.id) : 1;
@@ -648,8 +642,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     family: CardFamily.Letter,
     op: CardOp.Multiplicative,
     magnitudeText: "×2 @9+",
-    description:
-      "×2 when your word is 9+ letters — and +15% shot clock, so you have time to type it.",
+    description: "×2 when your word is 9+ letters; +15% shot clock.",
     clock: { pctDelta: 0.15 },
     fold: (v, c) => (c.resolveWordLength() >= 9 ? mul(v, 2 * c.magnification()) : skip(v)),
   },
@@ -660,7 +653,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     family: CardFamily.Letter,
     op: CardOp.Additive,
     magnitudeText: "+4/ltr",
-    description: "+4 per letter, but only when the word is 8+ letters.",
+    description: "+4/letter, only at 8+ letters.",
     fold: (v, c) => {
       const L = c.resolveWordLength();
       return L >= 8 ? add(v, 4 * L * c.magnification()) : skip(v);
@@ -674,7 +667,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     family: CardFamily.Economy,
     op: CardOp.Fx,
     magnitudeText: "FX",
-    description: "Bank 15% of any opponent's word that scores more than 30 points.",
+    description: "Bank 15% of any opponent's word scoring more than 30 points.",
     fold: (v) => fx(v),
     onOpponentWordResolved: (c) => {
       const res = c.resolution;
@@ -695,7 +688,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     family: CardFamily.Economy,
     op: CardOp.Additive,
     magnitudeText: "+6/rare",
-    description: "+6 for every rare letter (Q, X, Z, J) and +2 per distinct letter.",
+    description: "+6 per rare letter (Q, X, Z, J) and +2 per distinct letter.",
     fold: (v, c) => {
       const rare = [...c.word].filter((ch) => RARE_START.has(ch)).length;
       return add(v, (6 * rare + 2 * c.distinctLetters) * c.magnification());
@@ -710,7 +703,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     op: CardOp.Fx,
     magnitudeText: "FX",
     description:
-      "At turn end, shave 20% off the next shot clock of the single highest-scoring opponent above you.",
+      "At turn end, shave 20% off the next shot clock of the highest-scoring opponent above you.",
     fold: (v) => fx(v),
     roomServices: ["timePenalty"],
     onTurnEnded: (c) => {
@@ -756,8 +749,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     family: CardFamily.Utility,
     op: CardOp.Fx,
     magnitudeText: "FX",
-    description:
-      "Scores nothing on a normal word — but if you time out, regain 10 points (offsetting the base timeout penalty).",
+    description: "Scores nothing on a normal word. If you time out, regain 10 points.",
     fold: (v) => fx(v),
     // The proof that the timeout pass is general, not debuff-only: a REWARD fold.
     timeoutFold: (v) => add(v, 10),

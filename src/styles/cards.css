@@ -2,8 +2,8 @@
    set on the bay, so the same markup renders large (your bay) or small (foes). */
 
 ac-engine-bay {
-  --gc-w: 132px;
-  --gc-h: 188px;
+  --gc-w: 152px;
+  --gc-h: 216px;
   display: flex;
   flex-direction: column;
   gap: var(--sp-2);
@@ -252,8 +252,8 @@ ac-card[flipped] .gc-flip {
   flex: 1 1 auto;
   display: -webkit-box;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 5;
-  line-clamp: 5;
+  -webkit-line-clamp: 7;
+  line-clamp: 7;
   overflow: hidden;
   font-size: calc(var(--gc-w) * 0.0997);
   line-height: 1.3;
