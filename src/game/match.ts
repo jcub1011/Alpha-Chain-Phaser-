@@ -633,10 +633,12 @@ export class MatchController {
     // Auto-submit the live player's drafted word if it stands on its own; a blank or
     // illegal draft falls through to a real timeout below.
     const draft = this.currentDraft.trim();
-    if (draft && this.submitWord(this.current.id, draft).accepted) return;
-    // A banned-letter draft can trip the Prism during that auto-submit, refilling the
-    // clock — if so, the turn simply continues rather than timing out.
-    if (this.state.clockRemaining > 0) return;
+    if (draft) {
+      const res = this.submitWord(this.current.id, draft);
+      // Accepted on its own, or a banned-letter draft tripped the Prism during the
+      // auto-submit (clock refilled): either way the turn continues, no timeout.
+      if (res.accepted || res.reason === "prism-saved") return;
+    }
     // Otherwise, give a held Prism its timeout save: refill to full instead of the penalty.
     if (this.tryClockRescue(this.current)) return;
     const s = this.state;

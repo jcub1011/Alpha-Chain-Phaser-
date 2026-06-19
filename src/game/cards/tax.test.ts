@@ -141,6 +141,26 @@ describe("The Prism — clock refill on timeout / banned letter (once per era)",
     expect(m.state.players[0].score).toBeLessThan(0);
   });
 
+  it("does not spend the charge when a valid drafted word auto-submits on a timeout", () => {
+    const m = make(one);
+    m.state.players[0].bay = [{ id: "Prism" }];
+    m.setDraft("p1", "cat"); // a valid word is queued when the clock runs out
+    m.tick(m.state.clockTotal + 1); // clock expires → auto-submits "cat", not a timeout
+
+    expect(m.state.usedWords.has("cat")).toBe(true); // the word actually played
+    const scored = m.state.players[0].score;
+    expect(scored).toBeGreaterThan(0); // scored normally, no penalty
+
+    // The Prism was untouched — it still rescues a real (draft-less) timeout this era.
+    m.tick(m.state.clockTotal + 1);
+    expect(m.state.clockRemaining).toBe(m.state.clockTotal); // refilled
+    expect(m.state.players[0].score).toBe(scored); // no penalty: the charge fired here
+
+    // And it is now spent: the next timeout penalises as normal.
+    m.tick(m.state.clockTotal + 1);
+    expect(m.state.players[0].score).toBeLessThan(scored);
+  });
+
   it("bails out of a banned-letter word (reject + refill, no tax), once per era", () => {
     const m = make(two);
     m.state.bannedLetter = "t";

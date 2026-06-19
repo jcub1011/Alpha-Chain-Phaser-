@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Dictionary } from "../game/dictionary";
 import { orderPreservingRng } from "../game/rng";
+import type { MatchController } from "../game/match";
 import { DEFAULT_SETTINGS } from "../game/settings";
 import { KnockBoxController, type NetPeer } from "./knockBoxController";
 
@@ -140,6 +141,50 @@ describe("KnockBoxController — host-authoritative sync", () => {
     hostCtl.submitWord("cat");
 
     expect(guestSawSubmission).toBe("cat");
+  });
+
+  it("replicates a Prism banned-letter bail (reason + clock refill) to the guest", () => {
+    const clock = { t: 0 };
+    const now = (): number => clock.t; // frozen, so snapshot-anchored clocks are exact
+    const hub = new Hub();
+    const hostPeer = new FakePeer(hub, "host", true, roster);
+    const guestPeer = new FakePeer(hub, "guest", false, roster);
+    const hostCtl = new KnockBoxController(hostPeer, dict, orderPreservingRng, now);
+    const guestCtl = new KnockBoxController(guestPeer, dict, orderPreservingRng, now);
+    hostPeer.fireReady();
+    guestPeer.fireReady();
+
+    let guestSawReject = "";
+    guestCtl.events.on("rejected", (e) => (guestSawReject = e.reason));
+
+    hostCtl.startMatch({
+      ...DEFAULT_SETTINGS,
+      enableTutorials: false,
+      preRoundCountdownSeconds: 1,
+      eraInterval: 30,
+      eraCount: 1,
+    });
+    hostCtl.tick(1); // burn the countdown → host's turn armed, clock full
+
+    // Inject into the AUTHORITATIVE host match (the public `match` is the render
+    // mirror, overwritten by every snapshot). Host holds a Prism, isn't last place
+    // (not exempt), and faces a banned 't'.
+    const host = (hostCtl as unknown as { host: MatchController }).host;
+    host.state.players[0].bay = [{ id: "Prism" }];
+    host.state.players[0].score = 100;
+    host.state.bannedLetter = "t";
+    const total = host.state.clockTotal;
+    hostCtl.tick(3); // burn 3s of the shot clock
+    expect(host.state.clockRemaining).toBeLessThan(total);
+
+    hostCtl.submitWord("cat"); // contains the banned 't' → Prism bails, refills the clock
+
+    // Host stays authoritative: rejected (not taxed), clock back to full.
+    expect(host.state.players[0].score).toBe(100);
+    expect(host.state.clockRemaining).toBe(total);
+    // The rejection reason and the refilled clock both reached the guest mirror.
+    expect(guestSawReject).toBe("prism-saved");
+    expect(guestCtl.match.state.clockRemaining).toBe(total);
   });
 
   it("counts the host's own display shot clock down between snapshots", () => {
