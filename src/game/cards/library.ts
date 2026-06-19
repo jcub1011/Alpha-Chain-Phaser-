@@ -346,10 +346,10 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     color: "#8a7dff",
     family: CardFamily.Clock,
     op: CardOp.Multiplicative,
-    magnitudeText: "×1.8",
+    magnitudeText: "×1.6",
     description:
-      "×1.8 always; hides your own input box while you type. Time out and lose 8 points.",
-    fold: (v, c) => mul(v, 1.8 * c.magnification()),
+      "×1.6 always; hides your own input box while you type. Time out and lose 8 points.",
+    fold: (v, c) => mul(v, 1.6 * c.magnification()),
     timeoutFold: (v, c) => add(v, -8 * c.magnification()),
     hidesInput: () => true,
   },
