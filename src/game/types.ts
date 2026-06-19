@@ -279,6 +279,6 @@ export interface MatchState {
 /** Result of attempting to validate + score a word. */
 export interface SubmitResult {
   accepted: boolean;
-  reason?: "not-a-word" | "already-used" | "wrong-start-letter" | "too-short";
+  reason?: "not-a-word" | "already-used" | "wrong-start-letter" | "too-short" | "prism-saved";
   submission?: Submission;
 }

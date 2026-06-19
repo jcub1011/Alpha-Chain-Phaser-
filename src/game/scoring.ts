@@ -279,8 +279,7 @@ export function fireBayHook(
     | "onEraStart"
     | "onWordAccepted"
     | "onTurnEnded"
-    | "onOpponentWordResolved"
-    | "onValidationFailed",
+    | "onOpponentWordResolved",
   extra?: Partial<EvalContext>,
 ): void {
   ev.resolved.forEach((c, i) => {

@@ -12,6 +12,8 @@
   gap: var(--sp-4);
   padding: var(--sp-4);
   overflow-y: auto;
+  /* Never scroll sideways on a phone — children clamp to the viewport (below). */
+  overflow-x: hidden;
 }
 .lobby-head {
   text-align: center;
@@ -41,7 +43,10 @@
 }
 
 .lobby-panel {
-  width: min(92vw, 460px);
+  /* Container-relative, not viewport-relative: the .lobby already supplies the side
+     gutter via its padding, and a vertical scrollbar narrows it — `100%` fits inside
+     both, where `92vw` double-counted the gutter and overflowed on a phone. */
+  width: min(100%, 460px);
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
@@ -63,11 +68,11 @@
 /* Multiplayer lobby: the long settings list wraps into columns so it never
    clips on short displays. The panel widens to fit two columns. */
 .net-panel {
-  width: min(94vw, 760px);
+  width: min(100%, 760px);
 }
 .net-settings {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
   column-gap: var(--sp-4);
 }
 /* Each cell owns its own divider; the auto-fit grid handles row breaks. */
@@ -156,7 +161,7 @@
 }
 
 .lobby-start {
-  width: min(92vw, 460px);
+  width: min(100%, 460px);
   font-size: 1.15rem;
   padding: 1rem;
   animation: ac-rise 0.5s 0.1s ease-out both;

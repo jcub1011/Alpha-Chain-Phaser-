@@ -494,11 +494,8 @@ export class MatchController {
     // 5. Uniqueness.
     if (s.usedWords.has(word)) return reject("already-used");
 
-    // 6. Dictionary — a typo fires the owner's Prism (clock refill), turn unchanged.
-    if (!this.isWord(word)) {
-      fireBayHook(this.bayEval(player, word, false), "onValidationFailed");
-      return reject("not-a-word");
-    }
+    // 6. Dictionary — a non-word is simply rejected; the turn (and clock) carry on.
+    if (!this.isWord(word)) return reject("not-a-word");
 
     // 7. Zero-Point Tax — era ban (unless last-place exempt), personal hijack ban,
     //    era-rolled card bans, or a card legality rule (Slow Burn's 6-letter floor).
@@ -521,6 +518,11 @@ export class MatchController {
       else if (hijack !== "" && word.includes(hijack)) offendingLetter = hijack;
       else offendingLetter = cardBans.find((b) => word.includes(b)) ?? null;
     }
+
+    // 7a. The Prism — once per era, a held charge bails the owner out of a banned-letter
+    //     word: reject it and refill the clock so they can retype, instead of eating the
+    //     Zero-Point Tax. Legality taxes (offendingLetter null) don't qualify.
+    if (offendingLetter !== null && this.tryClockRescue(player)) return reject("prism-saved");
 
     // 8. Score, then the two owner-side tax rules (IRS Agent flat override +
     //    bounty suppression, then Tax Write-Off's first-letter salvage on top).
@@ -620,11 +622,23 @@ export class MatchController {
     this.currentDraft = word;
   }
 
+  /** Offer each of a player's resolved cards its once-per-era clock rescue (Prism);
+   *  returns true if one fired (consumed its charge and refilled the clock). */
+  private tryClockRescue(player: PlayerState): boolean {
+    const ev = this.bayEval(player, "", false);
+    return ev.resolved.some((c, i) => c?.rescueClock?.(ev.ctxFor(i)) ?? false);
+  }
+
   private timeoutCurrent(): void {
     // Auto-submit the live player's drafted word if it stands on its own; a blank or
     // illegal draft falls through to a real timeout below.
     const draft = this.currentDraft.trim();
     if (draft && this.submitWord(this.current.id, draft).accepted) return;
+    // A banned-letter draft can trip the Prism during that auto-submit, refilling the
+    // clock — if so, the turn simply continues rather than timing out.
+    if (this.state.clockRemaining > 0) return;
+    // Otherwise, give a held Prism its timeout save: refill to full instead of the penalty.
+    if (this.tryClockRescue(this.current)) return;
     const s = this.state;
     const p = this.current;
 

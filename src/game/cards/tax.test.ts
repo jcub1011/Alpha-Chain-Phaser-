@@ -109,14 +109,42 @@ describe("The Wildcard — once-per-era succession bypass", () => {
   });
 });
 
-describe("The Prism — refills the clock on a typo (once per era)", () => {
-  it("resets the shot clock to full on a failed word", () => {
+describe("The Prism — clock refill on timeout / banned letter (once per era)", () => {
+  it("stays inert on a plain typo (the clock keeps ticking, charge unspent)", () => {
     const m = make(one);
     m.state.players[0].bay = [{ id: "Prism" }];
     m.tick(5); // burn 5s of the clock
-    expect(m.state.clockRemaining).toBeLessThan(m.state.clockTotal);
+    const before = m.state.clockRemaining;
     const r = m.submitWord("p1", "zzz"); // not a word
     expect(r.reason).toBe("not-a-word");
+    expect(m.state.clockRemaining).toBe(before); // NOT refilled
+  });
+
+  it("refills the clock instead of penalising on a shot-clock timeout", () => {
+    const m = make(one);
+    m.state.players[0].bay = [{ id: "Prism" }];
+    m.tick(m.state.clockTotal + 1); // run the shot clock out → timeout
     expect(m.state.clockRemaining).toBe(m.state.clockTotal); // Prism refilled
+    expect(m.state.players[0].score).toBe(0); // no timeout penalty
+    // Charge spent: a second timeout this era applies the penalty as normal.
+    m.tick(m.state.clockTotal + 1);
+    expect(m.state.players[0].score).toBeLessThan(0);
+  });
+
+  it("bails out of a banned-letter word (reject + refill, no tax), once per era", () => {
+    const m = make(two);
+    m.state.bannedLetter = "t";
+    m.state.players[0].score = 100; // p1 not last → not exempt
+    m.state.players[0].bay = [{ id: "Prism" }];
+    m.tick(5); // burn 5s of the clock
+    const r = m.submitWord("p1", "cat"); // contains the banned 't'
+    expect(r.accepted).toBe(false);
+    expect(r.reason).toBe("prism-saved");
+    expect(m.state.clockRemaining).toBe(m.state.clockTotal); // refilled
+    expect(m.state.players[0].score).toBe(100); // not taxed
+    // Charge spent: the same banned-letter word is now taxed and accepted.
+    const r2 = m.submitWord("p1", "cat");
+    expect(r2.accepted).toBe(true);
+    expect(r2.submission!.taxed).toBe(true);
   });
 });

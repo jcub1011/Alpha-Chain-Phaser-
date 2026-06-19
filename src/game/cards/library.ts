@@ -424,11 +424,15 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     op: CardOp.Fx,
     magnitudeText: "FX",
     description:
-      "If your word is a typo or fails validation, your shot clock resets to full, once per era.",
+      "Once per era, when your shot clock runs out — or you'd submit a word with a banned letter — your clock resets to full instead of ending your turn.",
     fold: (v) => fx(v),
     roomServices: ["prismGuard"],
-    onValidationFailed: (c) => {
-      if (c.player && c.services?.prismGuard.tryConsume(c.player.id)) c.clock?.refillToFull();
+    rescueClock: (c) => {
+      if (c.player && c.services?.prismGuard.tryConsume(c.player.id)) {
+        c.clock?.refillToFull();
+        return true;
+      }
+      return false;
     },
   },
 

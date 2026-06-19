@@ -440,6 +440,9 @@
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.05);
   font-size: 14px;
+  /* Long display names wrap instead of pushing the panel past the viewport. */
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .net-roster em {
   opacity: 0.6;

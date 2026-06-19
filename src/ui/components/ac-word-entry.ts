@@ -19,6 +19,7 @@ const REASON: Record<NonNullable<SubmitResult["reason"]>, string> = {
   "already-used": "Already played",
   "wrong-start-letter": "Wrong start letter",
   "too-short": "Too short",
+  "prism-saved": "The Prism — clock refilled",
 };
 
 @customElement("ac-word-entry")

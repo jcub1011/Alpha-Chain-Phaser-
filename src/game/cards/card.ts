@@ -157,6 +157,9 @@ export interface ModifierCard {
   ignoresSuccession?(ctx: EvalContext): boolean;
   /** IAttackInterceptor — block + reflect an incoming automated attack (Titanium Mirror). */
   intercept?(owner: PlayerState, services: RoomServices): boolean;
+  /** IClockRescue — once per era, refill the shot clock instead of ending the turn on a
+   *  shot-clock timeout or a banned-letter submission (Prism). Returns true if it fired. */
+  rescueClock?(ctx: EvalContext): boolean;
   /** IInputMask — hides the owner's own input glyphs while typing (Blindfold).
    *  State-independent (the UI reads it without an EvalContext). */
   hidesInput?(): boolean;
@@ -168,7 +171,6 @@ export interface ModifierCard {
   onWordAccepted?(ctx: EvalContext): void;
   onTurnEnded?(ctx: EvalContext): void;
   onOpponentWordResolved?(ctx: EvalContext): void;
-  onValidationFailed?(ctx: EvalContext): void;
 
   /** Room-state services this card relies on (IContributesRoomServices). */
   roomServices?: RoomServiceKey[];
