@@ -95,6 +95,16 @@ describe("Tax Write-Off — first-letter salvage", () => {
     expect(r.submission!.taxed).toBe(true);
     expect(r.submission!.score).toBe(1);
   });
+
+  it("stacks: N copies salvage the first letter N times", () => {
+    const m = make(two);
+    m.state.bannedLetter = "t";
+    m.state.players[0].score = 100;
+    m.state.players[0].bay = [{ id: "TaxWriteOff" }, { id: "TaxWriteOff" }, { id: "TaxWriteOff" }];
+    const r = m.submitWord("p1", "cat"); // taxed → 0, salvage "c" (len 1) ×3 → +3
+    expect(r.submission!.taxed).toBe(true);
+    expect(r.submission!.score).toBe(3);
+  });
 });
 
 describe("The Wildcard — once-per-era succession bypass", () => {

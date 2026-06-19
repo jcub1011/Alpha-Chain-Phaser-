@@ -191,7 +191,12 @@ export class AcScoreReplay extends AcElement {
     if (prefersReducedMotion()) {
       this.revealed = this.cards.length - 1; // gray out every card that didn't fire
       if (this.numEl) this.numEl.textContent = fmtScore(sub.score);
-      this.numEl?.classList.add(sub.taxed || sub.timedOut ? "is-taxed" : "is-final");
+      // A taxed word that still scored positive (e.g. Tax Write-Off salvage) reads
+      // as a partial, not a wipe — amber, not red.
+      const partial = sub.taxed && sub.score > 0;
+      this.numEl?.classList.add(
+        partial ? "is-partial" : sub.taxed || sub.timedOut ? "is-taxed" : "is-final",
+      );
       this.effects = sub.effects ?? [];
       this.announceRevealed(sub);
       return;
@@ -224,7 +229,14 @@ export class AcScoreReplay extends AcElement {
     this.current = -1;
     this.revealed = this.cards.length - 1; // settle: non-activated cards stay gray
 
-    if (sub.taxed) {
+    if (sub.taxed && sub.score > 0) {
+      // Taxed, but a salvage (e.g. Tax Write-Off) kept some points: crash the
+      // pre-tax total down to the reduced score and settle in the partial (amber)
+      // style — it scored, just not fully.
+      this.numEl?.classList.add("is-partial");
+      await this.ramp(sub.breakdown.finalBeforeTax, sub.score, 420, signal);
+      fx.shake(0.4, theater);
+    } else if (sub.taxed) {
       // Crash the pre-tax total down to zero.
       this.numEl?.classList.add("is-taxed");
       await this.ramp(sub.breakdown.finalBeforeTax, 0, 420, signal);

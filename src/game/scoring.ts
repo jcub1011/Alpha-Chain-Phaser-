@@ -258,13 +258,15 @@ export function bayOwnTaxPolicy(
   return null;
 }
 
-/** The first Tax Write-Off bonus in the bay (re-scoring the first letter clean). */
+/** Sum of every Tax Write-Off bonus in the bay (each re-scores the first letter
+ *  clean through its own slot). Stacks: N copies salvage N times. */
 export function bayWriteOffBonus(ev: BayEvaluator, scoreFn: (word: string) => number): number {
+  let bonus = 0;
   for (let i = 0; i < ev.resolved.length; i++) {
     const c = ev.resolved[i];
-    if (c?.writeOffBonus) return c.writeOffBonus(ev.ctxFor(i), scoreFn);
+    if (c?.writeOffBonus) bonus += c.writeOffBonus(ev.ctxFor(i), scoreFn);
   }
-  return 0;
+  return bonus;
 }
 
 /** Whether any card hides the owner's own input (Blindfold). */

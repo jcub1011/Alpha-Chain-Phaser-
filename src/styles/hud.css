@@ -294,6 +294,11 @@
   text-shadow: var(--ac-glow-mint);
   animation: ac-num-bump 0.45s ease-out;
 }
+.sr-num.is-partial {
+  color: var(--ac-amber);
+  text-shadow: var(--ac-glow-amber);
+  animation: ac-num-bump 0.45s ease-out;
+}
 .sr-num.is-taxed {
   color: var(--ac-danger);
   text-shadow: var(--ac-glow-danger);
@@ -524,6 +529,9 @@
   font-weight: 700;
   font-size: 0.72rem;
   color: var(--ac-mint);
+}
+.recent-pts.is-partial {
+  color: var(--ac-amber);
 }
 .recent-tag {
   font-family: var(--font-mono);

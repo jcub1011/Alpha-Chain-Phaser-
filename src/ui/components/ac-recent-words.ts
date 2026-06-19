@@ -75,7 +75,9 @@ export class AcRecentWords extends AcElement {
               <span class="recent-meta">
                 <span class="recent-who">${s.displayName}</span>
                 ${s.taxed
-                  ? html`<span class="recent-tag">TAXED</span>`
+                  ? s.score > 0
+                    ? html`<span class="recent-pts is-partial">+${fmtScore(s.score)}</span>`
+                    : html`<span class="recent-tag">TAXED</span>`
                   : html`<span class="recent-pts">+${fmtScore(s.score)}</span>`}
               </span>
             </div>
