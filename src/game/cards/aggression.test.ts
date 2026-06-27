@@ -99,6 +99,20 @@ describe("Loan Shark — banks 15% of an opponent's big word", () => {
     m.submitWord("p1", "cat"); // 13 ≤ 30 → nothing banked
     expect(m.state.players[1].score).toBe(0);
   });
+
+  it("only banks when the victim is ahead of the owner on the leaderboard", () => {
+    const m = make();
+    m.state.players[0].bay = [
+      { id: "TheAnchor" },
+      { id: "TheAnchor" },
+      { id: "TheAnchor" },
+      { id: "Redline" },
+    ];
+    m.state.players[1].bay = [{ id: "LoanShark" }];
+    m.state.players[1].score = 999; // owner (p2) is far ahead of the submitter (p1)
+    m.submitWord("p1", "cat"); // p1 scores 66 but stays behind p2 → nothing banked
+    expect(m.state.players[1].score).toBe(999);
+  });
 });
 
 describe("The Leech — drains players ahead at turn end", () => {

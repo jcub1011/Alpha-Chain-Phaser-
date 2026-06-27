@@ -14,7 +14,7 @@
 import { html, nothing, type PropertyValues, type TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type { GameController } from "../../net/controller";
-import { legalBanLetters } from "../../game/settings";
+import { availableBanLetters, legalBanLetters } from "../../game/settings";
 import { createLogger } from "../../log";
 import { AcElement } from "../app/AcElement";
 import "../components/ac-card";
@@ -284,8 +284,14 @@ export class AcIntermission extends AcElement {
   }
 
   private renderBan(): TemplateResult {
-    const mode = this.controller.match.state.settings.banMode;
-    const letters = legalBanLetters(mode);
+    const s = this.controller.match.state;
+    const { banMode, banRepeatRule } = s.settings;
+    const letters = legalBanLetters(banMode);
+    const available = new Set(availableBanLetters(banMode, banRepeatRule, s.bannedLetterHistory));
+    const prev = s.bannedLetter;
+    // Words played this era (era only advances after the ban) so the picker can ban an
+    // informed letter — what's been scoring, and how much.
+    const played = s.history.filter((h) => h.era === s.era);
     return html`
       <div class="im-card ac-panel">
         <header class="im-head">
@@ -294,13 +300,37 @@ export class AcIntermission extends AcElement {
           <p class="im-sub">Choose a letter. Words containing it score zero next era.</p>
           <span class="im-timer">${this.seconds}s</span>
         </header>
+        ${played.length
+          ? html`<div class="ban-words">
+              <span class="ac-eyebrow">words played this era</span>
+              <ul class="ban-words-list">
+                ${played.map(
+                  (h) =>
+                    html`<li class="ban-word-row ${h.timedOut ? "is-timeout" : ""}">
+                      <span class="ban-word">${h.timedOut ? "⏱ timed out" : h.word}</span>
+                      <span class="ban-word-score">${h.score}</span>
+                    </li>`,
+                )}
+              </ul>
+            </div>`
+          : nothing}
         <div class="ban-grid">
-          ${letters.map(
-            (l) =>
-              html`<button class="ban-key" @click=${() => this.pickBan(l)}>
-                ${l.toUpperCase()}
-              </button>`,
-          )}
+          ${letters.map((l) => {
+            const disabled = !available.has(l);
+            const isPrev = l === prev;
+            return html`<button
+              class="ban-key ${isPrev ? "is-prev" : ""}"
+              ?disabled=${disabled}
+              title=${isPrev
+                ? "Banned last era"
+                : disabled
+                  ? "Not allowed by the ban-repeat rule"
+                  : ""}
+              @click=${() => this.pickBan(l)}
+            >
+              ${l.toUpperCase()}
+            </button>`;
+          })}
         </div>
       </div>
     `;

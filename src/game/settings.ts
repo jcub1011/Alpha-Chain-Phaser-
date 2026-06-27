@@ -1,11 +1,13 @@
 import { createLogger } from "../log";
-import type { AlphaChainSettings, BanMode, BotDifficulty } from "./types";
+import type { AlphaChainSettings, BanMode, BanRepeatRule, BotDifficulty } from "./types";
 
 const log = createLogger("settings");
 
 /** Defaults ported from AlphaChainSettings.cs, plus single-player bot options. */
 export const DEFAULT_SETTINGS: AlphaChainSettings = {
   banMode: "All",
+  banRepeatRule: "NoConsecutive",
+  dealEngineCardsFirstEra: false,
   shotClockSeconds: 20,
   intermissionCardSelectSeconds: 45,
   sniperBanSeconds: 15,
@@ -26,7 +28,7 @@ const STORAGE_KEY = "alphachain.settings";
 
 /** Bump when a setting's valid range/enum changes so stale persisted blobs (which
  *  may now hold out-of-range values) are discarded rather than silently loaded. */
-const SETTINGS_VERSION = 1;
+const SETTINGS_VERSION = 2;
 
 /**
  * Load persisted settings, merged over defaults with per-field validation.
@@ -82,6 +84,7 @@ export const VOWELS = new Set(["a", "e", "i", "o", "u"]);
 export const isVowel = (c: string): boolean => VOWELS.has(c.toLowerCase());
 
 const BAN_MODES: readonly BanMode[] = ["All", "VowelsOnly", "ConsonantsOnly"];
+const BAN_REPEAT_RULES: readonly BanRepeatRule[] = ["AllowRepeat", "NoConsecutive", "NoRepeat"];
 const BOT_DIFFICULTIES: readonly BotDifficulty[] = ["easy", "medium", "hard"];
 
 /** A finite number within [min, max]. Rejects NaN/±Infinity (which are `typeof
@@ -96,6 +99,8 @@ const isBool = (v: unknown): boolean => typeof v === "boolean";
  *  value that fails keeps the default (see loadSettings). */
 const SETTINGS_VALIDATORS: { [K in keyof AlphaChainSettings]: (v: unknown) => boolean } = {
   banMode: (v) => BAN_MODES.includes(v as BanMode),
+  banRepeatRule: (v) => BAN_REPEAT_RULES.includes(v as BanRepeatRule),
+  dealEngineCardsFirstEra: isBool,
   botDifficulty: (v) => BOT_DIFFICULTIES.includes(v as BotDifficulty),
   shotClockSeconds: inRange(MIN_SHOT_CLOCK_SECONDS, 120),
   intermissionCardSelectSeconds: inRange(5, 180),
@@ -117,4 +122,29 @@ export function legalBanLetters(mode: AlphaChainSettings["banMode"]): string[] {
   if (mode === "VowelsOnly") return all.filter((c) => VOWELS.has(c));
   if (mode === "ConsonantsOnly") return all.filter((c) => !VOWELS.has(c));
   return all;
+}
+
+/**
+ * Letters a player may pick this era under the ban-repeat rule, given the letters
+ * banned in past eras (`history`, most-recent last). `AllowRepeat` never excludes;
+ * `NoConsecutive` excludes only the last entry; `NoRepeat` excludes every entry.
+ * If excluding would leave no legal letter (the pool is exhausted — only reachable
+ * under `NoRepeat` across many eras), the exclusion set is reset and the full legal
+ * pool is returned. The authority mirrors this reset on `bannedLetterHistory` when
+ * it detects exhaustion (see applySniperBanAndAdvance).
+ */
+export function availableBanLetters(
+  mode: AlphaChainSettings["banMode"],
+  rule: BanRepeatRule,
+  history: readonly string[],
+): string[] {
+  const legal = legalBanLetters(mode);
+  if (rule === "AllowRepeat" || history.length === 0) return legal;
+  const excluded =
+    rule === "NoConsecutive"
+      ? new Set([history[history.length - 1]])
+      : new Set(history.map((l) => l.toLowerCase()));
+  const available = legal.filter((c) => !excluded.has(c));
+  // Pool exhausted: reset the exclusion set rather than leave nothing to ban.
+  return available.length > 0 ? available : legal;
 }

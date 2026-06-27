@@ -3,11 +3,12 @@
  * a difficulty segment, then emits `ac-start` with the chosen settings.
  */
 
-import { html, type PropertyValues, type TemplateResult } from "lit";
+import { html, nothing, type PropertyValues, type TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type { AlphaChainSettings, BotDifficulty } from "../../game/types";
 import { DEFAULT_SETTINGS, saveSettings } from "../../game/settings";
 import { AcElement } from "../app/AcElement";
+import { SETTING_HINTS } from "./settings-hints";
 
 const DIFFS: BotDifficulty[] = ["easy", "medium", "hard"];
 
@@ -49,15 +50,21 @@ export class AcLobby extends AcElement {
     location.search = "?sandbox";
   }
 
+  /** A small ⓘ marker beside a label that carries the setting's explanation. */
+  private infoMark(hint?: string): TemplateResult | typeof nothing {
+    return hint ? html`<span class="set-info" title=${hint} aria-hidden="true">ⓘ</span>` : nothing;
+  }
+
   private stepper(
     label: string,
     value: string,
     onMinus: () => void,
     onPlus: () => void,
+    hint?: string,
   ): TemplateResult {
     return html`
-      <div class="set-row">
-        <span class="set-label">${label}</span>
+      <div class="set-row" title=${hint ?? nothing}>
+        <span class="set-label">${label}${this.infoMark(hint)}</span>
         <div class="set-ctl">
           <button class="set-btn" @click=${onMinus} aria-label="decrease">−</button>
           <span class="set-value">${value}</span>
@@ -73,10 +80,11 @@ export class AcLobby extends AcElement {
     current: T,
     options: { value: T; text: string }[],
     onPick: (v: T) => void,
+    hint?: string,
   ): TemplateResult {
     return html`
-      <div class="set-row set-row--seg">
-        <span class="set-label">${label}</span>
+      <div class="set-row set-row--seg" title=${hint ?? nothing}>
+        <span class="set-label">${label}${this.infoMark(hint)}</span>
         <div class="seg">
           ${options.map(
             (o) =>
@@ -92,7 +100,12 @@ export class AcLobby extends AcElement {
     `;
   }
 
-  private toggle(label: string, on: boolean, set: (v: boolean) => void): TemplateResult {
+  private toggle(
+    label: string,
+    on: boolean,
+    set: (v: boolean) => void,
+    hint?: string,
+  ): TemplateResult {
     return this.segmented(
       label,
       on ? "on" : "off",
@@ -101,6 +114,7 @@ export class AcLobby extends AcElement {
         { value: "off", text: "off" },
       ],
       (v) => set(v === "on"),
+      hint,
     );
   }
 
@@ -120,12 +134,14 @@ export class AcLobby extends AcElement {
               String(d.botCount),
               () => this.step("botCount", -1, 1, 5),
               () => this.step("botCount", 1, 1, 5),
+              SETTING_HINTS.botCount,
             )}
             ${this.segmented<BotDifficulty>(
               "Difficulty",
               d.botDifficulty,
               DIFFS.map((diff) => ({ value: diff, text: diff })),
               (v) => this.set("botDifficulty", v),
+              SETTING_HINTS.botDifficulty,
             )}
             ${this.segmented<AlphaChainSettings["banMode"]>(
               "Ban mode",
@@ -136,57 +152,93 @@ export class AcLobby extends AcElement {
                 { value: "ConsonantsOnly", text: "conson." },
               ],
               (v) => this.set("banMode", v),
+              SETTING_HINTS.banMode,
+            )}
+            ${this.segmented<AlphaChainSettings["banRepeatRule"]>(
+              "Ban repeats",
+              d.banRepeatRule,
+              [
+                { value: "AllowRepeat", text: "allow" },
+                { value: "NoConsecutive", text: "no consec." },
+                { value: "NoRepeat", text: "never" },
+              ],
+              (v) => this.set("banRepeatRule", v),
+              SETTING_HINTS.banRepeatRule,
             )}
             ${this.stepper(
               "Shot clock",
               `${d.shotClockSeconds}s`,
               () => this.step("shotClockSeconds", -5, 5, 60),
               () => this.step("shotClockSeconds", 5, 5, 60),
+              SETTING_HINTS.shotClockSeconds,
             )}
             ${this.stepper(
               "Eras",
               String(d.eraCount),
               () => this.step("eraCount", -1, 1, 50),
               () => this.step("eraCount", 1, 1, 50),
+              SETTING_HINTS.eraCount,
             )}
             ${this.stepper(
               "Rounds / era",
               String(d.eraInterval),
               () => this.step("eraInterval", -1, 1, 50),
               () => this.step("eraInterval", 1, 1, 50),
+              SETTING_HINTS.eraInterval,
             )}
             ${this.stepper(
               "Cards / era",
               String(d.modifiersDealtPerEra),
               () => this.step("modifiersDealtPerEra", -1, 0, 10),
               () => this.step("modifiersDealtPerEra", 1, 0, 10),
+              SETTING_HINTS.modifiersDealtPerEra,
             )}
             ${this.stepper(
               "Card select",
               `${d.intermissionCardSelectSeconds}s`,
               () => this.step("intermissionCardSelectSeconds", -10, 10, 180),
               () => this.step("intermissionCardSelectSeconds", 10, 10, 180),
+              SETTING_HINTS.intermissionCardSelectSeconds,
             )}
             ${this.stepper(
               "Sniper ban",
               `${d.sniperBanSeconds}s`,
               () => this.step("sniperBanSeconds", -5, 5, 120),
               () => this.step("sniperBanSeconds", 5, 5, 120),
+              SETTING_HINTS.sniperBanSeconds,
             )}
             ${this.stepper(
               "Countdown",
               `${d.preRoundCountdownSeconds}s`,
               () => this.step("preRoundCountdownSeconds", -1, 3, 15),
               () => this.step("preRoundCountdownSeconds", 1, 3, 15),
+              SETTING_HINTS.preRoundCountdownSeconds,
             )}
             ${this.stepper(
               "Engine anim",
               `${d.engineAnimationSeconds.toFixed(1)}s`,
               () => this.step("engineAnimationSeconds", -0.5, 0.5, 10),
               () => this.step("engineAnimationSeconds", 0.5, 0.5, 10),
+              SETTING_HINTS.engineAnimationSeconds,
             )}
-            ${this.toggle("Survival", d.survivalMode, (v) => this.set("survivalMode", v))}
-            ${this.toggle("Tutorials", d.enableTutorials, (v) => this.set("enableTutorials", v))}
+            ${this.toggle(
+              "Engine cards E1",
+              d.dealEngineCardsFirstEra,
+              (v) => this.set("dealEngineCardsFirstEra", v),
+              SETTING_HINTS.dealEngineCardsFirstEra,
+            )}
+            ${this.toggle(
+              "Survival",
+              d.survivalMode,
+              (v) => this.set("survivalMode", v),
+              SETTING_HINTS.survivalMode,
+            )}
+            ${this.toggle(
+              "Tutorials",
+              d.enableTutorials,
+              (v) => this.set("enableTutorials", v),
+              SETTING_HINTS.enableTutorials,
+            )}
           </div>
         </div>
 

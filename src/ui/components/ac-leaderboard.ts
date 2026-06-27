@@ -1,8 +1,9 @@
 /*
  * <ac-leaderboard> — live standings. Re-renders only on low-frequency events
  * (turn changes, submissions, timeouts). The active player's row glows; the
- * human's row is bordered; a score-pop floats up on every row a submission
- * moves — the submitter plus any off-turn siphons/drains it triggers.
+ * human's row is bordered; a score change flashes the row, bumps its score, and
+ * ghosts the signed delta over it (contained within the row so the list's scroll
+ * never clips it) — on the submitter plus any off-turn siphons/drains it triggers.
  */
 
 import { html, nothing, type PropertyValues, type TemplateResult } from "lit";
@@ -95,11 +96,13 @@ export class AcLeaderboard extends AcElement {
           const accent = playerAccentVar(p.accentIndex);
           const isMe = p.id === human;
           const isActive = p.id === this.activeId;
+          // At most one pop per row per reveal (deltas are folded per player).
+          const pop = this.pops.find((q) => q.id === p.id);
           return html`
             <li
               class="lb-row ${isActive ? "is-active" : ""} ${isMe ? "is-me" : ""} ${p.eliminated
                 ? "is-out"
-                : ""}"
+                : ""} ${pop ? "is-pop" : ""} ${pop && pop.amount < 0 ? "is-pop-neg" : ""}"
               style="--accent:${accent};"
             >
               <span class="lb-rank">${rank + 1}</span>

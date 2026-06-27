@@ -178,6 +178,17 @@ ac-card[flipped] .gc-flip {
   line-height: 1.32;
   color: var(--ac-ink-soft);
   overflow-y: auto;
+  /* A flex child won't shrink below its content height without this, so the
+     `overflow-y: auto` above never engages (the scrollbar would never appear,
+     and `.gc`'s `overflow: hidden` clips the spill). Needed on the mini card's
+     hover-tooltip back face, whose fixed height is shorter than the rules text. */
+  min-height: 0;
+  /* Keep scrolling but hide the bar: on a ~150px-wide card the 9px global
+     scrollbar (base.css) eats too much of the limited horizontal space. */
+  scrollbar-width: none;
+}
+.gc-desc::-webkit-scrollbar {
+  display: none;
 }
 .gc-front {
   gap: calc(var(--gc-h) * 0.03);
@@ -249,24 +260,40 @@ ac-card[flipped] .gc-flip {
 }
 .gc-front-desc {
   margin: 0;
+  /* Scroll the front-face description rather than clamping it: `flex: 1 1 auto`
+     fills the leftover card height, `min-height: 0` lets the flex child shrink
+     below its content so `overflow-y: auto` actually engages. */
   flex: 1 1 auto;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 7;
-  line-clamp: 7;
-  overflow: hidden;
+  min-height: 0;
+  overflow-y: auto;
   font-size: calc(var(--gc-w) * 0.0997);
   line-height: 1.3;
   color: var(--ac-ink-soft);
+  /* Hide the scrollbar (keep scrolling) so it doesn't eat the narrow card width. */
+  scrollbar-width: none;
 }
-.gc-flip-hint {
-  margin-top: auto;
-  align-self: center;
-  font-family: var(--font-mono);
-  font-size: calc(var(--gc-w) * 0.0783);
-  letter-spacing: 0.08em;
+.gc-front-desc::-webkit-scrollbar {
+  display: none;
+}
+/* A small flip-gesture glyph in the bottom-right corner. Absolutely positioned so
+   it reserves no layout height (the old "tap to flip" text row stole a line from
+   the description); pointer-events:none keeps wheel-scroll over the corner working
+   and lets a tap on it fall through to the card's flip handler. */
+.gc-flip-icon {
+  position: absolute;
+  bottom: calc(var(--gc-h) * 0.04);
+  right: calc(var(--gc-w) * 0.05);
+  width: calc(var(--gc-w) * 0.13);
+  height: calc(var(--gc-w) * 0.13);
   color: var(--ac-ink-faint);
-  text-transform: uppercase;
+  opacity: 0.5;
+  pointer-events: none;
+  z-index: 1;
+}
+.gc-flip-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 .gc-new-badge {
   position: absolute;
@@ -325,7 +352,7 @@ ac-card[mini] .gc-flip {
   cursor: pointer;
 }
 ac-card[mini] .gc-front-desc,
-ac-card[mini] .gc-flip-hint,
+ac-card[mini] .gc-flip-icon,
 ac-card[mini] .gc-chip:not(:first-child) {
   display: none;
 }

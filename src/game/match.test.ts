@@ -394,3 +394,91 @@ describe("per-card deal caps", () => {
     expect(countIn(p1.bay, "TitaniumMirror")).toBe(1);
   });
 });
+
+describe("Submission.era stamping", () => {
+  it("stamps each submission with the era it was played in", () => {
+    const m = makeMatch({ preRoundCountdownSeconds: 1, eraInterval: 1, eraCount: 2 });
+    m.start();
+    m.tick(1);
+    m.submitWord("p1", "cat"); // era 1
+    m.submitWord("p2", "tiger"); // era 1, wraps → intermission
+    m.tick(2.001);
+    expect(m.state.history.every((h) => h.era === 1)).toBe(true);
+
+    m.applySniperBanAndAdvance("z"); // → era 2 countdown
+    m.tick(1);
+    m.submitWord("p1", "rat"); // era 2
+    expect(m.state.history[m.state.history.length - 1]?.era).toBe(2);
+  });
+});
+
+describe("Sniper ban — repeat rule + history", () => {
+  /** Drive a single-round era to its sniper ban with the given repeat rule. */
+  const toBan = (overrides: Partial<AlphaChainSettings>) => {
+    const m = makeMatch({ preRoundCountdownSeconds: 1, eraInterval: 1, eraCount: 9, ...overrides });
+    m.start();
+    m.tick(1);
+    m.submitWord("p1", "cat");
+    m.submitWord("p2", "tiger"); // wraps era 1 → intermission
+    m.tick(2.001);
+    return m;
+  };
+
+  it("records each banned letter in bannedLetterHistory", () => {
+    const m = toBan({ banRepeatRule: "AllowRepeat" });
+    m.applySniperBanAndAdvance("q");
+    expect(m.state.bannedLetterHistory).toEqual(["q"]);
+    expect(m.state.bannedLetter).toBe("q");
+  });
+
+  it("NoConsecutive rejects re-banning last era's letter (random legal fallback)", () => {
+    const m = toBan({ banRepeatRule: "NoConsecutive" });
+    m.applySniperBanAndAdvance("q"); // era 2 ban = q
+    m.tick(1);
+    m.submitWord("p1", "cat");
+    m.submitWord("p2", "tiger");
+    m.tick(2.001);
+    m.applySniperBanAndAdvance("q"); // illegal (consecutive) → falls back to a legal letter
+    expect(m.state.bannedLetter).not.toBe("q");
+  });
+
+  it("AllowRepeat lets the same letter be banned again", () => {
+    const m = toBan({ banRepeatRule: "AllowRepeat" });
+    m.applySniperBanAndAdvance("q");
+    m.tick(1);
+    m.submitWord("p1", "cat");
+    m.submitWord("p2", "tiger");
+    m.tick(2.001);
+    m.applySniperBanAndAdvance("q"); // allowed
+    expect(m.state.bannedLetter).toBe("q");
+  });
+});
+
+describe("dealEngineCardsFirstEra", () => {
+  it("deals an opening hand and runs optimize before era 1 when enabled", () => {
+    const m = makeMatch({
+      preRoundCountdownSeconds: 1,
+      dealEngineCardsFirstEra: true,
+      modifiersDealtPerEra: 3,
+    });
+    m.start();
+    // Pre-era-1 setup intermission: cards dealt, optimize sub-phase active.
+    expect(m.state.phase).toBe("Intermission");
+    expect(m.state.intermissionPhase).toBe("optimize");
+    expect(m.state.players[0].bay.length).toBe(3);
+    expect(m.state.era).toBe(1);
+
+    m.skipOptimize(); // → countdown (no sniper ban before era 1)
+    expect(m.state.phase).toBe("Countdown");
+    m.tick(1);
+    expect(m.state.phase).toBe("Round");
+    expect(m.state.era).toBe(1);
+  });
+
+  it("starts era 1 with empty bays when disabled (default)", () => {
+    const m = makeMatch({ preRoundCountdownSeconds: 1, dealEngineCardsFirstEra: false });
+    m.start();
+    expect(m.state.phase).toBe("Countdown");
+    expect(m.state.players[0].bay.length).toBe(0);
+  });
+});

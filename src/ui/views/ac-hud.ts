@@ -99,6 +99,7 @@ export class AcHud extends AcElement {
   override render(): TemplateResult {
     const c = this.controller;
     const eraInterval = c.match.state.settings.eraInterval;
+    const eraCount = c.match.state.settings.eraCount;
     const free = !this.requiredLetter;
     return html`
       <div class="hud">
@@ -159,19 +160,9 @@ export class AcHud extends AcElement {
           </section>
 
           <section class="spotlight">
-            <span class="spot-era">ERA ${this.era} · ROUND ${this.roundInEra}/${eraInterval}</span>
             <span class="spot-turn ${this.isHumanTurn ? "is-you" : ""}">
               ${this.isHumanTurn ? "YOUR TURN" : html`${this.currentName} is playing…`}
             </span>
-          </section>
-
-          <ac-score-replay .controller=${c}></ac-score-replay>
-
-          <ac-word-entry .controller=${c}></ac-word-entry>
-
-          <section class="feed">
-            <span class="ac-eyebrow">recent words</span>
-            <ac-recent-words .controller=${c}></ac-recent-words>
           </section>
 
           <ac-engine-bay
@@ -180,6 +171,17 @@ export class AcHud extends AcElement {
             .cards=${this.humanBay}
             .slots=${this.humanSlots}
           ></ac-engine-bay>
+
+          <!-- Mobile: the recent-words feed sits above the input (the desktop copy
+               lives in the rail under the standings). One shows at a time via CSS. -->
+          <section class="feed feed--mobile">
+            <span class="ac-eyebrow">recent words</span>
+            <ac-recent-words .controller=${c}></ac-recent-words>
+          </section>
+
+          <ac-word-entry .controller=${c}></ac-word-entry>
+
+          <ac-score-replay .controller=${c}></ac-score-replay>
 
           ${this.opponents.length
             ? html`<section class="foes">
@@ -201,12 +203,23 @@ export class AcHud extends AcElement {
 
         <aside class="rail">
           <div class="ac-panel rail-panel">
+            <span class="lb-era"
+              >ERA ${this.era}/${eraCount} · ROUND ${this.roundInEra}/${eraInterval}</span
+            >
             <span class="ac-eyebrow">standings</span>
             <ac-leaderboard .controller=${c}></ac-leaderboard>
           </div>
+          <!-- Desktop: recent words as a vertical list under the standings. -->
+          <section class="feed feed--rail ac-panel">
+            <span class="ac-eyebrow">recent words</span>
+            <ac-recent-words vertical .controller=${c}></ac-recent-words>
+          </section>
         </aside>
 
         <div class="lb-strip">
+          <span class="lb-era"
+            >ERA ${this.era}/${eraCount} · ROUND ${this.roundInEra}/${eraInterval}</span
+          >
           <ac-leaderboard strip .controller=${c}></ac-leaderboard>
         </div>
       </div>

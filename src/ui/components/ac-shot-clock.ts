@@ -17,6 +17,7 @@ const CIRC = 2 * Math.PI * R; // 276.46
 export class AcShotClock extends AcElement {
   @property({ attribute: false }) controller!: GameController;
 
+  @query(".clock") private clockEl?: HTMLElement;
   @query(".ring-fill") private fill?: SVGCircleElement;
   @query(".ring-num") private num?: HTMLElement;
   @query(".ring") private ring?: SVGElement;
@@ -30,13 +31,28 @@ export class AcShotClock extends AcElement {
       this.listen(e, "turnArmed", ({ clockTotal }) => {
         this.total = clockTotal || 1;
         this.draw(this.controller.match.state.clockRemaining);
+        this.updateActive();
       });
       this.listen(e, "clockTick", (remaining) => this.draw(remaining));
+      // Whose turn it is changes on these too (round start/end, eliminations).
+      this.listen(e, "phaseChanged", () => this.updateActive());
+      this.listen(e, "submission", () => this.updateActive());
+      this.listen(e, "timeout", () => this.updateActive());
       // Seed from current state on (re)bind.
       const s = this.controller.match.state;
       this.total = s.clockTotal || 1;
       this.draw(s.clockRemaining);
+      this.updateActive();
     }
+  }
+
+  /** Dim the clock when it isn't the local player's turn (mirrors ac-hud's
+   *  isHumanTurn) so it reads as "someone else is on the clock". */
+  private updateActive(): void {
+    if (!this.clockEl) return;
+    const m = this.controller.match;
+    const mine = m.state.phase === "Round" && m.current?.id === this.controller.humanId;
+    this.clockEl.classList.toggle("is-inactive", !mine);
   }
 
   private draw(remaining: number): void {

@@ -671,13 +671,17 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     family: CardFamily.Economy,
     op: CardOp.Fx,
     magnitudeText: "FX",
-    description: "Bank 15% of any opponent's word scoring more than 30 points.",
+    description:
+      "Bank 15% of any opponent's word scoring more than 30 points — but only if they're ahead of you on the leaderboard.",
     fold: (v) => fx(v),
     onOpponentWordResolved: (c) => {
       const res = c.resolution;
       if (!res || res.taxed || res.earnedScore <= 30) return;
       const owner = c.player;
       if (!owner || owner.id === res.submitterId) return;
+      // Prey only on players ahead of you: skip opponents at or below your score.
+      const submitter = c.players?.find((p) => p.id === res.submitterId);
+      if (!submitter || submitter.score <= owner.score) return;
       const amount = clampScore(res.earnedScore * 0.15 * c.magnification());
       if (amount > 0) {
         owner.score += amount;
@@ -753,10 +757,12 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     family: CardFamily.Utility,
     op: CardOp.Fx,
     magnitudeText: "FX",
-    description: "Scores nothing on a normal word. If you time out, regain 10 points.",
+    description: "Scores nothing on a normal word. If you time out, you lose no points.",
     fold: (v) => fx(v),
-    // The proof that the timeout pass is general, not debuff-only: a REWARD fold.
-    timeoutFold: (v) => add(v, 10),
+    // Negate the timeout loss: bring the running penalty back up to 0 (the refund is
+    // shown in the replay). scoreTimeout also floors the net at 0 so glass-cannon
+    // drains placed to the right of this card can't re-open a loss (order-independent).
+    timeoutFold: (v) => (v < 0 ? add(v, -v) : skip(v)),
   },
 
   TheFlywheel: {

@@ -156,7 +156,23 @@ export class AcCard extends AcElement {
           <div class="gc-name">${card.name}</div>
           <p class="gc-front-desc">${card.description}</p>
           ${this.isNew ? html`<span class="gc-new-badge">NEW</span>` : nothing}
-          ${this.mini ? nothing : html`<span class="gc-flip-hint">tap to flip</span>`}
+          ${this.mini
+            ? nothing
+            : html`<span class="gc-flip-icon" aria-hidden="true">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M21 12a9 9 0 0 1-9 9 9 9 0 0 1-8.49-6" />
+                  <path d="M3 12a9 9 0 0 1 9-9 9 9 0 0 1 8.49 6" />
+                  <path d="M21 3v5h-5" />
+                  <path d="M3 21v-5h5" />
+                </svg>
+              </span>`}
         </div>
         <div class="gc gc-back">
           <p class="gc-desc">${card.description}</p>

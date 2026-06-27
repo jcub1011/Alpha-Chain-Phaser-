@@ -28,7 +28,13 @@ import {
   scoreWord,
   type BayEvaluator,
 } from "./scoring";
-import { legalBanLetters, MIN_SHOT_CLOCK_SECONDS, MODIFIER_SLOTS_START, isVowel } from "./settings";
+import {
+  availableBanLetters,
+  legalBanLetters,
+  MIN_SHOT_CLOCK_SECONDS,
+  MODIFIER_SLOTS_START,
+  isVowel,
+} from "./settings";
 import { byScoreDesc, CardId } from "./types";
 import type {
   AlphaChainSettings,
@@ -45,12 +51,23 @@ import type {
 
 const log = createLogger("match");
 
-/** Tutorial dwell durations in seconds (port of TutorialState.DurationFor). */
+/** Tutorial dwell durations in seconds (port of TutorialState.DurationFor). Each page
+ *  leads with a demonstration animation; the dwell is the fallback if nobody readies. */
 const TUTORIAL_DWELL: Record<TutorialKind, number> = {
-  shiritori: 12,
+  shiritori: 14,
+  timeout: 12,
   engine: 14,
-  tax: 12,
+  cards: 13,
+  tax: 13,
+  sniper: 12,
 };
+
+/** Tutorial pages shown in sequence at each cue point (in order). Pre-game pages run
+ *  during the top-level Tutorial phase; the optimize/ban groups run as intermission
+ *  sub-phases before the era-1 optimize and sniper ban respectively. */
+const PREGAME_TUTORIALS: readonly TutorialKind[] = ["shiritori", "timeout"];
+const OPTIMIZE_TUTORIALS: readonly TutorialKind[] = ["engine", "cards"];
+const BAN_TUTORIALS: readonly TutorialKind[] = ["tax", "sniper"];
 
 /** Extra dwell (seconds) added to the engine animation when an era ends on a
  *  submission, so every player sees the final word's score replay finish before
@@ -139,6 +156,7 @@ export class MatchController {
       currentPlayerIndex: 0,
       requiredLetter: "",
       bannedLetter: "",
+      bannedLetterHistory: [],
       usedWords: new Set<string>(),
       history: [],
       clockRemaining: 0,
@@ -148,6 +166,7 @@ export class MatchController {
       subTimerRemaining: 0,
       subTimerTotal: 0,
       shownTutorials: [],
+      tutorialReady: [],
       settings,
       winnerId: null,
     };
@@ -274,9 +293,31 @@ export class MatchController {
   // ── Lifecycle ────────────────────────────────────────────────────────────────
   start(): void {
     this.state.startedAt ??= Date.now();
-    // The Shiritori tutorial (if enabled) plays once before the very first round.
-    if (this.shouldShowTutorial("shiritori")) this.enterTutorialPhase("shiritori");
+    // The pre-game tutorials (chain → timeout), if enabled, play before the first round.
+    const first = this.nextTutorialIn(PREGAME_TUTORIALS);
+    if (first) this.enterTutorialPhase(first);
+    else this.beginFirstRoundOrSetup();
+  }
+
+  /** After the pre-game tutorial(s): when "deal engine cards on era 1" is on, run a
+   *  setup intermission (deal an opening hand + optimize) before the first countdown;
+   *  otherwise go straight to era 1 with empty bays. */
+  private beginFirstRoundOrSetup(): void {
+    if (this.state.settings.dealEngineCardsFirstEra) this.enterSetupIntermission();
     else this.beginCountdown();
+  }
+
+  /** Pre-era-1 setup: deal an opening hand and run the engine tutorial + optimize,
+   *  WITHOUT the slot expansion or sniper ban a between-era intermission performs
+   *  (completeOptimize routes back to the countdown while round === 0). */
+  private enterSetupIntermission(): void {
+    this.setPhase("Intermission");
+    const dealt: Record<string, string[]> = {};
+    for (const p of this.state.players) {
+      dealt[p.id] = this.dealCards(p, this.state.settings.modifiersDealtPerEra);
+    }
+    this.events.emit("intermission", { lastPlaceId: this.computeLastPlaceId(), dealt });
+    this.beginIntermissionStage();
   }
 
   private beginCountdown(): void {
@@ -326,6 +367,11 @@ export class MatchController {
     return this.state.settings.enableTutorials && !this.state.shownTutorials.includes(kind);
   }
 
+  /** The first not-yet-shown tutorial in a cue-point group, or null if all are done. */
+  private nextTutorialIn(group: readonly TutorialKind[]): TutorialKind | null {
+    return group.find((k) => this.shouldShowTutorial(k)) ?? null;
+  }
+
   private armSubTimer(seconds: number): void {
     this.state.subTimerTotal = seconds;
     this.state.subTimerRemaining = seconds;
@@ -334,14 +380,20 @@ export class MatchController {
   /** Enter the top-level Shiritori tutorial phase (before the first countdown). */
   private enterTutorialPhase(kind: TutorialKind): void {
     this.state.currentTutorial = kind;
+    this.state.tutorialReady = []; // fresh "I've read this" slate per page
     this.markTutorialShown(kind);
     this.armSubTimer(TUTORIAL_DWELL[kind]);
     this.setPhase("Tutorial");
   }
 
   private advanceTutorialPhase(): void {
+    const next = this.nextTutorialIn(PREGAME_TUTORIALS);
+    if (next) {
+      this.enterTutorialPhase(next);
+      return;
+    }
     this.state.currentTutorial = null;
-    this.beginCountdown();
+    this.beginFirstRoundOrSetup();
   }
 
   /** Skip the current tutorial (Shiritori phase or an intermission tutorial). */
@@ -349,6 +401,25 @@ export class MatchController {
     if (this.state.phase === "Tutorial") this.advanceTutorialPhase();
     else if (this.state.phase === "Intermission" && this.state.intermissionPhase === "tutorial")
       this.advanceIntermissionTutorial();
+  }
+
+  /** A player presses "I've Read This" on the current tutorial page. The page
+   *  auto-advances once every active human is ready (host SKIP and the dwell timer
+   *  remain overrides/fallbacks). Mirrors lockInOptimize; any player may call it. */
+  markTutorialReady(playerId: string): void {
+    if (!this.state.currentTutorial) return;
+    const p = this.activePlayers.find((x) => x.id === playerId);
+    if (!p || p.isBot) return;
+    if (!this.state.tutorialReady.includes(playerId)) {
+      this.state.tutorialReady = [...this.state.tutorialReady, playerId];
+    }
+    if (this.allHumansTutorialReady()) this.skipTutorial();
+  }
+
+  /** Whether every active human has pressed "I've Read This" on the current page. */
+  private allHumansTutorialReady(): boolean {
+    const humans = this.activePlayers.filter((p) => !p.isBot);
+    return humans.length > 0 && humans.every((p) => this.state.tutorialReady.includes(p.id));
   }
 
   /** Fast-forward the optimize sub-phase (solo convenience; host shared display). */
@@ -582,6 +653,7 @@ export class MatchController {
       playerId: player.id,
       displayName: player.name,
       accentIndex: player.accentIndex,
+      era: s.era,
       word,
       score: finalScore,
       taxed,
@@ -673,6 +745,7 @@ export class MatchController {
       playerId: p.id,
       displayName: p.name,
       accentIndex: p.accentIndex,
+      era: s.era,
       word: draft || "—",
       score: breakdown.finalScore,
       taxed: false,
@@ -727,22 +800,33 @@ export class MatchController {
     this.events.emit("subPhaseChanged", { intermissionPhase: phase, currentTutorial: tutorial });
   }
 
-  /** First sub-phase of an intermission: the Engine tutorial (era 1) or optimize. */
+  /** First sub-phase of an intermission: the optimize-cue tutorials (engine → cards,
+   *  era 1) then optimize. */
   private beginIntermissionStage(): void {
-    if (this.shouldShowTutorial("engine")) this.enterIntermissionTutorial("engine");
+    const next = this.nextTutorialIn(OPTIMIZE_TUTORIALS);
+    if (next) this.enterIntermissionTutorial(next);
     else this.beginOptimize();
   }
 
   private enterIntermissionTutorial(kind: TutorialKind): void {
+    this.state.tutorialReady = []; // fresh "I've read this" slate per page
     this.markTutorialShown(kind);
     this.armSubTimer(TUTORIAL_DWELL[kind]);
     this.setIntermissionPhase("tutorial", kind);
   }
 
   private advanceIntermissionTutorial(): void {
-    // Engine plays before optimize; Tax plays after it (just before the ban).
+    // The optimize-cue group (engine → cards) plays before optimize; the ban-cue group
+    // (tax → sniper) plays after it, just before the sniper ban.
     const kind = this.state.currentTutorial;
-    if (kind === "engine") this.beginOptimize();
+    if (kind && OPTIMIZE_TUTORIALS.includes(kind)) {
+      const next = this.nextTutorialIn(OPTIMIZE_TUTORIALS);
+      if (next) this.enterIntermissionTutorial(next);
+      else this.beginOptimize();
+      return;
+    }
+    const next = this.nextTutorialIn(BAN_TUTORIALS);
+    if (next) this.enterIntermissionTutorial(next);
     else this.beginSniperBan();
   }
 
@@ -792,7 +876,14 @@ export class MatchController {
       if (p.bay.length > p.slots) p.bay = p.bay.slice(0, p.slots);
       p.lockedIn = false; // optimize is over; clear the lock-in slate
     }
-    if (this.shouldShowTutorial("tax")) this.enterIntermissionTutorial("tax");
+    // Pre-era-1 setup optimize (no round has been played yet): there's no last-place
+    // player to ban, so skip the ban tutorials + sniper ban and start era 1.
+    if (this.state.round === 0) {
+      this.beginCountdown();
+      return;
+    }
+    const next = this.nextTutorialIn(BAN_TUTORIALS);
+    if (next) this.enterIntermissionTutorial(next);
     else this.beginSniperBan();
   }
 
@@ -908,11 +999,26 @@ export class MatchController {
     if (p.bay.length > p.slots) p.bay = p.bay.slice(p.bay.length - p.slots);
   }
 
-  /** Apply the sniper ban then roll into the next era's countdown. */
+  /** Apply the sniper ban then roll into the next era's countdown. The chosen letter
+   *  is validated against the ban-repeat rule (an illegal/repeat pick — or a malicious
+   *  guest intent — falls back to a random legal letter); the exclusion set is reset
+   *  when every legal letter has already been banned (NoRepeat exhaustion). */
   applySniperBanAndAdvance(letter: string): void {
-    const legal = new Set(legalBanLetters(this.state.settings.banMode));
-    const choice = legal.has(letter.toLowerCase()) ? letter.toLowerCase() : this.randomBanLetter();
+    const { banMode, banRepeatRule } = this.state.settings;
+    // Exhaustion reset (only reachable under NoRepeat across many eras): once every
+    // legal letter has been banned, clear the history so the pool reopens.
+    if (banRepeatRule === "NoRepeat") {
+      const banned = new Set(this.state.bannedLetterHistory.map((l) => l.toLowerCase()));
+      if (legalBanLetters(banMode).every((c) => banned.has(c))) this.state.bannedLetterHistory = [];
+    }
+    const available = availableBanLetters(banMode, banRepeatRule, this.state.bannedLetterHistory);
+    const allowed = new Set(available);
+    const lower = letter.toLowerCase();
+    const choice = allowed.has(lower)
+      ? lower
+      : available[Math.floor(this.rng() * available.length)];
     this.state.bannedLetter = choice;
+    this.state.bannedLetterHistory = [...this.state.bannedLetterHistory, choice];
     for (const p of this.state.players) p.bay.forEach((b) => (b.isNew = false));
     this.state.era += 1;
     // Era boundary: reset the per-era guards (Prism/Wildcard re-arm, card/hijack
@@ -927,8 +1033,12 @@ export class MatchController {
   }
 
   randomBanLetter(): string {
-    const legal = legalBanLetters(this.state.settings.banMode);
-    return legal[Math.floor(this.rng() * legal.length)];
+    const available = availableBanLetters(
+      this.state.settings.banMode,
+      this.state.settings.banRepeatRule,
+      this.state.bannedLetterHistory,
+    );
+    return available[Math.floor(this.rng() * available.length)];
   }
 
   /** Re-arm a player's per-era room state (Prism/Wildcard guards, card/hijack

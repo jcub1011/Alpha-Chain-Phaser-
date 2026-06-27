@@ -186,11 +186,69 @@
   cursor: pointer;
   transition: all 0.12s;
 }
-.ban-key:hover {
+.ban-key:hover:not(:disabled) {
   border-color: var(--ac-danger);
   background: color-mix(in srgb, var(--ac-danger) 20%, transparent);
   color: var(--ac-danger);
   transform: translateY(-2px);
+}
+/* The letter banned last era: glowing red so the picker sees the prior choice at a
+   glance (also disabled under the no-consecutive / no-repeat rules). */
+.ban-key.is-prev {
+  border-color: var(--ac-danger);
+  color: var(--ac-danger);
+  background: color-mix(in srgb, var(--ac-danger) 16%, transparent);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--ac-danger) 60%, transparent);
+  animation: ac-pulse 1.8s ease-in-out infinite;
+}
+/* Excluded by the ban-repeat rule (previously banned). */
+.ban-key:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+/* Words played this era + their scores, so the ban is an informed strike. */
+.ban-words {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.ban-words-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: 0.3rem 0.8rem;
+  max-height: 9rem;
+  overflow-y: auto;
+}
+.ban-word-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--r-xs);
+  background: rgba(255, 255, 255, 0.03);
+  font-size: 0.85rem;
+}
+.ban-word {
+  font-weight: 600;
+  color: var(--ac-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ban-word-row.is-timeout .ban-word {
+  color: var(--ac-ink-faint);
+  font-style: italic;
+}
+.ban-word-score {
+  font-family: var(--font-mono);
+  font-weight: 800;
+  color: var(--ac-accent-clock, var(--ac-ink-soft));
+  font-variant-numeric: tabular-nums;
 }
 
 /* Waiting on a bot to ban. */

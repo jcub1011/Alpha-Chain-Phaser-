@@ -34,6 +34,8 @@ export interface MatchLike {
   randomBanLetter(): string;
   /** Skip the on-screen tutorial dwell (host / solo). */
   skipTutorial(): void;
+  /** Mark the current tutorial page read for a player; auto-advances once all are ready. */
+  markTutorialReady(playerId: string): void;
   /** Fast-forward the optimize sub-phase (solo; no-op for guests). */
   skipOptimize(): void;
 }

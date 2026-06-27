@@ -134,6 +134,14 @@
   position: relative;
   width: clamp(84px, 15vw, 116px);
   height: clamp(84px, 15vw, 116px);
+  transition:
+    opacity 0.25s ease,
+    filter 0.25s ease;
+}
+/* Greyed a little while it isn't your turn — readable, but clearly "not yours". */
+.clock.is-inactive {
+  opacity: 0.55;
+  filter: saturate(0.6);
 }
 .ring {
   width: 100%;
@@ -184,7 +192,9 @@
   gap: 0.2rem;
   text-align: center;
 }
-.spot-era {
+/* Era/round readout — lives with the standings (rail head + mobile strip) so it
+   stays visible instead of scrolling away with the stage. */
+.lb-era {
   font-family: var(--font-mono);
   font-size: 0.66rem;
   letter-spacing: 0.2em;
@@ -467,6 +477,28 @@
   flex-direction: column;
   gap: 0.3rem;
 }
+/* The feed renders twice: a horizontal copy in the stage (mobile) and a vertical
+   copy in the rail (desktop). Show exactly one per breakpoint. The desktop default
+   shows the rail copy; .feed--mobile flips on below 60rem (see the media query). */
+.feed--mobile {
+  display: none;
+}
+.feed--rail {
+  /* Shrink to fit the words; the bounded rail caps it at the remaining height (the
+     inner list scrolls past that), so a short list keeps the panel small instead of
+     stretching to fill the rail. It's the only shrinkable item in the rail, so it
+     soaks up the squeeze before the standings panel above gives any ground. */
+  flex: 0 1 auto;
+  min-height: 0;
+  padding: var(--sp-3);
+}
+.feed--rail ac-recent-words {
+  display: flex;
+  flex-direction: column;
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
 .recent {
   display: flex;
   gap: var(--sp-2);
@@ -475,6 +507,29 @@
   border: 1px solid var(--ac-border);
   border-radius: var(--r-md);
   background: rgba(255, 255, 255, 0.02);
+}
+/* Vertical (rail) variant: stack newest-first top-to-bottom, scroll inside the
+   rail, and hide the scrollbar to match the cards' narrow-space treatment. The
+   feed already sits inside the `.feed--rail` panel, so drop the inner box's own
+   border/background/padding — a panel-in-a-panel looks heavy and wastes width. */
+ac-recent-words[vertical] .recent {
+  flex: 0 1 auto;
+  min-height: 0;
+  flex-direction: column;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: none;
+  padding: 0;
+  border: none;
+  background: none;
+  /* No rounding: with overflow-y:auto a radius here clips the list-item corners. */
+  border-radius: 0;
+}
+ac-recent-words[vertical] .recent::-webkit-scrollbar {
+  display: none;
+}
+ac-recent-words[vertical] .recent-item {
+  min-width: 0;
 }
 .recent.is-empty {
   justify-content: center;
@@ -555,16 +610,28 @@
 .rail {
   min-width: 0;
   max-width: 320px;
+  /* A bounded flex column so the standings panel and the recent-words feed below
+     it divide the rail's height, each scrolling internally rather than running
+     off-screen. Sticky keeps the whole rail pinned while the stage scrolls. */
+  position: sticky;
+  top: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  min-height: 0;
+  height: calc(100dvh - 2 * var(--sp-4));
 }
 .rail-panel {
-  position: sticky;
-  top: 0;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
   padding: var(--sp-3);
-  max-height: calc(100dvh - 2 * var(--sp-4));
-  overflow-y: auto;
+  /* Natural height (the player list self-caps at 5 rows below), and it never flexes,
+     so the recent-words feed below absorbs the squeeze first on height-constrained
+     displays. The panel itself doesn't scroll — only the player list does — so the
+     era line + "standings" header stay pinned. */
+  flex: 0 0 auto;
+  min-height: 0;
 }
 .lb {
   list-style: none;
@@ -573,6 +640,15 @@
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
+}
+/* Standings rail: show at most 5 players (row ≈ 2.2rem + 0.3rem gap), then scroll
+   the list. Scoped to the rail so the mobile strip's horizontal list is untouched.
+   Only this list scrolls — the era line + "standings" header above it stay pinned. */
+.rail-panel .lb {
+  max-height: calc(5 * 2.2rem + 4 * 0.3rem);
+  overflow-y: auto;
+  /* a little inset so the scrollbar doesn't sit on top of the row accents */
+  padding-right: 0.2rem;
 }
 .lb-row {
   position: relative;
@@ -625,21 +701,50 @@
   font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
+/* Score change: a full-row tint flash + a bump of the score number, with the
+   signed delta ghosting in over the row. All three are contained within the row
+   so the standings' overflow-y scroll never clips them (the old upward float did).
+   --pop-color drives the tint/number/delta color; set by the is-pop* classes. */
+.lb-row.is-pop {
+  --pop-color: var(--ac-mint);
+  /* The flash bg is a darker green than the bright mint delta so light text
+     (name/score/delta) stays readable on top of it. */
+  --pop-flash: #0e7a45;
+}
+.lb-row.is-pop.is-pop-neg {
+  --pop-color: var(--ac-danger);
+  /* A deep, saturated red — prominent against the dark panel, readable underneath. */
+  --pop-flash: #a3142e;
+}
+.lb-row.is-pop::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1; /* over the row's own bg, under the rank/name/score text */
+  border-radius: var(--r-sm);
+  /* Flash the whole row this colour, then fade back to the row's original bg. */
+  background: var(--pop-flash);
+  opacity: 0;
+  pointer-events: none;
+  animation: ac-lb-flash 0.8s ease-out;
+}
+.lb-row.is-pop .lb-score {
+  animation: ac-lb-bump 0.55s ease-out;
+}
 .lb-pop {
   position: absolute;
-  right: 0.6rem;
-  top: -0.25rem;
+  left: 50%;
+  top: 50%;
   font-family: var(--font-mono);
-  font-weight: 900;
-  font-size: 1.15rem;
-  color: var(--ac-mint);
+  font-weight: 800; /* match the normal score's weight + size */
+  color: var(--pop-color, var(--ac-mint));
   text-shadow:
     var(--ac-glow-mint),
     0 0 14px color-mix(in srgb, var(--ac-mint) 70%, transparent);
   pointer-events: none;
-  animation: ac-score-pop 1.3s ease-out forwards;
+  animation: ac-lb-pop 0.9s ease-out forwards;
 }
-/* A point loss (e.g. a shot-clock timeout penalty) floats up in danger red. */
+/* A point loss (e.g. a shot-clock timeout penalty) shows in danger red. */
 .lb-pop.is-neg {
   color: var(--ac-danger);
   text-shadow:
@@ -651,26 +756,20 @@
 .lb-strip {
   display: none;
 }
+.lb-strip .lb-era {
+  display: block;
+  margin-bottom: 0.4rem;
+}
 ac-leaderboard[strip] .lb {
   flex-direction: row;
   overflow-x: auto;
-  /* overflow-x:auto also clips vertical overflow, so reserve room *below* the
-   * rows for the score-pop, which appears under the player it belongs to. */
-  padding-bottom: 2.4rem;
+  padding-bottom: 0.3rem;
 }
 ac-leaderboard[strip] .lb-row {
   flex: 0 0 auto;
 }
-ac-leaderboard[strip] .lb-pop {
-  right: auto;
-  left: 50%;
-  top: 100%;
-  margin-top: 0.15rem;
-  /* Pop in below the player and fade out in place — no vertical travel.
-   * Centering lives in the keyframe so the animation's transform doesn't
-   * override the translateX(-50%). */
-  animation-name: ac-score-pop-strip;
-}
+/* The score-pop is the same contained in-chip animation as the rail (row tint +
+   score bump + centered delta), so the strip needs no special override now. */
 
 /* ── Responsive ────────────────────────────────────────────────────────── */
 @media (max-width: 60rem) {
@@ -684,6 +783,9 @@ ac-leaderboard[strip] .lb-pop {
   }
   .rail {
     display: none;
+  }
+  .feed--mobile {
+    display: flex;
   }
   .lb-strip {
     display: block;

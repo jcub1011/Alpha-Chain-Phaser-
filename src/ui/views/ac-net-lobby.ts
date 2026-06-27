@@ -5,12 +5,13 @@
  * Emits `ac-net-start` with the chosen settings (host only).
  */
 
-import { html, type PropertyValues, type TemplateResult } from "lit";
+import { html, nothing, type PropertyValues, type TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { DEFAULT_SETTINGS, saveSettings } from "../../game/settings";
 import type { AlphaChainSettings } from "../../game/types";
 import type { KnockBoxController } from "../../net/knockBoxController";
 import { AcElement } from "../app/AcElement";
+import { SETTING_HINTS } from "./settings-hints";
 
 @customElement("ac-net-lobby")
 export class AcNetLobby extends AcElement {
@@ -61,14 +62,31 @@ export class AcNetLobby extends AcElement {
     location.search = "?sandbox";
   }
 
-  private stepper(label: string, value: string, lo: () => void, hi: () => void): TemplateResult {
+  /** Guests see the host's settings but can't edit them. */
+  private get readOnly(): boolean {
+    return !(this.controller?.isHost ?? false);
+  }
+
+  /** A small ⓘ marker beside a label that carries the setting's explanation. */
+  private infoMark(hint?: string): TemplateResult | typeof nothing {
+    return hint ? html`<span class="set-info" title=${hint} aria-hidden="true">ⓘ</span>` : nothing;
+  }
+
+  private stepper(
+    label: string,
+    value: string,
+    lo: () => void,
+    hi: () => void,
+    hint?: string,
+  ): TemplateResult {
+    const ro = this.readOnly;
     return html`
-      <div class="set-row">
-        <span class="set-label">${label}</span>
+      <div class="set-row" title=${hint ?? nothing}>
+        <span class="set-label">${label}${this.infoMark(hint)}</span>
         <div class="set-ctl">
-          <button class="set-btn" @click=${lo} aria-label="decrease">−</button>
+          <button class="set-btn" ?disabled=${ro} @click=${lo} aria-label="decrease">−</button>
           <span class="set-value">${value}</span>
-          <button class="set-btn" @click=${hi} aria-label="increase">+</button>
+          <button class="set-btn" ?disabled=${ro} @click=${hi} aria-label="increase">+</button>
         </div>
       </div>
     `;
@@ -80,15 +98,18 @@ export class AcNetLobby extends AcElement {
     current: T,
     options: { value: T; text: string }[],
     onPick: (v: T) => void,
+    hint?: string,
   ): TemplateResult {
+    const ro = this.readOnly;
     return html`
-      <div class="set-row set-row--seg">
-        <span class="set-label">${label}</span>
+      <div class="set-row set-row--seg" title=${hint ?? nothing}>
+        <span class="set-label">${label}${this.infoMark(hint)}</span>
         <div class="seg">
           ${options.map(
             (o) =>
               html`<button
                 class="seg-btn ${current === o.value ? "is-on" : ""}"
+                ?disabled=${ro}
                 @click=${() => onPick(o.value)}
               >
                 ${o.text}
@@ -99,7 +120,12 @@ export class AcNetLobby extends AcElement {
     `;
   }
 
-  private toggle(label: string, on: boolean, set: (v: boolean) => void): TemplateResult {
+  private toggle(
+    label: string,
+    on: boolean,
+    set: (v: boolean) => void,
+    hint?: string,
+  ): TemplateResult {
     return this.segmented(
       label,
       on ? "on" : "off",
@@ -108,6 +134,7 @@ export class AcNetLobby extends AcElement {
         { value: "off", text: "off" },
       ],
       (v) => set(v === "on"),
+      hint,
     );
   }
 
@@ -134,83 +161,119 @@ export class AcNetLobby extends AcElement {
             )}
           </ul>
 
-          ${isHost
-            ? html`
-                <div class="net-settings">
-                  ${this.segmented<AlphaChainSettings["banMode"]>(
-                    "Ban mode",
-                    d.banMode,
-                    [
-                      { value: "All", text: "all" },
-                      { value: "VowelsOnly", text: "vowels" },
-                      { value: "ConsonantsOnly", text: "conson." },
-                    ],
-                    (v) => this.set("banMode", v),
-                  )}
-                  ${this.stepper(
-                    "Shot clock",
-                    `${d.shotClockSeconds}s`,
-                    () => this.step("shotClockSeconds", -5, 5, 60),
-                    () => this.step("shotClockSeconds", 5, 5, 60),
-                  )}
-                  ${this.stepper(
-                    "Eras",
-                    String(d.eraCount),
-                    () => this.step("eraCount", -1, 1, 50),
-                    () => this.step("eraCount", 1, 1, 50),
-                  )}
-                  ${this.stepper(
-                    "Rounds / era",
-                    String(d.eraInterval),
-                    () => this.step("eraInterval", -1, 1, 50),
-                    () => this.step("eraInterval", 1, 1, 50),
-                  )}
-                  ${this.stepper(
-                    "Cards / era",
-                    String(d.modifiersDealtPerEra),
-                    () => this.step("modifiersDealtPerEra", -1, 0, 10),
-                    () => this.step("modifiersDealtPerEra", 1, 0, 10),
-                  )}
-                  ${this.stepper(
-                    "Card select",
-                    `${d.intermissionCardSelectSeconds}s`,
-                    () => this.step("intermissionCardSelectSeconds", -10, 10, 180),
-                    () => this.step("intermissionCardSelectSeconds", 10, 10, 180),
-                  )}
-                  ${this.stepper(
-                    "Sniper ban",
-                    `${d.sniperBanSeconds}s`,
-                    () => this.step("sniperBanSeconds", -5, 5, 120),
-                    () => this.step("sniperBanSeconds", 5, 5, 120),
-                  )}
-                  ${this.stepper(
-                    "Countdown",
-                    `${d.preRoundCountdownSeconds}s`,
-                    () => this.step("preRoundCountdownSeconds", -1, 3, 15),
-                    () => this.step("preRoundCountdownSeconds", 1, 3, 15),
-                  )}
-                  ${this.stepper(
-                    "Engine anim",
-                    `${d.engineAnimationSeconds.toFixed(1)}s`,
-                    () => this.step("engineAnimationSeconds", -0.5, 0.5, 10),
-                    () => this.step("engineAnimationSeconds", 0.5, 0.5, 10),
-                  )}
-                  ${this.toggle("Survival", d.survivalMode, (v) => this.set("survivalMode", v))}
-                  ${this.toggle("Tutorials", d.enableTutorials, (v) =>
-                    this.set("enableTutorials", v),
-                  )}
-                  ${this.segmented(
-                    "Host plays",
-                    d.hostPlays ? "play" : "watch",
-                    [
-                      { value: "play", text: "yes" },
-                      { value: "watch", text: "spectate" },
-                    ],
-                    (v) => this.set("hostPlays", v === "play"),
-                  )}
-                </div>
-              `
-            : null}
+          <div class="net-settings">
+            ${!isHost
+              ? html`<p class="set-readonly-note">
+                  Settings (read-only) — the host controls these.
+                </p>`
+              : nothing}
+            ${this.segmented<AlphaChainSettings["banMode"]>(
+              "Ban mode",
+              d.banMode,
+              [
+                { value: "All", text: "all" },
+                { value: "VowelsOnly", text: "vowels" },
+                { value: "ConsonantsOnly", text: "conson." },
+              ],
+              (v) => this.set("banMode", v),
+              SETTING_HINTS.banMode,
+            )}
+            ${this.segmented<AlphaChainSettings["banRepeatRule"]>(
+              "Ban repeats",
+              d.banRepeatRule,
+              [
+                { value: "AllowRepeat", text: "allow" },
+                { value: "NoConsecutive", text: "no consec." },
+                { value: "NoRepeat", text: "never" },
+              ],
+              (v) => this.set("banRepeatRule", v),
+              SETTING_HINTS.banRepeatRule,
+            )}
+            ${this.stepper(
+              "Shot clock",
+              `${d.shotClockSeconds}s`,
+              () => this.step("shotClockSeconds", -5, 5, 60),
+              () => this.step("shotClockSeconds", 5, 5, 60),
+              SETTING_HINTS.shotClockSeconds,
+            )}
+            ${this.stepper(
+              "Eras",
+              String(d.eraCount),
+              () => this.step("eraCount", -1, 1, 50),
+              () => this.step("eraCount", 1, 1, 50),
+              SETTING_HINTS.eraCount,
+            )}
+            ${this.stepper(
+              "Rounds / era",
+              String(d.eraInterval),
+              () => this.step("eraInterval", -1, 1, 50),
+              () => this.step("eraInterval", 1, 1, 50),
+              SETTING_HINTS.eraInterval,
+            )}
+            ${this.stepper(
+              "Cards / era",
+              String(d.modifiersDealtPerEra),
+              () => this.step("modifiersDealtPerEra", -1, 0, 10),
+              () => this.step("modifiersDealtPerEra", 1, 0, 10),
+              SETTING_HINTS.modifiersDealtPerEra,
+            )}
+            ${this.stepper(
+              "Card select",
+              `${d.intermissionCardSelectSeconds}s`,
+              () => this.step("intermissionCardSelectSeconds", -10, 10, 180),
+              () => this.step("intermissionCardSelectSeconds", 10, 10, 180),
+              SETTING_HINTS.intermissionCardSelectSeconds,
+            )}
+            ${this.stepper(
+              "Sniper ban",
+              `${d.sniperBanSeconds}s`,
+              () => this.step("sniperBanSeconds", -5, 5, 120),
+              () => this.step("sniperBanSeconds", 5, 5, 120),
+              SETTING_HINTS.sniperBanSeconds,
+            )}
+            ${this.stepper(
+              "Countdown",
+              `${d.preRoundCountdownSeconds}s`,
+              () => this.step("preRoundCountdownSeconds", -1, 3, 15),
+              () => this.step("preRoundCountdownSeconds", 1, 3, 15),
+              SETTING_HINTS.preRoundCountdownSeconds,
+            )}
+            ${this.stepper(
+              "Engine anim",
+              `${d.engineAnimationSeconds.toFixed(1)}s`,
+              () => this.step("engineAnimationSeconds", -0.5, 0.5, 10),
+              () => this.step("engineAnimationSeconds", 0.5, 0.5, 10),
+              SETTING_HINTS.engineAnimationSeconds,
+            )}
+            ${this.toggle(
+              "Engine cards E1",
+              d.dealEngineCardsFirstEra,
+              (v) => this.set("dealEngineCardsFirstEra", v),
+              SETTING_HINTS.dealEngineCardsFirstEra,
+            )}
+            ${this.toggle(
+              "Survival",
+              d.survivalMode,
+              (v) => this.set("survivalMode", v),
+              SETTING_HINTS.survivalMode,
+            )}
+            ${this.toggle(
+              "Tutorials",
+              d.enableTutorials,
+              (v) => this.set("enableTutorials", v),
+              SETTING_HINTS.enableTutorials,
+            )}
+            ${this.segmented(
+              "Host plays",
+              d.hostPlays ? "play" : "watch",
+              [
+                { value: "play", text: "yes" },
+                { value: "watch", text: "spectate" },
+              ],
+              (v) => this.set("hostPlays", v === "play"),
+              SETTING_HINTS.hostPlays,
+            )}
+          </div>
         </div>
 
         ${isHost

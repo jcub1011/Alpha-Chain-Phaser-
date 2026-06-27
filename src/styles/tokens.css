@@ -98,46 +98,52 @@
   }
 }
 /* Leaderboard score-pop: a punchy scale-overshoot in, then float up and fade. */
-@keyframes ac-score-pop {
+/* Leaderboard score change — kept fully inside the row so the standings' own
+ * overflow-y scroll can't clip it: the whole row background flashes (::after) then
+ * fades back to its original colour, the score number bumps, and the signed delta
+ * fades in/out in place. --pop-color (set per row) drives all three mint (gain) or
+ * danger (loss). */
+@keyframes ac-lb-flash {
   0% {
-    transform: translateY(0) scale(0.5);
     opacity: 0;
   }
-  15% {
-    transform: translateY(-0.3rem) scale(1.25);
-    opacity: 1;
-  }
-  35% {
-    transform: translateY(-0.7rem) scale(1);
-    opacity: 1;
+  12% {
+    opacity: 0.92;
   }
   100% {
-    transform: translateY(-2.6rem) scale(1);
     opacity: 0;
   }
 }
-/* Strip (mobile) variant: pop in below the player and fade out in place — no
- * vertical travel. Bakes in the translateX(-50%) centering so the animation's
- * transform doesn't clobber it. */
-@keyframes ac-score-pop-strip {
+@keyframes ac-lb-bump {
   0% {
-    transform: translate(-50%, 0) scale(0.5);
+    transform: scale(1);
+  }
+  30% {
+    transform: scale(1.32);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+/* Delta fades in then out in place (centred over the row) — no vertical travel.
+ * translate(-50%, -50%) is held constant so only opacity/scale animate; the scale
+ * tops out at 1 so the number never grows past the normal score size. */
+@keyframes ac-lb-pop {
+  0% {
     opacity: 0;
+    transform: translate(-50%, -50%) scale(0.8);
   }
   20% {
-    transform: translate(-50%, 0) scale(1.25);
     opacity: 1;
-  }
-  35% {
-    transform: translate(-50%, 0) scale(1);
-    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
   }
   70% {
     opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
   }
   100% {
-    transform: translate(-50%, 0) scale(1);
     opacity: 0;
+    transform: translate(-50%, -50%) scale(1);
   }
 }
 @keyframes ac-rise {

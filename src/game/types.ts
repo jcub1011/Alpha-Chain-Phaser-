@@ -7,6 +7,12 @@
 /** Which letters may be chosen as the era's banned letter. */
 export type BanMode = "All" | "VowelsOnly" | "ConsonantsOnly";
 
+/** Whether a letter banned in a past era may be banned again.
+ *  - AllowRepeat:    any legal letter, every era.
+ *  - NoConsecutive:  the immediately-previous era's banned letter is off-limits.
+ *  - NoRepeat:       a letter can never be banned twice (until the pool is exhausted). */
+export type BanRepeatRule = "AllowRepeat" | "NoConsecutive" | "NoRepeat";
+
 /** Single source of truth for a card's family. Values are byte-identical to the
  *  former string-literal union (they tint the family accent in the UI). */
 export const CardFamily = {
@@ -91,6 +97,11 @@ export type CardId = (typeof CardId)[keyof typeof CardId];
 /** Host-configurable match settings (ported from AlphaChainSettings.cs). */
 export interface AlphaChainSettings {
   banMode: BanMode;
+  /** Whether a previously-banned letter may be chosen again (see BanRepeatRule). */
+  banRepeatRule: BanRepeatRule;
+  /** Deal modifier cards (and run an Optimize sub-phase) before era 1, instead of
+   *  starting with empty bays. */
+  dealEngineCardsFirstEra: boolean;
   shotClockSeconds: number; // 5–60
   intermissionCardSelectSeconds: number; // 10–180
   sniperBanSeconds: number; // 5–120
@@ -111,8 +122,10 @@ export interface AlphaChainSettings {
 /** Sub-phase of the Intermission (mirrors the Blazor IntermissionSubPhase). */
 export type IntermissionPhase = "deal" | "optimize" | "sniperBan" | "tutorial" | null;
 
-/** A scripted tutorial overlay shown once at its cue point. */
-export type TutorialKind = "shiritori" | "engine" | "tax";
+/** A scripted tutorial overlay shown once at its cue point. Pages are grouped at
+ *  three cue points: pre-game (shiritori → timeout), the era-1 optimize cue
+ *  (engine → cards), and the era-1 ban cue (tax/sniper). */
+export type TutorialKind = "shiritori" | "timeout" | "engine" | "cards" | "tax" | "sniper";
 
 export type BotDifficulty = "easy" | "medium" | "hard";
 
@@ -202,6 +215,9 @@ export interface Submission {
   playerId: string;
   displayName: string;
   accentIndex: number;
+  /** The era (1-based) this word was played in, for the sniper-ban "words this era"
+   *  list. Era only advances after the ban, so current-era words share `state.era`. */
+  era: number;
   word: string;
   score: number;
   taxed: boolean;
@@ -249,6 +265,9 @@ export interface MatchState {
   /** Required first letter for the next word ("" = free choice). */
   requiredLetter: string;
   bannedLetter: string; // "" before first sniper ban
+  /** Every letter banned so far, in era order. Drives the ban-repeat rule
+   *  (no-consecutive / no-repeat) and is cleared when the legal pool is exhausted. */
+  bannedLetterHistory: string[];
   /** Words used this whole match (lowercased), forbidden to repeat. */
   usedWords: Set<string>;
   history: Submission[];
@@ -268,6 +287,10 @@ export interface MatchState {
   subTimerTotal: number;
   /** Tutorials already shown this match (so each fires once). */
   shownTutorials: TutorialKind[];
+  /** Ids of players who've pressed "I've Read This" on the current tutorial page.
+   *  Reset each time a new page is shown; the page auto-advances once every active
+   *  human is in this set. */
+  tutorialReady: string[];
   settings: AlphaChainSettings;
   winnerId: string | null;
   /** Epoch ms the match started (first `start()`); undefined before then. */

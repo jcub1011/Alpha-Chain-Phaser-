@@ -27,18 +27,24 @@ describe("Shiritori tutorial (top-level phase)", () => {
     expect(m.state.subTimerRemaining).toBeGreaterThan(0);
   });
 
-  it("auto-advances to the countdown once the dwell elapses", () => {
+  it("advances chain → timeout, then to the countdown once each dwell elapses", () => {
     const m = make({ enableTutorials: true });
     m.start();
-    m.tick(m.state.subTimerRemaining + 0.1);
+    m.tick(m.state.subTimerRemaining + 0.1); // shiritori dwell → timeout page
+    expect(m.state.phase).toBe("Tutorial");
+    expect(m.state.currentTutorial).toBe("timeout");
+    m.tick(m.state.subTimerRemaining + 0.1); // timeout dwell → countdown
     expect(m.state.phase).toBe("Countdown");
     expect(m.state.currentTutorial).toBeNull();
   });
 
-  it("skipTutorial short-cuts the dwell", () => {
+  it("skipTutorial short-cuts each pre-game page in turn", () => {
     const m = make({ enableTutorials: true });
     m.start();
-    m.skipTutorial();
+    m.skipTutorial(); // shiritori → timeout
+    expect(m.state.phase).toBe("Tutorial");
+    expect(m.state.currentTutorial).toBe("timeout");
+    m.skipTutorial(); // timeout → countdown
     expect(m.state.phase).toBe("Countdown");
   });
 
@@ -50,17 +56,18 @@ describe("Shiritori tutorial (top-level phase)", () => {
   });
 });
 
-describe("Intermission tutorials (engine → optimize → tax → sniperBan)", () => {
-  /** Skip Shiritori, burn the countdown, and play one word to reach intermission. */
+describe("Intermission tutorials (engine → cards → optimize → tax → sniper → sniperBan)", () => {
+  /** Skip the pre-game pages, burn the countdown, and play one word to reach the
+   *  first intermission. */
   const toFirstIntermission = (m: MatchController, word: string): void => {
     m.start();
-    if (m.state.phase === "Tutorial") m.skipTutorial();
+    while (m.state.phase === "Tutorial") m.skipTutorial(); // chain → timeout → done
     m.tick(2); // countdown → Round
     m.submitWord("p1", word); // single player → wraps → intermission
     m.tick(2.001); // burn the era-end settle window (engineAnimationSeconds + buffer)
   };
 
-  it("walks engine → optimize → tax → sniperBan on the first intermission", () => {
+  it("walks engine → cards → optimize → tax → sniper → sniperBan on the first intermission", () => {
     const m = make({ enableTutorials: true });
     toFirstIntermission(m, "cat");
 
@@ -68,7 +75,11 @@ describe("Intermission tutorials (engine → optimize → tax → sniperBan)", (
     expect(m.state.intermissionPhase).toBe("tutorial");
     expect(m.state.currentTutorial).toBe("engine");
 
-    m.skipTutorial(); // engine → optimize
+    m.skipTutorial(); // engine → cards
+    expect(m.state.intermissionPhase).toBe("tutorial");
+    expect(m.state.currentTutorial).toBe("cards");
+
+    m.skipTutorial(); // cards → optimize
     expect(m.state.intermissionPhase).toBe("optimize");
     expect(m.state.currentTutorial).toBeNull();
 
@@ -76,19 +87,32 @@ describe("Intermission tutorials (engine → optimize → tax → sniperBan)", (
     expect(m.state.intermissionPhase).toBe("tutorial");
     expect(m.state.currentTutorial).toBe("tax");
 
-    m.skipTutorial(); // tax → sniper ban
+    m.skipTutorial(); // tax → sniper
+    expect(m.state.intermissionPhase).toBe("tutorial");
+    expect(m.state.currentTutorial).toBe("sniper");
+
+    m.skipTutorial(); // sniper → sniper ban
     expect(m.state.intermissionPhase).toBe("sniperBan");
 
-    expect(m.state.shownTutorials.sort()).toEqual(["engine", "shiritori", "tax"]);
+    expect(m.state.shownTutorials.sort()).toEqual([
+      "cards",
+      "engine",
+      "shiritori",
+      "sniper",
+      "tax",
+      "timeout",
+    ]);
   });
 
   it("does not repeat tutorials on later intermissions", () => {
     const m = make({ enableTutorials: true });
-    // First intermission: clear all three tutorials and advance the era.
+    // First intermission: clear every tutorial page and advance the era.
     toFirstIntermission(m, "cat");
-    m.skipTutorial(); // engine → optimize
+    m.skipTutorial(); // engine → cards
+    m.skipTutorial(); // cards → optimize
     m.skipOptimize(); // optimize → tax
-    m.skipTutorial(); // tax → sniperBan
+    m.skipTutorial(); // tax → sniper
+    m.skipTutorial(); // sniper → sniperBan
     m.applySniperBanAndAdvance(m.randomBanLetter()); // → era 2 countdown
 
     // Era 2 round → second intermission goes straight to optimize.

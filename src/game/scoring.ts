@@ -11,6 +11,7 @@ import { buildMagnifier } from "./cards/magnifier";
 import { skip, type EvalContext, type ModifierCard } from "./cards/card";
 import type { EngineEffects, RoomServices } from "./cards/roomServices";
 import { BASE_TIMEOUT_PENALTY, isVowel, MAX_WORD_SCORE, MIN_SHOT_CLOCK_SECONDS } from "./settings";
+import { CardId } from "./types";
 import type { BayCard, PlayerState, ScoreBreakdown, ScoreStep, Submission } from "./types";
 
 /** The per-word facts shared by every card, before bay-position context. */
@@ -225,7 +226,10 @@ export function scoreTimeout(bay: readonly BayCard[], opts: ScoreOptions): Score
     });
   });
 
-  const finalScore = roundHalfUp(value);
+  let finalScore = roundHalfUp(value);
+  // Insurance negates the timeout loss entirely: floor the net at 0 so it never
+  // matters whether a glass-cannon drain sits to the right of the Insurance card.
+  if (finalScore < 0 && bay.some((b) => b.id === CardId.Insurance)) finalScore = 0;
   return { word: "", seed, steps, finalBeforeTax: finalScore, taxed: false, finalScore };
 }
 
@@ -277,11 +281,7 @@ export function bayHidesInput(ev: BayEvaluator): boolean {
 /** Fire a lifecycle hook across a bay, in slot order (mutations land via ctx). */
 export function fireBayHook(
   ev: BayEvaluator,
-  hook:
-    | "onEraStart"
-    | "onWordAccepted"
-    | "onTurnEnded"
-    | "onOpponentWordResolved",
+  hook: "onEraStart" | "onWordAccepted" | "onTurnEnded" | "onOpponentWordResolved",
   extra?: Partial<EvalContext>,
 ): void {
   ev.resolved.forEach((c, i) => {

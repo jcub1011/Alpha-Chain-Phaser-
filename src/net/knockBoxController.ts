@@ -336,6 +336,13 @@ export class KnockBoxController implements GameController {
           )
             h.applySniperBanAndAdvance(action.letter);
           break;
+        case "tutorialReady":
+          // Any player may mark the current tutorial page read. The flag-set alone
+          // emits no event (it may auto-advance, which does), so force a snapshot so
+          // the updated ready count reaches every client.
+          h.markTutorialReady(fromId);
+          this.flush(true);
+          break;
         case "skipTutorial":
           if (fromId === this.peer.playerId) h.skipTutorial(); // only the host may skip
           break;

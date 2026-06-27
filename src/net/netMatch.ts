@@ -27,6 +27,7 @@ function emptyState(): MatchState {
     currentPlayerIndex: 0,
     requiredLetter: "",
     bannedLetter: "",
+    bannedLetterHistory: [],
     usedWords: new Set(),
     history: [],
     clockRemaining: 0,
@@ -36,6 +37,7 @@ function emptyState(): MatchState {
     subTimerRemaining: 0,
     subTimerTotal: 0,
     shownTutorials: [],
+    tutorialReady: [],
     settings: { ...DEFAULT_SETTINGS },
     winnerId: null,
   };
@@ -159,6 +161,10 @@ export class NetMatch implements MatchLike {
   skipTutorial(): void {
     // Host-only on the authoritative side; the host ignores non-host skips.
     this.sendIntent({ kind: "skipTutorial" });
+  }
+  markTutorialReady(_playerId: string): void {
+    // The host derives the player id from the sender; the page advances when all ready.
+    this.sendIntent({ kind: "tutorialReady" });
   }
   skipOptimize(): void {
     // Route to the host, which fast-forwards the shared optimize dwell authoritatively.

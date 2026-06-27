@@ -1,9 +1,14 @@
 /*
- * <ac-tutorial> — the scripted tutorial overlay (Shiritori / Engine / Tax). Shown
- * during the top-level "Tutorial" phase (Shiritori, before the first round) and
- * over the intermission during the "tutorial" sub-phase (Engine before optimize,
- * Tax before the sniper ban). The dwell is host-authoritative; this view reads the
- * synced sub-timer for its progress ring and only the host/solo player may SKIP.
+ * <ac-tutorial> — the scripted tutorial overlay. Each page leads with a looping
+ * demonstration animation (CSS-driven, frozen under prefers-reduced-motion); the
+ * scripted lines are supplementary captions beneath it. Shown during the top-level
+ * "Tutorial" phase (chain → timeout, before the first round) and over the
+ * intermission "tutorial" sub-phase (engine → cards before optimize; tax → sniper
+ * before the ban). The dwell is host-authoritative; this view reads the synced
+ * sub-timer for its progress ring.
+ *
+ * Readiness: every player has an "I've Read This" button; the page auto-advances
+ * once all are ready (the host also keeps SKIP, and the dwell timer is a fallback).
  */
 
 import { html, nothing, type PropertyValues, type TemplateResult } from "lit";
@@ -25,7 +30,14 @@ const SCRIPTS: Record<TutorialKind, Script> = {
     lines: [
       "Each word must begin with the last letter of the word before it.",
       "Words can't be repeated.",
-      "If the shot clock runs out, your turn is skipped.",
+    ],
+  },
+  timeout: {
+    eyebrow: "how to play · the shot clock",
+    title: "Beat the clock",
+    lines: [
+      "Submit before the shot clock hits zero.",
+      "Time out and you lose points — and in Survival mode, your spot.",
     ],
   },
   engine: {
@@ -33,7 +45,15 @@ const SCRIPTS: Record<TutorialKind, Script> = {
     title: "Your engine scores left → right",
     lines: [
       "Engine cards are evaluated from left to right.",
-      "Try to keep adds to the left and multipliers to the right.",
+      "Keep adds to the left and multipliers to the right for bigger scores.",
+    ],
+  },
+  cards: {
+    eyebrow: "how to play · building your engine",
+    title: "Draft & arrange cards",
+    lines: [
+      "Each intermission you're dealt new cards.",
+      "Drag them into your engine and order them — slots are limited.",
     ],
   },
   tax: {
@@ -41,8 +61,15 @@ const SCRIPTS: Record<TutorialKind, Script> = {
     title: "Mind the banned letter",
     lines: [
       "Each era, the last-place player bans one letter.",
-      "Any word containing the banned letter scores nothing that era…",
-      "…except the player in last place, who is exempt from the ban.",
+      "Any word containing it scores nothing that era — except last place, who's exempt.",
+    ],
+  },
+  sniper: {
+    eyebrow: "how to play · the sniper ban",
+    title: "Last place strikes back",
+    lines: [
+      "If you're in last place, you choose the letter to ban next era.",
+      "Pick what your rivals lean on — you'll see what scored well.",
     ],
   },
 };
@@ -52,22 +79,121 @@ export class AcTutorial extends AcElement {
   @property({ attribute: false }) controller!: GameController;
 
   override willUpdate(changed: PropertyValues): void {
-    // The FSM owns the authoritative dwell; re-render the progress ring whenever
-    // the synced sub-timer ticks (per frame, never broadcast over the network).
+    // The FSM owns the authoritative dwell; re-render the progress ring (and the
+    // ready count) whenever the synced sub-timer ticks (per frame, never broadcast).
     if (changed.has("controller") && this.controller) {
       this.clearSubs();
       this.listen(this.controller.match.events, "subTimerTick", () => this.requestUpdate());
     }
   }
 
-  /** Only the host (or a solo player) may skip the shared dwell. */
+  /** Only the host (or a solo player) may skip the shared dwell for everyone. */
   private get canSkip(): boolean {
     const c = this.controller as GameController & { isHost?: boolean };
     return "isHost" in c ? !!c.isHost : true;
   }
 
+  /** Whether this client has already marked the current page read. */
+  private get amReady(): boolean {
+    return this.controller.match.state.tutorialReady.includes(this.controller.humanId);
+  }
+
+  /** Ready tally across active humans (for the "X / N ready" hint). */
+  private get readyCount(): { ready: number; total: number } {
+    const s = this.controller.match.state;
+    const humans = s.players.filter((p) => !p.isBot && !p.eliminated);
+    return {
+      ready: humans.filter((p) => s.tutorialReady.includes(p.id)).length,
+      total: humans.length,
+    };
+  }
+
   private skip(): void {
     this.controller.match.skipTutorial();
+  }
+
+  private markRead(): void {
+    this.controller.match.markTutorialReady(this.controller.humanId);
+    this.requestUpdate();
+  }
+
+  /** The per-page demonstration animation (CSS-driven; frozen under reduced motion). */
+  private renderStage(kind: TutorialKind): TemplateResult {
+    switch (kind) {
+      case "shiritori":
+        return html`<div class="tut-stage tut-chain">
+          ${["CAT", "TIN", "NET"].map(
+            (w, wi) => html`
+              ${wi > 0 ? html`<span class="tut-arrow" style="--i:${wi}">→</span>` : nothing}
+              <span class="tut-word" style="--i:${wi}">
+                ${[...w].map(
+                  (ch, ci) =>
+                    html`<span
+                      class="tut-tile ${(wi > 0 && ci === 0) || ci === w.length - 1
+                        ? "is-link"
+                        : ""}"
+                      >${ch}</span
+                    >`,
+                )}
+              </span>
+            `,
+          )}
+        </div>`;
+      case "timeout":
+        return html`<div class="tut-stage tut-timeout">
+          <div class="tut-clock">
+            <svg viewBox="0 0 64 64" aria-hidden="true">
+              <circle class="tut-clock-track" cx="32" cy="32" r="28" />
+              <circle class="tut-clock-fill" cx="32" cy="32" r="28" />
+            </svg>
+            <span class="tut-clock-ico">⏱</span>
+          </div>
+          <div class="tut-timeout-out">
+            <span class="tut-stamp">TIMED OUT</span>
+            <span class="tut-penalty">−10</span>
+          </div>
+        </div>`;
+      case "engine":
+        return html`<div class="tut-stage tut-engine">
+          <div class="tut-engine-row">
+            <span class="tut-ecard is-add" style="--i:0">+5</span>
+            <span class="tut-ecard is-add" style="--i:1">+8</span>
+            <span class="tut-ecard is-mul" style="--i:2">×2</span>
+          </div>
+          <span class="tut-engine-sweep" aria-hidden="true"></span>
+          <div class="tut-engine-score">26</div>
+        </div>`;
+      case "cards":
+        return html`<div class="tut-stage tut-deal">
+          ${[0, 1, 2].map(
+            (i) =>
+              html`<span class="tut-dcard" style="--i:${i}">
+                <span class="tut-dcard-ico">🃏</span>
+                ${i === 2 ? html`<span class="tut-dcard-new">NEW</span>` : nothing}
+              </span>`,
+          )}
+        </div>`;
+      case "tax":
+        return html`<div class="tut-stage tut-tax">
+          <span class="tut-banned">S</span>
+          <span class="tut-tax-word">
+            <span class="tut-tax-text">STAR</span>
+            <span class="tut-tax-zero">0</span>
+          </span>
+        </div>`;
+      case "sniper":
+        return html`<div class="tut-stage tut-sniper">
+          <div class="tut-board">
+            <span class="tut-board-row" style="--i:0"><b>1st</b> rival · 240</span>
+            <span class="tut-board-row" style="--i:1"><b>2nd</b> rival · 180</span>
+            <span class="tut-board-row is-last" style="--i:2"><b>last</b> you · 90</span>
+          </div>
+          <div class="tut-sniper-pick">
+            <span class="tut-arrow">→</span>
+            <span class="tut-ban-key">E</span>
+          </div>
+        </div>`;
+    }
   }
 
   override render(): TemplateResult {
@@ -78,11 +204,13 @@ export class AcTutorial extends AcElement {
     const total = s.subTimerTotal || 1;
     const frac = Math.max(0, Math.min(1, s.subTimerRemaining / total));
     const secs = Math.ceil(s.subTimerRemaining);
+    const { ready, total: humans } = this.readyCount;
     return html`
       <div class="overlay tutorial">
         <div class="tut-card ac-panel">
           <span class="ac-eyebrow">${script.eyebrow}</span>
           <h2 class="tut-title">${script.title}</h2>
+          ${this.renderStage(kind)}
           <ul class="tut-lines">
             ${script.lines.map((l) => html`<li>${l}</li>`)}
           </ul>
@@ -91,9 +219,17 @@ export class AcTutorial extends AcElement {
               <div class="tut-bar-fill" style="transform:scaleX(${frac})"></div>
             </div>
             <span class="tut-secs">${secs}s</span>
+            ${humans > 1
+              ? html`<span class="tut-ready-count">${ready}/${humans} ready</span>`
+              : nothing}
+            ${this.amReady
+              ? html`<button class="ac-btn tut-read is-ready" disabled>✓ READY</button>`
+              : html`<button class="ac-btn tut-read" @click=${() => this.markRead()}>
+                  I'VE READ THIS
+                </button>`}
             ${this.canSkip
               ? html`<button class="ac-btn tut-skip" @click=${() => this.skip()}>SKIP</button>`
-              : html`<span class="tut-wait">waiting for host…</span>`}
+              : nothing}
           </div>
         </div>
       </div>

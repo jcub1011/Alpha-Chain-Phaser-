@@ -79,8 +79,19 @@ describe("scoreTimeout — the penalty walk (mirrors scoreWord)", () => {
     expect(scoreTimeout(bay("MagnifyingGlass", "Redline"), opts).finalScore).toBe(-28); // -10 + (-12×1.5)
   });
 
-  it("Insurance refunds the base penalty — a general, non-debuff reaction", () => {
-    expect(scoreTimeout(bay("Insurance"), opts).finalScore).toBe(0); // -10 base + 10 refund
+  it("Insurance negates the base penalty (lose nothing on a timeout)", () => {
+    expect(scoreTimeout(bay("Insurance"), opts).finalScore).toBe(0); // -10 base, fully refunded
+  });
+
+  it("Insurance negates glass-cannon drains to its left (floor at 0)", () => {
+    // Insurance sits to the RIGHT and brings the running penalty back to 0.
+    expect(scoreTimeout(bay("TheVault", "Redline", "Insurance"), opts).finalScore).toBe(0);
+  });
+
+  it("Insurance negation is order-independent (drain to its right still floored)", () => {
+    // Insurance zeroes at its step, a later Redline re-opens a loss, but the final
+    // net is floored to 0 because the bay holds an Insurance card.
+    expect(scoreTimeout(bay("Insurance", "Redline"), opts).finalScore).toBe(0);
   });
 
   it("emits one step per bay slot (aligned to the replay fan); inert cards skip", () => {

@@ -1,7 +1,8 @@
 /*
- * <ac-recent-words> — a horizontal feed of recent submissions, newest first.
- * Each chip shows the word, who played it, and the score (or a TAXED tag). The
- * newest chip is accented and pops in.
+ * <ac-recent-words> — a feed of recent submissions, newest first. Each chip shows
+ * the word, who played it, and the score (or a TAXED tag). The newest chip is
+ * accented and pops in. Renders as a horizontal scroller by default (mobile, above
+ * the input) or a vertical column when `vertical` is set (desktop, under the rail).
  */
 
 import { html, type PropertyValues, type TemplateResult } from "lit";
@@ -14,6 +15,10 @@ import { AcElement } from "../app/AcElement";
 @customElement("ac-recent-words")
 export class AcRecentWords extends AcElement {
   @property({ attribute: false }) controller!: GameController;
+
+  /** Lay the feed out as a vertical column (desktop rail) instead of a horizontal
+   *  scroller (mobile). Reflected so CSS can target `[vertical]`. */
+  @property({ type: Boolean, reflect: true }) vertical = false;
 
   @state() private items: Submission[] = [];
 

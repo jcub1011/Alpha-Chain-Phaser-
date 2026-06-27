@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { DEFAULT_SETTINGS, loadSettings, saveSettings } from "./settings";
+import {
+  availableBanLetters,
+  DEFAULT_SETTINGS,
+  legalBanLetters,
+  loadSettings,
+  saveSettings,
+} from "./settings";
 
 // The test environment is "node" (no DOM), so stand up a minimal in-memory
 // localStorage for the persistence helpers to talk to.
@@ -28,7 +34,7 @@ class MemoryStorage {
 const KEY = "alphachain.settings";
 // Mirrors the (unexported) SETTINGS_VERSION; corruption cases set it so they test the
 // per-field validators rather than tripping the version gate. Keep in sync.
-const VERSION = 1;
+const VERSION = 2;
 
 function setGlobalStorage(s: Storage | undefined): void {
   (globalThis as unknown as { localStorage?: Storage }).localStorage = s as Storage;
@@ -125,5 +131,38 @@ describe("settings persistence", () => {
       },
     } as unknown as Storage);
     expect(loadSettings()).toEqual(DEFAULT_SETTINGS);
+  });
+});
+
+describe("availableBanLetters — ban-repeat rule", () => {
+  it("AllowRepeat returns every legal letter regardless of history", () => {
+    expect(availableBanLetters("All", "AllowRepeat", ["a", "b"])).toEqual(legalBanLetters("All"));
+  });
+
+  it("an empty history always returns the full legal pool", () => {
+    expect(availableBanLetters("ConsonantsOnly", "NoRepeat", [])).toEqual(
+      legalBanLetters("ConsonantsOnly"),
+    );
+  });
+
+  it("NoConsecutive excludes only the most recent ban", () => {
+    const r = availableBanLetters("All", "NoConsecutive", ["a", "b"]);
+    expect(r).toContain("a"); // older bans are fair game again
+    expect(r).not.toContain("b"); // last era's ban is off-limits
+    expect(r).toHaveLength(25);
+  });
+
+  it("NoRepeat excludes every previously banned letter", () => {
+    const r = availableBanLetters("All", "NoRepeat", ["a", "b", "c"]);
+    expect(r).not.toContain("a");
+    expect(r).not.toContain("b");
+    expect(r).not.toContain("c");
+    expect(r).toHaveLength(23);
+  });
+
+  it("resets the exclusion set when NoRepeat exhausts the legal pool", () => {
+    const vowels = legalBanLetters("VowelsOnly"); // a e i o u
+    // Every vowel already banned → excluding all would leave nothing, so reset.
+    expect(availableBanLetters("VowelsOnly", "NoRepeat", vowels)).toEqual(vowels);
   });
 });

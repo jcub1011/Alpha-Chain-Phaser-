@@ -272,7 +272,12 @@ describe("KnockBoxController — host-authoritative sync", () => {
     guestCtl.match.skipTutorial();
     expect(hostCtl.match.state.phase).toBe("Tutorial");
 
-    // The host skip advances both into the countdown.
+    // The host skip advances both to the next pre-game page (chain → timeout).
+    hostCtl.match.skipTutorial();
+    expect(hostCtl.match.state.currentTutorial).toBe("timeout");
+    expect(guestCtl.match.state.currentTutorial).toBe("timeout");
+
+    // A second host skip clears the last page into the countdown.
     hostCtl.match.skipTutorial();
     expect(hostCtl.match.state.phase).toBe("Countdown");
     expect(guestCtl.match.state.phase).toBe("Countdown");

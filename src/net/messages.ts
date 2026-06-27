@@ -16,6 +16,7 @@ export type Intent =
   | { kind: "reorderBay"; engine: string[]; discard: string[] }
   | { kind: "lockInOptimize" } // any player locking in fast-forwards the shared optimize dwell
   | { kind: "sniperBan"; letter: string }
+  | { kind: "tutorialReady" } // any player marking the current tutorial page read
   | { kind: "skipTutorial" }; // host-only: skip the on-screen tutorial dwell
 
 /** A match event serialized for replay on guests (payloads are already JSON-safe). */
