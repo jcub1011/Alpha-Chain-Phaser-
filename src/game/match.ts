@@ -849,6 +849,19 @@ export class MatchController {
     if (this.allHumansLockedIn()) this.completeOptimize();
   }
 
+  /** Re-open a player's engine: clears the lock-in set by lockInOptimize so they can
+   *  keep editing while others finish. Only meaningful before everyone has locked in
+   *  (once all are locked, completeOptimize has already advanced the phase). Called
+   *  with a playerId by the host (per-player); the controller-facing solo path passes
+   *  none and clears the active humans' locks defensively. Never advances. */
+  unlockOptimize(playerId?: string): void {
+    if (this.state.phase !== "Intermission" || this.state.intermissionPhase !== "optimize") return;
+    const targets = playerId
+      ? this.state.players.filter((x) => x.id === playerId)
+      : this.activePlayers.filter((p) => !p.isBot);
+    for (const p of targets) p.lockedIn = false;
+  }
+
   /** Whether every active human player has locked in their engine (bots don't optimize). */
   private allHumansLockedIn(): boolean {
     return this.activePlayers.filter((p) => !p.isBot).every((p) => p.lockedIn);

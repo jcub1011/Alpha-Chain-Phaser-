@@ -38,6 +38,8 @@ export interface MatchLike {
   markTutorialReady(playerId: string): void;
   /** Fast-forward the optimize sub-phase (solo; no-op for guests). */
   skipOptimize(): void;
+  /** Re-open a locked-in engine while waiting on other players (multiplayer). */
+  unlockOptimize(): void;
 }
 
 // Compile-time assertion that MatchController is a MatchLike (no runtime cost).

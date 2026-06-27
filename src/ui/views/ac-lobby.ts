@@ -50,9 +50,12 @@ export class AcLobby extends AcElement {
     location.search = "?sandbox";
   }
 
-  /** A small ⓘ marker beside a label that carries the setting's explanation. */
-  private infoMark(hint?: string): TemplateResult | typeof nothing {
-    return hint ? html`<span class="set-info" title=${hint} aria-hidden="true">ⓘ</span>` : nothing;
+  /** Label + a subtext line carrying the setting's explanation. */
+  private setText(label: string, hint?: string): TemplateResult {
+    return html`<div class="set-text">
+      <span class="set-label">${label}</span>
+      ${hint ? html`<span class="set-desc">${hint}</span>` : nothing}
+    </div>`;
   }
 
   private stepper(
@@ -63,8 +66,8 @@ export class AcLobby extends AcElement {
     hint?: string,
   ): TemplateResult {
     return html`
-      <div class="set-row" title=${hint ?? nothing}>
-        <span class="set-label">${label}${this.infoMark(hint)}</span>
+      <div class="set-row">
+        ${this.setText(label, hint)}
         <div class="set-ctl">
           <button class="set-btn" @click=${onMinus} aria-label="decrease">−</button>
           <span class="set-value">${value}</span>
@@ -83,8 +86,8 @@ export class AcLobby extends AcElement {
     hint?: string,
   ): TemplateResult {
     return html`
-      <div class="set-row set-row--seg" title=${hint ?? nothing}>
-        <span class="set-label">${label}${this.infoMark(hint)}</span>
+      <div class="set-row set-row--seg">
+        ${this.setText(label, hint)}
         <div class="seg">
           ${options.map(
             (o) =>

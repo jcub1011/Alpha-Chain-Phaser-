@@ -170,6 +170,10 @@ export class NetMatch implements MatchLike {
     // Route to the host, which fast-forwards the shared optimize dwell authoritatively.
     this.sendIntent({ kind: "lockInOptimize" });
   }
+  unlockOptimize(): void {
+    // Route to the host, which clears this player's lock-in (the host derives the id).
+    this.sendIntent({ kind: "unlockOptimize" });
+  }
   randomBanLetter(): string {
     // The host re-validates; this only feeds the UI's timeout-default path.
     const legal = legalBanLetters(this._state.settings.banMode);

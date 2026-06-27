@@ -328,6 +328,14 @@ export class KnockBoxController implements GameController {
             this.flush(true);
           }
           break;
+        case "unlockOptimize":
+          // Re-open this player's engine. Like lock-in, the flag-clear alone emits no
+          // event, so force a snapshot so the cleared status reaches every client.
+          if (h.state.phase === "Intermission" && h.state.intermissionPhase === "optimize") {
+            h.unlockOptimize(fromId);
+            this.flush(true);
+          }
+          break;
         case "sniperBan":
           if (
             h.state.phase === "Intermission" &&

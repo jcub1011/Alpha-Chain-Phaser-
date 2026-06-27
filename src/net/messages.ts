@@ -15,6 +15,7 @@ export type Intent =
   | { kind: "draftWord"; word: string } // current player's in-progress word, for timeout auto-submit
   | { kind: "reorderBay"; engine: string[]; discard: string[] }
   | { kind: "lockInOptimize" } // any player locking in fast-forwards the shared optimize dwell
+  | { kind: "unlockOptimize" } // a locked-in player re-opening their engine while others finish
   | { kind: "sniperBan"; letter: string }
   | { kind: "tutorialReady" } // any player marking the current tutorial page read
   | { kind: "skipTutorial" }; // host-only: skip the on-screen tutorial dwell

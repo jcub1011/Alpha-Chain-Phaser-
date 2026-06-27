@@ -55,7 +55,8 @@
 }
 .set-row {
   display: flex;
-  align-items: center;
+  /* Top-align so the control stays put when a description wraps to two lines. */
+  align-items: flex-start;
   justify-content: space-between;
   gap: var(--sp-3);
   padding: 0.55rem 0.2rem;
@@ -96,19 +97,33 @@
   text-align: center;
   padding: 0.4rem 0.3rem;
 }
+/* Once the grid splits into multiple (narrow) columns, a label-left / control-right
+   stepper wraps its subtext into a tall sliver. Stack the label + subtext above the
+   control instead (like the segmented rows). The single-column mobile view below this
+   width keeps the compact side-by-side layout. ~31.25rem is where the 760px panel
+   first fits two 220px columns. */
+@media (min-width: 31.25rem) {
+  .net-settings .set-row:not(.set-row--seg) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.4rem;
+  }
+}
+/* Label + explanatory subtext, stacked in the left half of the row. */
+.set-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
 .set-label {
   font-weight: 600;
   color: var(--ac-ink);
 }
-/* ⓘ hint beside a setting label; the row's `title` carries the explanation. */
-.set-info {
-  margin-left: 0.35rem;
+.set-desc {
+  font-size: 0.72rem;
+  line-height: 1.4;
   color: var(--ac-ink-faint);
-  cursor: help;
-  font-size: 0.85em;
-}
-.set-row:hover .set-info {
-  color: var(--ac-cyan);
 }
 /* Read-only banner shown to guests above the host's settings. */
 .set-readonly-note {

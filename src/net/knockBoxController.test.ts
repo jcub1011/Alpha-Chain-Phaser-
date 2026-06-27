@@ -392,6 +392,30 @@ describe("KnockBoxController — intermission optimize", () => {
     expect(guestCtl.match.state.intermissionPhase).toBe("sniperBan"); // converged
   });
 
+  it("lets a locked-in player unlock to keep editing (unlockOptimize intent)", () => {
+    const { hostCtl, guestCtl } = startToOptimize();
+    const guestId = guestCtl.humanId;
+    const lockedOnHost = () =>
+      !!hostCtl.match.state.players.find((p) => p.id === guestId)?.lockedIn;
+    const lockedOnGuest = () =>
+      !!guestCtl.match.state.players.find((p) => p.id === guestId)?.lockedIn;
+
+    // Guest locks in — recorded on the host and mirrored to the guest, but the host
+    // hasn't, so optimize keeps waiting rather than advancing.
+    guestCtl.match.skipOptimize();
+    expect(lockedOnHost()).toBe(true);
+    expect(lockedOnGuest()).toBe(true);
+    expect(hostCtl.match.state.intermissionPhase).toBe("optimize");
+
+    // Guest changes their mind and unlocks: the flag clears everywhere and the phase
+    // stays in optimize (nothing advanced).
+    guestCtl.match.unlockOptimize();
+    expect(lockedOnHost()).toBe(false);
+    expect(lockedOnGuest()).toBe(false);
+    expect(hostCtl.match.state.intermissionPhase).toBe("optimize");
+    expect(guestCtl.match.state.intermissionPhase).toBe("optimize");
+  });
+
   it("ticks the host's own optimize sub-timer down between snapshots", () => {
     const { hostCtl, clock } = startToOptimize();
     const before = hostCtl.match.state.subTimerRemaining;

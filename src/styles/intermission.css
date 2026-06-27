@@ -84,9 +84,39 @@
   align-items: center;
   gap: 0.3rem;
   cursor: grab;
+  /* Pointer-drag owns the gesture; stop touch from scrolling the panel mid-drag. */
+  touch-action: none;
 }
 .im-slot:active {
   cursor: grabbing;
+}
+/* The card being dragged: dimmed in place while its ghost trails the pointer. */
+.im-slot.is-dragging {
+  opacity: 0.35;
+}
+/* Hovered drop target (a sibling card or a whole zone). */
+.im-slot.is-drop-target {
+  outline: 2px dashed var(--ac-cyan);
+  outline-offset: 3px;
+  border-radius: var(--r-sm);
+}
+.im-zone.is-drop-target {
+  border-color: var(--ac-cyan);
+  background: color-mix(in srgb, var(--ac-cyan) 8%, transparent);
+}
+/* Floating clone that follows the pointer/finger during a drag. */
+.im-drag-ghost {
+  position: fixed;
+  z-index: 1000;
+  margin: 0;
+  pointer-events: none;
+  opacity: 0.9;
+  transform: rotate(-2deg);
+  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.5));
+}
+.im-drag-ghost .im-actions,
+.im-drag-ghost .im-slot-no {
+  display: none;
 }
 .im-slot-no {
   font-family: var(--font-mono);
@@ -160,6 +190,43 @@
   align-self: center;
   min-width: 200px;
 }
+/* Locked engine: a clear "frozen" banner, dimmed/non-interactive zones, and an
+   UNLOCK affordance with the waiting status beside it. */
+.im-locked-note {
+  margin: 0;
+  align-self: center;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid color-mix(in srgb, var(--ac-amber) 50%, var(--ac-border-strong));
+  border-radius: var(--r-xs);
+  background: color-mix(in srgb, var(--ac-amber) 12%, transparent);
+  color: var(--ac-amber);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.03em;
+}
+.im-card.is-locked .im-zone {
+  opacity: 0.6;
+  cursor: default;
+}
+.im-card.is-locked .im-slot {
+  cursor: default;
+  touch-action: auto; /* locked → let touch scroll the panel again */
+}
+.im-lock-row {
+  align-self: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+}
+.im-lock.is-unlock {
+  border-color: var(--ac-amber);
+}
+.im-lock-status {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--ac-ink-soft);
+}
 
 /* Sniper-ban grid. */
 .ban-grid {
@@ -200,6 +267,19 @@
   background: color-mix(in srgb, var(--ac-danger) 16%, transparent);
   box-shadow: 0 0 12px color-mix(in srgb, var(--ac-danger) 60%, transparent);
   animation: ac-pulse 1.8s ease-in-out infinite;
+}
+/* Previous letter under the allow-repeat rule: still selectable, so amber (a
+   heads-up) rather than the forbidden red of the no-repeat rules. */
+.ban-key.is-prev.is-prev-allowed {
+  border-color: var(--ac-amber);
+  color: var(--ac-amber);
+  background: color-mix(in srgb, var(--ac-amber) 16%, transparent);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--ac-amber) 60%, transparent);
+}
+.ban-key.is-prev.is-prev-allowed:hover:not(:disabled) {
+  border-color: var(--ac-amber);
+  background: color-mix(in srgb, var(--ac-amber) 24%, transparent);
+  color: var(--ac-amber);
 }
 /* Excluded by the ban-repeat rule (previously banned). */
 .ban-key:disabled {
