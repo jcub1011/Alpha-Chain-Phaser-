@@ -295,22 +295,6 @@ ac-card[flipped] .gc-flip {
   height: 100%;
   display: block;
 }
-.gc-new-badge {
-  position: absolute;
-  top: calc(var(--gc-h) * 0.05);
-  right: calc(var(--gc-w) * -0.01);
-  transform: rotate(8deg);
-  padding: 0.12em 0.5em;
-  border-radius: 99px;
-  background: var(--ac-magenta);
-  color: #1a0410;
-  font-family: var(--font-mono);
-  font-weight: 800;
-  font-size: calc(var(--gc-w) * 0.0997);
-  letter-spacing: 0.1em;
-  box-shadow: var(--ac-glow-mag);
-}
-
 /* Lift transforms live on .gc-flip so they don't clobber the faces' 3D rotation;
    guarded with :not([flipped]) so hovering a flipped card never un-flips it. */
 @media (hover: hover) {
@@ -336,9 +320,6 @@ ac-card[triggered] .gc {
     var(--ac-drop),
     0 0 30px color-mix(in srgb, var(--gc-accent) 80%, transparent);
   border-color: color-mix(in srgb, var(--gc-accent) 100%, #fff 25%);
-}
-.gc-new-badge {
-  animation: ac-pop 0.4s ease-out both;
 }
 
 /* Mini cards (opponent bays, sandbox, the engine-replay piles) keep the full

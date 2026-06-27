@@ -40,7 +40,6 @@ const clockText = (clock: ClockModifier): string => {
 @customElement("ac-card")
 export class AcCard extends AcElement {
   @property() cardId = "";
-  @property({ type: Boolean }) isNew = false;
   /** Mini cards (opponent bays, sandbox, replay piles): icon + magnitude + name
    *  only — no description, flip, or back face. Full width but shorter. */
   @property({ type: Boolean, reflect: true }) mini = false;
@@ -155,7 +154,6 @@ export class AcCard extends AcElement {
           </div>
           <div class="gc-name">${card.name}</div>
           <p class="gc-front-desc">${card.description}</p>
-          ${this.isNew ? html`<span class="gc-new-badge">NEW</span>` : nothing}
           ${this.mini
             ? nothing
             : html`<span class="gc-flip-icon" aria-hidden="true">

@@ -78,7 +78,6 @@ export class AcCardFan extends AcElement {
             <ac-card
               role="listitem"
               .cardId=${c.id}
-              ?isNew=${c.isNew ?? false}
               ?mini=${this.mini}
               ?dimmed=${c.dimmed ?? false}
               style=${at(i)}

@@ -470,6 +470,10 @@ describe("dealEngineCardsFirstEra", () => {
 
     m.skipOptimize(); // → countdown (no sniper ban before era 1)
     expect(m.state.phase).toBe("Countdown");
+    // The setup path bypasses the era-boundary isNew reset, so completeOptimize must
+    // clear it here — otherwise the opening hand would re-default into the discard bin
+    // at the era-1-end optimize.
+    expect(m.state.players.every((p) => p.bay.every((b) => !b.isNew))).toBe(true);
     m.tick(1);
     expect(m.state.phase).toBe("Round");
     expect(m.state.era).toBe(1);

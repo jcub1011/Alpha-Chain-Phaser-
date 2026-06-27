@@ -890,8 +890,12 @@ export class MatchController {
       p.lockedIn = false; // optimize is over; clear the lock-in slate
     }
     // Pre-era-1 setup optimize (no round has been played yet): there's no last-place
-    // player to ban, so skip the ban tutorials + sniper ban and start era 1.
+    // player to ban, so skip the ban tutorials + sniper ban and start era 1. This path
+    // bypasses the era-boundary reset in applySniperBanAndAdvance, so clear the dealt
+    // cards' "new" flag here — otherwise they'd stay flagged through era 1 and (mis)default
+    // into the discard bin at the era-1-end optimize (ac-intermission's `discarded ?? isNew`).
     if (this.state.round === 0) {
+      for (const p of this.state.players) p.bay.forEach((b) => (b.isNew = false));
       this.beginCountdown();
       return;
     }
