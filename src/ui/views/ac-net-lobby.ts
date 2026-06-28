@@ -170,95 +170,12 @@ export class AcNetLobby extends AcElement {
                   Settings (read-only) — the host controls these.
                 </p>`
               : nothing}
-            ${this.segmented<AlphaChainSettings["banMode"]>(
-              "Ban mode",
-              d.banMode,
-              [
-                { value: "All", text: "all" },
-                { value: "VowelsOnly", text: "vowels" },
-                { value: "ConsonantsOnly", text: "conson." },
-              ],
-              (v) => this.set("banMode", v),
-              SETTING_HINTS.banMode,
-            )}
-            ${this.segmented<AlphaChainSettings["banRepeatRule"]>(
-              "Ban repeats",
-              d.banRepeatRule,
-              [
-                { value: "AllowRepeat", text: "allow" },
-                { value: "NoConsecutive", text: "no consec." },
-                { value: "NoRepeat", text: "never" },
-              ],
-              (v) => this.set("banRepeatRule", v),
-              SETTING_HINTS.banRepeatRule,
-            )}
             ${this.stepper(
-              "Shot clock",
+              "Shot Clock",
               `${d.shotClockSeconds}s`,
               () => this.step("shotClockSeconds", -5, 5, 60),
               () => this.step("shotClockSeconds", 5, 5, 60),
               SETTING_HINTS.shotClockSeconds,
-            )}
-            ${this.stepper(
-              "Eras",
-              String(d.eraCount),
-              () => this.step("eraCount", -1, 1, 50),
-              () => this.step("eraCount", 1, 1, 50),
-              SETTING_HINTS.eraCount,
-            )}
-            ${this.stepper(
-              "Rounds / era",
-              String(d.eraInterval),
-              () => this.step("eraInterval", -1, 1, 50),
-              () => this.step("eraInterval", 1, 1, 50),
-              SETTING_HINTS.eraInterval,
-            )}
-            ${this.stepper(
-              "Cards / era",
-              String(d.modifiersDealtPerEra),
-              () => this.step("modifiersDealtPerEra", -1, 0, 10),
-              () => this.step("modifiersDealtPerEra", 1, 0, 10),
-              SETTING_HINTS.modifiersDealtPerEra,
-            )}
-            ${this.stepper(
-              "Card select",
-              `${d.intermissionCardSelectSeconds}s`,
-              () => this.step("intermissionCardSelectSeconds", -10, 10, 180),
-              () => this.step("intermissionCardSelectSeconds", 10, 10, 180),
-              SETTING_HINTS.intermissionCardSelectSeconds,
-            )}
-            ${this.stepper(
-              "Sniper ban",
-              `${d.sniperBanSeconds}s`,
-              () => this.step("sniperBanSeconds", -5, 5, 120),
-              () => this.step("sniperBanSeconds", 5, 5, 120),
-              SETTING_HINTS.sniperBanSeconds,
-            )}
-            ${this.stepper(
-              "Countdown",
-              `${d.preRoundCountdownSeconds}s`,
-              () => this.step("preRoundCountdownSeconds", -1, 3, 15),
-              () => this.step("preRoundCountdownSeconds", 1, 3, 15),
-              SETTING_HINTS.preRoundCountdownSeconds,
-            )}
-            ${this.stepper(
-              "Engine anim",
-              `${d.engineAnimationSeconds.toFixed(1)}s`,
-              () => this.step("engineAnimationSeconds", -0.5, 0.5, 10),
-              () => this.step("engineAnimationSeconds", 0.5, 0.5, 10),
-              SETTING_HINTS.engineAnimationSeconds,
-            )}
-            ${this.toggle(
-              "Engine cards E1",
-              d.dealEngineCardsFirstEra,
-              (v) => this.set("dealEngineCardsFirstEra", v),
-              SETTING_HINTS.dealEngineCardsFirstEra,
-            )}
-            ${this.toggle(
-              "Survival",
-              d.survivalMode,
-              (v) => this.set("survivalMode", v),
-              SETTING_HINTS.survivalMode,
             )}
             ${this.toggle(
               "Tutorials",
@@ -275,6 +192,89 @@ export class AcNetLobby extends AcElement {
               ],
               (v) => this.set("hostPlays", v === "play"),
               SETTING_HINTS.hostPlays,
+            )}
+            ${this.segmented<AlphaChainSettings["banMode"]>(
+              "Letter Ban Mode",
+              d.banMode,
+              [
+                { value: "All", text: "all" },
+                { value: "VowelsOnly", text: "vowels" },
+                { value: "ConsonantsOnly", text: "conson." },
+              ],
+              (v) => this.set("banMode", v),
+              SETTING_HINTS.banMode,
+            )}
+            ${this.segmented<AlphaChainSettings["banRepeatRule"]>(
+              "Letter Ban Repeats",
+              d.banRepeatRule,
+              [
+                { value: "AllowRepeat", text: "allow" },
+                { value: "NoConsecutive", text: "no consec." },
+                { value: "NoRepeat", text: "never" },
+              ],
+              (v) => this.set("banRepeatRule", v),
+              SETTING_HINTS.banRepeatRule,
+            )}
+            ${this.stepper(
+              "Letter Ban Time",
+              `${d.sniperBanSeconds}s`,
+              () => this.step("sniperBanSeconds", -5, 5, 120),
+              () => this.step("sniperBanSeconds", 5, 5, 120),
+              SETTING_HINTS.sniperBanSeconds,
+            )}
+            ${this.stepper(
+              "Eras",
+              String(d.eraCount),
+              () => this.step("eraCount", -1, 1, 50),
+              () => this.step("eraCount", 1, 1, 50),
+              SETTING_HINTS.eraCount,
+            )}
+            ${this.stepper(
+              "Rounds Per Era",
+              String(d.eraInterval),
+              () => this.step("eraInterval", -1, 1, 50),
+              () => this.step("eraInterval", 1, 1, 50),
+              SETTING_HINTS.eraInterval,
+            )}
+            ${this.stepper(
+              "Cards Per Era",
+              String(d.modifiersDealtPerEra),
+              () => this.step("modifiersDealtPerEra", -1, 0, 10),
+              () => this.step("modifiersDealtPerEra", 1, 0, 10),
+              SETTING_HINTS.modifiersDealtPerEra,
+            )}
+            ${this.toggle(
+              "Start With Engine Cards",
+              d.dealEngineCardsFirstEra,
+              (v) => this.set("dealEngineCardsFirstEra", v),
+              SETTING_HINTS.dealEngineCardsFirstEra,
+            )}
+            ${this.stepper(
+              "Engine Management Time",
+              `${d.intermissionCardSelectSeconds}s`,
+              () => this.step("intermissionCardSelectSeconds", -10, 10, 180),
+              () => this.step("intermissionCardSelectSeconds", 10, 10, 180),
+              SETTING_HINTS.intermissionCardSelectSeconds,
+            )}
+            ${this.stepper(
+              "Engine Animation Duration",
+              `${d.engineAnimationSeconds.toFixed(1)}s`,
+              () => this.step("engineAnimationSeconds", -0.5, 0.5, 10),
+              () => this.step("engineAnimationSeconds", 0.5, 0.5, 10),
+              SETTING_HINTS.engineAnimationSeconds,
+            )}
+            ${this.stepper(
+              "Countdown",
+              `${d.preRoundCountdownSeconds}s`,
+              () => this.step("preRoundCountdownSeconds", -1, 3, 15),
+              () => this.step("preRoundCountdownSeconds", 1, 3, 15),
+              SETTING_HINTS.preRoundCountdownSeconds,
+            )}
+            ${this.toggle(
+              "Survival Mode",
+              d.survivalMode,
+              (v) => this.set("survivalMode", v),
+              SETTING_HINTS.survivalMode,
             )}
           </div>
         </div>

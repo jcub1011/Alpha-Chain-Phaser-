@@ -8,15 +8,15 @@ import type { AlphaChainSettings } from "../../game/types";
 
 export const SETTING_HINTS: Record<keyof AlphaChainSettings, string> = {
   botCount: "How many AI opponents you play against.",
-  botDifficulty: "How well the bots play — their word quality and reaction speed.",
+  botDifficulty: "How well the bots play; their word quality and reaction speed.",
   banMode: "Which letters are eligible to be the era's banned letter.",
   banRepeatRule:
-    "Whether a previously-banned letter can be chosen again — allow repeats, never two eras in a row, or never twice (the pool resets if every letter has been used).",
+    "Allow Repeats | No Consecutive Bans | No Repeat Bans (resets when all letters are used).",
   dealEngineCardsFirstEra:
-    "Deal an opening hand and run an optimize phase before era 1, instead of starting with empty engines.",
+    "Start the game with engine cards instead of starting with empty engines.",
   shotClockSeconds: "Seconds each player has to submit a word before timing out.",
-  eraCount: "How many eras the match lasts.",
-  eraInterval: "How many full rounds (one cycle of all players) make up an era.",
+  eraCount: "How many eras are in a match.",
+  eraInterval: "How many full rounds (one cycle of all players) are in an era.",
   modifiersDealtPerEra: "How many new modifier cards each player is dealt each intermission.",
   intermissionCardSelectSeconds: "Seconds to arrange your engine during the optimize phase.",
   sniperBanSeconds: "Seconds the last-place player has to pick a letter to ban.",

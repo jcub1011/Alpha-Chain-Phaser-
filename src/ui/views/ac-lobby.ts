@@ -146,8 +146,15 @@ export class AcLobby extends AcElement {
               (v) => this.set("botDifficulty", v),
               SETTING_HINTS.botDifficulty,
             )}
+            ${this.stepper(
+              "Shot Clock",
+              `${d.shotClockSeconds}s`,
+              () => this.step("shotClockSeconds", -5, 5, 60),
+              () => this.step("shotClockSeconds", 5, 5, 60),
+              SETTING_HINTS.shotClockSeconds,
+            )}
             ${this.segmented<AlphaChainSettings["banMode"]>(
-              "Ban mode",
+              "Letter Ban Mode",
               d.banMode,
               [
                 { value: "All", text: "all" },
@@ -158,7 +165,7 @@ export class AcLobby extends AcElement {
               SETTING_HINTS.banMode,
             )}
             ${this.segmented<AlphaChainSettings["banRepeatRule"]>(
-              "Ban repeats",
+              "Letter Ban Repeats",
               d.banRepeatRule,
               [
                 { value: "AllowRepeat", text: "allow" },
@@ -169,11 +176,11 @@ export class AcLobby extends AcElement {
               SETTING_HINTS.banRepeatRule,
             )}
             ${this.stepper(
-              "Shot clock",
-              `${d.shotClockSeconds}s`,
-              () => this.step("shotClockSeconds", -5, 5, 60),
-              () => this.step("shotClockSeconds", 5, 5, 60),
-              SETTING_HINTS.shotClockSeconds,
+              "Letter Ban Time",
+              `${d.sniperBanSeconds}s`,
+              () => this.step("sniperBanSeconds", -5, 5, 120),
+              () => this.step("sniperBanSeconds", 5, 5, 120),
+              SETTING_HINTS.sniperBanSeconds,
             )}
             ${this.stepper(
               "Eras",
@@ -183,32 +190,38 @@ export class AcLobby extends AcElement {
               SETTING_HINTS.eraCount,
             )}
             ${this.stepper(
-              "Rounds / era",
+              "Rounds Per Era",
               String(d.eraInterval),
               () => this.step("eraInterval", -1, 1, 50),
               () => this.step("eraInterval", 1, 1, 50),
               SETTING_HINTS.eraInterval,
             )}
             ${this.stepper(
-              "Cards / era",
+              "Cards Per Era",
               String(d.modifiersDealtPerEra),
               () => this.step("modifiersDealtPerEra", -1, 0, 10),
               () => this.step("modifiersDealtPerEra", 1, 0, 10),
               SETTING_HINTS.modifiersDealtPerEra,
             )}
+            ${this.toggle(
+              "Start With Engine Cards",
+              d.dealEngineCardsFirstEra,
+              (v) => this.set("dealEngineCardsFirstEra", v),
+              SETTING_HINTS.dealEngineCardsFirstEra,
+            )}
             ${this.stepper(
-              "Card select",
+              "Engine Management Time",
               `${d.intermissionCardSelectSeconds}s`,
               () => this.step("intermissionCardSelectSeconds", -10, 10, 180),
               () => this.step("intermissionCardSelectSeconds", 10, 10, 180),
               SETTING_HINTS.intermissionCardSelectSeconds,
             )}
             ${this.stepper(
-              "Sniper ban",
-              `${d.sniperBanSeconds}s`,
-              () => this.step("sniperBanSeconds", -5, 5, 120),
-              () => this.step("sniperBanSeconds", 5, 5, 120),
-              SETTING_HINTS.sniperBanSeconds,
+              "Engine Animation Duration",
+              `${d.engineAnimationSeconds.toFixed(1)}s`,
+              () => this.step("engineAnimationSeconds", -0.5, 0.5, 10),
+              () => this.step("engineAnimationSeconds", 0.5, 0.5, 10),
+              SETTING_HINTS.engineAnimationSeconds,
             )}
             ${this.stepper(
               "Countdown",
@@ -217,21 +230,8 @@ export class AcLobby extends AcElement {
               () => this.step("preRoundCountdownSeconds", 1, 3, 15),
               SETTING_HINTS.preRoundCountdownSeconds,
             )}
-            ${this.stepper(
-              "Engine anim",
-              `${d.engineAnimationSeconds.toFixed(1)}s`,
-              () => this.step("engineAnimationSeconds", -0.5, 0.5, 10),
-              () => this.step("engineAnimationSeconds", 0.5, 0.5, 10),
-              SETTING_HINTS.engineAnimationSeconds,
-            )}
             ${this.toggle(
-              "Engine cards E1",
-              d.dealEngineCardsFirstEra,
-              (v) => this.set("dealEngineCardsFirstEra", v),
-              SETTING_HINTS.dealEngineCardsFirstEra,
-            )}
-            ${this.toggle(
-              "Survival",
+              "Survival Mode",
               d.survivalMode,
               (v) => this.set("survivalMode", v),
               SETTING_HINTS.survivalMode,
@@ -246,7 +246,7 @@ export class AcLobby extends AcElement {
         </div>
 
         <button class="ac-btn lobby-start" @click=${this.start}>START MATCH</button>
-        <button class="lobby-bay" @click=${this.openBay}>🧪 Testing Bay</button>
+        <button class="lobby-bay" @click=${this.openBay}>Testing Bay</button>
 
         <p class="lobby-rules">
           Every word must start with the last letter of the previous word. It sounds simple but

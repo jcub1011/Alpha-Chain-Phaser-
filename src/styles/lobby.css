@@ -69,7 +69,7 @@
 /* Multiplayer lobby: the long settings list wraps into columns so it never
    clips on short displays. The panel widens to fit two columns. */
 .net-panel {
-  width: min(100%, 760px);
+  width: min(100%, 900px);
 }
 .net-settings {
   display: grid;
