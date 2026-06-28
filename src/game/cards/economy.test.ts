@@ -53,11 +53,11 @@ describe("The Toll Booth — tolls opponents who use the owner's banned letter",
 });
 
 describe("The Roulette Wheel", () => {
-  it("rewards ×1.75 on a clean word", () => {
+  it("rewards ×2 on a clean word", () => {
     const m = make();
     m.state.players[0].bay = [{ id: "RouletteWheel" }];
-    const r = m.submitWord("p1", "cat"); // 3 × 1.75 = 5.25 → 5
-    expect(r.submission!.score).toBe(5);
+    const r = m.submitWord("p1", "cat"); // 3 × 2 = 6
+    expect(r.submission!.score).toBe(6);
   });
 
   it("rolls a personal banned letter at era start (dodging the era letter)", () => {

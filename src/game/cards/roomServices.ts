@@ -5,39 +5,19 @@
  * fold (which stays pure) and never in the FSM. Keyed by player id (string).
  *
  * Plus the EngineEffects facade (EngineEffects.cs): the single helper through
- * which the three automated attacks (time shave, point drain, letter hijack)
- * resolve, so a victim's Titanium Mirror can block + reflect them at the caster.
+ * which automated attacks (time shave, letter hijack) resolve on their target.
  */
 
 import { legalBanLetters } from "../settings";
 import type { AlphaChainSettings, EngineEffectNotice, PlayerState } from "../types";
-import type { ModifierCard } from "./card";
 
 export type RoomServiceKey =
-  | "shield"
   | "prismGuard"
   | "wildcardGuard"
   | "cardBan"
   | "timePenalty"
-  | "hijackBan";
-
-/** Titanium Mirror multiplier per player. Persists across eras; only a fresh
- *  mirror deal resets it. Decays −0.1 per reflected block, floored at 0. */
-export class ShieldService {
-  private readonly mult = new Map<string, number>();
-  getMultiplier(id: string): number {
-    return this.mult.get(id) ?? 1;
-  }
-  decay(id: string, amount = 0.1): void {
-    this.mult.set(id, Math.max(0, this.getMultiplier(id) - amount));
-  }
-  grantFresh(id: string): void {
-    this.mult.set(id, 1);
-  }
-  has(id: string): boolean {
-    return this.mult.has(id);
-  }
-}
+  | "hijackBan"
+  | "crescendoStreak";
 
 /** A once-per-era charge (Prism refill, Wildcard succession bypass). */
 export class EraGuard {
@@ -126,14 +106,33 @@ export class HijackBanService {
   }
 }
 
+/** Per-player count of clean (untaxed) words submitted this era (Crescendo).
+ *  Resets to 0 on a taxed word and at each era boundary, so the multiplier
+ *  rewards an unbroken run of clean submissions. */
+export class CrescendoStreakService {
+  private readonly streak = new Map<string, number>();
+  get(id: string): number {
+    return this.streak.get(id) ?? 0;
+  }
+  increment(id: string): void {
+    this.streak.set(id, this.get(id) + 1);
+  }
+  reset(id: string): void {
+    this.streak.set(id, 0);
+  }
+  resetEra(id: string): void {
+    this.streak.delete(id);
+  }
+}
+
 /** The container of all room services, instantiated once per match. */
 export class RoomServices {
-  readonly shield = new ShieldService();
   readonly prismGuard = new EraGuard();
   readonly wildcardGuard = new EraGuard();
   readonly cardBan = new CardBanService();
   readonly timePenalty = new TimePenaltyService();
   readonly hijackBan = new HijackBanService();
+  readonly crescendoStreak = new CrescendoStreakService();
 
   /** Draws personal banned letters for Roulette Wheel / Toll Booth at era start. */
   constructor(readonly banLetters: BanLetterService) {}
@@ -143,13 +142,13 @@ export class RoomServices {
     // Reserved: turn-scoped services re-arm here (mirrors C# IRoomStateService.OnTurnStarted).
   }
 
-  /** Reset the per-era guards for a player at an era boundary. The shield is
-   *  deliberately NOT reset — it persists across eras (GDD §3.7). */
+  /** Reset the per-era guards + streaks for a player at an era boundary. */
   fireEraStarted(player: PlayerState): void {
     this.prismGuard.resetEra(player.id);
     this.wildcardGuard.resetEra(player.id);
     this.cardBan.resetEra(player.id);
     this.hijackBan.resetEra(player.id);
+    this.crescendoStreak.resetEra(player.id);
   }
 }
 
@@ -168,10 +167,8 @@ export class BanLetterService {
   }
 }
 
-/** Dependencies EngineEffects needs from the match to resolve + route attacks. */
+/** Dependencies EngineEffects needs from the match to resolve attacks. */
 export interface EngineEffectsDeps {
-  /** Resolved bay cards for a player (to find an interceptor). */
-  cardsOf(player: PlayerState): ModifierCard[];
   /** Active (non-eliminated) players in turn order. */
   activePlayers(): PlayerState[];
   /** The current round leader's id (highest score; turn order breaks ties). */
@@ -181,10 +178,8 @@ export interface EngineEffectsDeps {
 }
 
 /**
- * The facade through which automated attacks resolve. Each attack first tries
- * the victim's Titanium Mirror: if present it blocks + reflects (decaying the
- * shield) and the hit lands on the caster instead — single-shot, a reflected
- * hit is never re-reflected.
+ * The facade through which automated attacks (time shave, letter hijack) resolve
+ * on their target, banking the resulting notices for the score replay.
  */
 export class EngineEffects {
   private notices: EngineEffectNotice[] = [];
@@ -241,45 +236,17 @@ export class EngineEffects {
     return out;
   }
 
-  /** Resolve the victim's interceptor: redirect to the caster on a block. */
-  private route(
-    caster: PlayerState,
-    victim: PlayerState,
-  ): { target: PlayerState; reflected: boolean } {
-    const interceptor = this.deps.cardsOf(victim).find((c) => typeof c.intercept === "function");
-    if (interceptor && interceptor.intercept!(victim, this.services)) {
-      return { target: caster, reflected: true };
-    }
-    return { target: victim, reflected: false };
-  }
-
-  /** Shave seconds off the target's next armed clock (Flak Cannon). */
-  timeShave(caster: PlayerState, victim: PlayerState, seconds: number, source: string): void {
+  /** Shave seconds off the target's next armed clock (Blind Sniper). */
+  timeShave(victim: PlayerState, seconds: number, source: string): void {
     if (seconds <= 0) return;
-    const { target, reflected } = this.route(caster, victim);
-    this.services.timePenalty.queue(target.id, seconds);
-    this.addNotice({ source, targetId: target.id, text: `−${seconds}s shot clock`, reflected });
-  }
-
-  /** Dock points from the target (Bounty Hunter). */
-  drain(caster: PlayerState, victim: PlayerState, points: number, source: string): void {
-    if (points <= 0) return;
-    const { target, reflected } = this.route(caster, victim);
-    target.score -= points;
-    this.addNotice({
-      source,
-      targetId: target.id,
-      text: `−${points} pts`,
-      amount: -points,
-      reflected,
-    });
+    this.services.timePenalty.queue(victim.id, seconds);
+    this.addNotice({ source, targetId: victim.id, text: `−${seconds}s shot clock` });
   }
 
   /** Curse the target with a personal banned letter for their next turn (Bait & Switch). */
-  letterHijack(caster: PlayerState, victim: PlayerState, letter: string, source: string): void {
+  letterHijack(victim: PlayerState, letter: string, source: string): void {
     if (!letter) return;
-    const { target, reflected } = this.route(caster, victim);
-    this.services.hijackBan.curse(target.id, letter);
-    this.addNotice({ source, targetId: target.id, text: `letter "${letter}" banned`, reflected });
+    this.services.hijackBan.curse(victim.id, letter);
+    this.addNotice({ source, targetId: victim.id, text: `letter "${letter}" banned` });
   }
 }

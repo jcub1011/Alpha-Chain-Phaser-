@@ -85,25 +85,25 @@ describe("The IRS Agent — suppresses opponents' tax collectors", () => {
   });
 });
 
-describe("Tax Write-Off — first-letter salvage", () => {
-  it("adds the first letter's clean score on top of a taxed word", () => {
+describe("Tax Write-Off — first-half salvage", () => {
+  it("adds the first half's clean score on top of a taxed word", () => {
     const m = make(two);
     m.state.bannedLetter = "t";
     m.state.players[0].score = 100;
     m.state.players[0].bay = [{ id: "TaxWriteOff" }];
-    const r = m.submitWord("p1", "cat"); // taxed → 0, salvage "c" (len 1) → +1
+    const r = m.submitWord("p1", "cat"); // taxed → 0, salvage "ca" (ceil(3/2)=2 letters) → +2
     expect(r.submission!.taxed).toBe(true);
-    expect(r.submission!.score).toBe(1);
+    expect(r.submission!.score).toBe(2);
   });
 
-  it("stacks: N copies salvage the first letter N times", () => {
+  it("stacks: N copies salvage the first half N times", () => {
     const m = make(two);
     m.state.bannedLetter = "t";
     m.state.players[0].score = 100;
     m.state.players[0].bay = [{ id: "TaxWriteOff" }, { id: "TaxWriteOff" }, { id: "TaxWriteOff" }];
-    const r = m.submitWord("p1", "cat"); // taxed → 0, salvage "c" (len 1) ×3 → +3
+    const r = m.submitWord("p1", "cat"); // taxed → 0, salvage "ca" (len 2) ×3 → +6
     expect(r.submission!.taxed).toBe(true);
-    expect(r.submission!.score).toBe(3);
+    expect(r.submission!.score).toBe(6);
   });
 });
 

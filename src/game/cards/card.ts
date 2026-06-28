@@ -39,6 +39,8 @@ export interface EvalContext {
   cardIndex: number;
   /** Total slots in the bay being evaluated. */
   bayLength: number;
+  /** The current era (1-based). Era-scaling cards (Booster Pack) read this. */
+  era: number;
   /** The match's base shot-clock seconds (settings.shotClockSeconds). */
   baseClockSeconds: number;
   /** Words submitted so far this match (Blueprint / Scavenger read this). */
@@ -155,8 +157,6 @@ export interface ModifierCard {
   writeOffBonus?(ctx: EvalContext, score: ScoreFn): number;
   /** ISuccessionExemption — lets a word ignore the chain succession rule (Wildcard). */
   ignoresSuccession?(ctx: EvalContext): boolean;
-  /** IAttackInterceptor — block + reflect an incoming automated attack (Titanium Mirror). */
-  intercept?(owner: PlayerState, services: RoomServices): boolean;
   /** IClockRescue — once per era, refill the shot clock instead of ending the turn on a
    *  shot-clock timeout or a banned-letter submission (Prism). Returns true if it fired. */
   rescueClock?(ctx: EvalContext): boolean;

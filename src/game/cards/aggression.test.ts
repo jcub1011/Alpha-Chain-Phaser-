@@ -28,18 +28,6 @@ const make = (overrides: Partial<AlphaChainSettings> = {}) => {
   return m;
 };
 
-describe("Flak Cannon — shaves higher-scoring opponents' next clock", () => {
-  it("shaves 10% off a higher-scoring opponent's next clock", () => {
-    const m = make();
-    m.state.players[0].bay = [{ id: "FlakCannon" }];
-    m.state.players[1].score = 999; // p2 is higher than p1
-    m.submitWord("p1", "cat"); // p1's turn ends → Flak fires at p2, whose turn now arms
-    expect(m.current.id).toBe("p2");
-    // p2's 20s armed clock minus the 10% (2s) shave = 18.
-    expect(m.state.clockTotal).toBe(18);
-  });
-});
-
 describe("Bait & Switch — curses the next player on a taxed word", () => {
   it("hijack-bans the next player with the offending letter", () => {
     const m = make();
@@ -48,33 +36,6 @@ describe("Bait & Switch — curses the next player on a taxed word", () => {
     m.state.players[0].bay = [{ id: "BaitAndSwitch" }];
     m.submitWord("p1", "cat"); // taxed by 't' → curse next player (p2) with 't'
     expect(m.services.hijackBan.peek("p2")).toBe("t");
-  });
-});
-
-describe("The Titanium Mirror — reflects an attack and decays", () => {
-  it("reflects a Flak Cannon shave back at the caster and decays the shield", () => {
-    const m = make();
-    // p1 holds Flak Cannon, p2 holds the Mirror and is scoring higher.
-    m.state.players[0].bay = [{ id: "FlakCannon" }];
-    m.state.players[1].bay = [{ id: "TitaniumMirror" }];
-    m.services.shield.grantFresh("p2");
-    m.state.players[1].score = 999;
-    m.submitWord("p1", "cat"); // Flak targets p2 → Mirror reflects onto p1
-    expect(m.services.timePenalty.peek("p2")).toBe(0); // blocked
-    expect(m.services.timePenalty.peek("p1")).toBeGreaterThan(0); // reflected to caster
-    expect(m.services.shield.getMultiplier("p2")).toBeCloseTo(0.9); // decayed 0.1
-  });
-});
-
-describe("The Bounty Hunter — docks the round leader on a short word", () => {
-  it("drains 15 from the leader when they play a sub-6-letter word", () => {
-    const m = make();
-    // p1 is the round leader (marked at round start, when scores were all 0 → first
-    // active player). p2 holds the Bounty Hunter; p1 then plays a short word.
-    m.state.players[1].bay = [{ id: "BountyHunter" }];
-    expect(m.computeLeaderId()).toBe("p1");
-    m.submitWord("p1", "cat"); // scores 3, then docked 15 as the short-word leader
-    expect(m.state.players[0].score).toBe(3 - 15);
   });
 });
 
@@ -115,23 +76,21 @@ describe("Loan Shark — banks 15% of an opponent's big word", () => {
   });
 });
 
-describe("The Leech — drains players ahead at turn end", () => {
-  it("drains 3 from each higher-scoring player when its owner's turn ends", () => {
-    const m = make();
-    m.state.players[0].bay = [{ id: "TheLeech" }];
-    m.state.players[1].score = 100; // ahead of p1
-    m.submitWord("p1", "cat"); // p1 (3) turn ends → Leech drains p2
-    expect(m.state.players[1].score).toBe(97); // 100 − 3
-  });
-});
-
-describe("The Sniper — shaves 20% off the top scorer's next clock", () => {
-  it("shaves the single highest-scoring opponent above its owner", () => {
+describe("Blind Sniper — shaves 20% off the overall leader's next clock", () => {
+  it("shaves the leader when the leader is an opponent above its owner", () => {
     const m = make();
     m.state.players[0].bay = [{ id: "TheSniper" }];
     m.state.players[1].score = 999;
-    m.submitWord("p1", "cat"); // p1 turn ends → Sniper shaves p2, who arms next
+    m.submitWord("p1", "cat"); // p1 turn ends → Sniper shaves the leader (p2), who arms next
     expect(m.current.id).toBe("p2");
     expect(m.state.clockTotal).toBe(16); // 20 − 20%
+  });
+
+  it("shaves its own clock when its owner is the leader (anti-snowball)", () => {
+    const m = make();
+    m.state.players[0].bay = [{ id: "TheSniper" }];
+    m.state.players[0].score = 999; // p1 is (and stays) the leader after scoring
+    m.submitWord("p1", "cat"); // p1 turn ends → Sniper targets the leader = p1 itself
+    expect(m.services.timePenalty.peek("p1")).toBeGreaterThan(0);
   });
 });

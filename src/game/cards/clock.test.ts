@@ -6,21 +6,12 @@ const bay = (...ids: string[]): BayCard[] => ids.map((id) => ({ id }));
 const opts = { prevWordLength: 0, clockRemaining: 10, clockTotal: 20, taxed: false };
 
 describe("armedClockSeconds — layered clock", () => {
-  it("sums fractional deltas (Vault −10% + Heat Sink +40%)", () => {
-    expect(armedClockSeconds(20, bay("TheVault", "HeatSink"))).toBe(26); // +30%
+  it("sums fractional deltas (Overclock −20% + Heat Sink +30%)", () => {
+    expect(armedClockSeconds(20, bay("TheVault", "HeatSink"))).toBe(22); // +10%
   });
 
-  it("magnifies a clock delta (Redline −20% behind a glass → −30%)", () => {
-    expect(armedClockSeconds(20, bay("MagnifyingGlass", "Redline"))).toBe(14); // 20 × 0.7
-  });
-
-  it("Anchor Chain pins the clock to 5s, ignoring Heat Sink", () => {
-    expect(armedClockSeconds(20, bay("AnchorChain", "HeatSink"))).toBe(5);
-  });
-
-  it("Hyper-Drive caps a longer clock at 5s but never raises a shorter one", () => {
-    expect(armedClockSeconds(20, bay("HyperDrive"))).toBe(5); // capped down
-    expect(armedClockSeconds(4, bay("HyperDrive"))).toBe(4); // below cap, untouched
+  it("magnifies a clock delta (Redline −30% behind a glass → −45%)", () => {
+    expect(armedClockSeconds(20, bay("MagnifyingGlass", "Redline"))).toBe(11); // 20 × 0.55
   });
 
   it("never falls below the 3s floor", () => {
@@ -29,57 +20,47 @@ describe("armedClockSeconds — layered clock", () => {
     );
   });
 
-  it("Slow Burn lengthens the clock 20%", () => {
-    expect(armedClockSeconds(20, bay("SlowBurn"))).toBe(24);
+  it("Slow Burn lengthens the clock 30%", () => {
+    expect(armedClockSeconds(20, bay("SlowBurn"))).toBe(26);
   });
 });
 
 describe("time-aware scoring", () => {
-  it("Panic Button ×2.5 when submitted early (>=2s left)", () => {
-    // "elephant"=8, plenty of time → ×2.5 → 8 × 2.5 = 20.
+  it("Reflex multiplies by 1 + 0.05 per second left", () => {
+    // clockRemaining 10 → ×1.5; "elephant"=8 → 8 × 1.5 = 12.
     const r = scoreWord("elephant", bay("PanicButton"), {
       ...opts,
       clockRemaining: 10,
       clockTotal: 20,
     });
-    expect(r.finalScore).toBe(20);
+    expect(r.finalScore).toBe(12);
   });
 
-  it("Panic Button ×1.3 in the danger zone (<2s left)", () => {
+  it("Reflex caps at ×2", () => {
+    // 40s left would be ×3, but the cap holds it at ×2; "elephant"=8 → 16.
     const r = scoreWord("elephant", bay("PanicButton"), {
       ...opts,
-      clockRemaining: 1,
-      clockTotal: 20,
+      clockRemaining: 40,
+      clockTotal: 40,
     });
-    expect(r.finalScore).toBe(10); // 8 × 1.3 = 10.4 → 10
+    expect(r.finalScore).toBe(16);
   });
 
-  it("Speedracer caps at half the letter count", () => {
-    // 8-letter word, almost no time left → factor = min(huge, 8/2=4) = 4. 8 × 4 = 32.
+  it("Speedracer multiplies by 1 + remaining/total (×2 at a full clock)", () => {
     const r = scoreWord("elephant", bay("Speedracer"), {
       ...opts,
-      clockRemaining: 0.1,
+      clockRemaining: 20,
       clockTotal: 20,
     });
-    expect(r.finalScore).toBe(32);
+    expect(r.finalScore).toBe(16); // 8 × 2
   });
 
-  it("Speedracer does not trigger at 6 letters or fewer", () => {
-    const r = scoreWord("monkey", bay("Speedracer"), {
+  it("Speedracer scales down as the clock drains (×1.5 at half)", () => {
+    const r = scoreWord("elephant", bay("Speedracer"), {
       ...opts,
-      clockRemaining: 1,
+      clockRemaining: 10,
       clockTotal: 20,
     });
-    expect(r.steps[0].triggered).toBe(false);
-  });
-
-  it("Anchor Chain multiplies by 0.5 per real letter", () => {
-    // "cat"=3 → ×1.5 → 4.5 → 5 (rounded). Real length, not perceived.
-    expect(scoreWord("cat", bay("AnchorChain"), opts).finalScore).toBe(5);
-  });
-
-  it("Hyper-Drive folds ×1.5 at its slot when the word is 7+ letters", () => {
-    // "monster"=7 → ×1.5 → 10.5 → 11 (the cap only affects the clock, not the score).
-    expect(scoreWord("monster", bay("HyperDrive"), opts).finalScore).toBe(11);
+    expect(r.finalScore).toBe(12); // 8 × 1.5
   });
 });

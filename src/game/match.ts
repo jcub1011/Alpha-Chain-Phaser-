@@ -11,7 +11,6 @@
 
 import { DEALABLE_CARD_IDS, getCard } from "./cards/library";
 import { DEFAULT_MAX_INSTANCES } from "./cards/card";
-import type { ModifierCard } from "./cards/card";
 import { BanLetterService, EngineEffects, RoomServices } from "./cards/roomServices";
 import { createLogger } from "../log";
 import { Emitter } from "./emitter";
@@ -35,7 +34,7 @@ import {
   MODIFIER_SLOTS_START,
   isVowel,
 } from "./settings";
-import { byScoreDesc, CardId } from "./types";
+import { byScoreDesc } from "./types";
 import type {
   AlphaChainSettings,
   BayCard,
@@ -114,7 +113,8 @@ export class MatchController {
   private roundSettleRemaining = 0;
   private pendingEraEnd: "intermission" | "gameOver" | null = null;
   private prevWordLength = 0;
-  /** Leader the Bounty Hunter watches; fixed at each round's start (not live). */
+  /** Round leader id, fixed at each round's start (not live); exposed to cards
+   *  via EngineEffects.leaderId. */
   private roundLeaderId = "";
   /** The current player's in-progress word, streamed in via setDraft, so a shot-clock
    *  timeout can auto-submit it. Transient (not part of MatchState; never serialized);
@@ -178,8 +178,6 @@ export class MatchController {
       ),
     );
     this.effects = new EngineEffects(this.services, {
-      cardsOf: (p) =>
-        p.bay.map((b) => getCard(b.id)).filter((c): c is ModifierCard => c !== undefined),
       activePlayers: () => this.turnOrderedActive(),
       leaderId: () => this.roundLeaderId,
       armedClockOf: (p) => armedClockSeconds(this.state.settings.shotClockSeconds, p.bay),
@@ -259,6 +257,7 @@ export class MatchController {
       clockTotal: this.state.clockTotal,
       taxed,
       baseClockSeconds: this.state.settings.shotClockSeconds,
+      era: this.state.era,
       history: this.state.history,
       services: this.services,
       effects: this.effects,
@@ -278,6 +277,12 @@ export class MatchController {
   // ── Accessors ──────────────────────────────────────────────────────────────
   get current(): PlayerState {
     return this.state.players[this.state.currentPlayerIndex];
+  }
+
+  /** Length of the previous accepted word (Booster/Blueprint scoring context).
+   *  Read-only view for card-aware bots that score candidates through a bay. */
+  get lastWordLength(): number {
+    return this.prevWordLength;
   }
 
   /** Seconds left on the pre-round Countdown (private state), so the net layer
@@ -475,7 +480,7 @@ export class MatchController {
     // Per-turn room state re-arms (currently a no-op seam; A5 uses it).
     this.services.fireTurnStarted(p);
     let armed = armedClockSeconds(this.state.settings.shotClockSeconds, p.bay);
-    // Flak Cannon queued a shave onto this player's next clock.
+    // A time-penalty card (Blind Sniper) queued a shave onto this player's next clock.
     const penalty = this.services.timePenalty.consumeFor(p.id);
     if (penalty > 0) armed = Math.max(MIN_SHOT_CLOCK_SECONDS, armed - penalty);
     this.state.clockTotal = armed;
@@ -513,7 +518,7 @@ export class MatchController {
         return;
       }
       this.state.roundInEra++;
-      // New round → re-mark the leader the Bounty Hunter watches.
+      // New round → re-mark the round leader.
       this.roundLeaderId = this.computeLeaderId();
     }
     this.armCurrentTurn();
@@ -602,6 +607,7 @@ export class MatchController {
       clockRemaining: s.clockRemaining,
       clockTotal: s.clockTotal,
       baseClockSeconds: s.settings.shotClockSeconds,
+      era: s.era,
       history: s.history,
     };
     const breakdown = scoreWord(word, player.bay, { ...scoreOpts, taxed });
@@ -627,6 +633,10 @@ export class MatchController {
 
     // 10–11. Record + credit, then advance the chain's required letter.
     player.score += finalScore;
+    // Crescendo: a clean word extends the streak; a taxed word breaks it. Updated
+    // AFTER scoring so the current word folds on the prior (pre-increment) streak.
+    if (taxed) this.services.crescendoStreak.reset(player.id);
+    else this.services.crescendoStreak.increment(player.id);
     s.usedWords.add(word);
     this.prevWordLength = word.length;
     const last = word[word.length - 1];
@@ -725,6 +735,7 @@ export class MatchController {
       clockTotal: s.clockTotal,
       taxed: false,
       baseClockSeconds: s.settings.shotClockSeconds,
+      era: s.era,
       history: s.history,
       services: this.services,
       effects: this.effects,
@@ -883,7 +894,8 @@ export class MatchController {
     // Remove cards the player parked in the discard bin, then defensively trim to
     // capacity. A player who never interacted has no `discarded` flags, so the
     // filter is a no-op and the bay simply trims to the first `slots` (the AFK
-    // fallback). Bots are already trimmed at the intermission event (autoTrimBay).
+    // fallback). Bots set their discard split when the optimize sub-phase opens
+    // (LocalController → planBotBay/setPlayerBay).
     for (const p of this.state.players) {
       p.bay = p.bay.filter((b) => !b.discarded);
       if (p.bay.length > p.slots) p.bay = p.bay.slice(0, p.slots);
@@ -940,10 +952,9 @@ export class MatchController {
     for (let i = 0; i < count; i++) {
       // A card is dealable to this player only while they hold fewer than its
       // maxInstances (default 3). Recompute each draw so a cap reached mid-batch
-      // (e.g. a card dealt twice this era) drops it from later draws too. This
-      // subsumes the old one-per-bay Titanium Mirror rule (now maxInstances: 1;
-      // its shield doesn't stack, GDD §3.7). If every dealable card is capped for
-      // this player the pool is empty and dealing stops early below.
+      // (e.g. a card dealt twice this era) drops it from later draws too. If every
+      // dealable card is capped for this player the pool is empty and dealing stops
+      // early below.
       const pool = DEALABLE_CARD_IDS.filter((id) => {
         const max = getCard(id)?.maxInstances ?? DEFAULT_MAX_INSTANCES;
         const owned = player.bay.filter((b) => b.id === id).length;
@@ -953,8 +964,6 @@ export class MatchController {
       const id = pool[Math.floor(this.rng() * pool.length)];
       dealt.push(id);
       player.bay.push({ id, uid: this.nextBayUid(), isNew: true });
-      // A fresh Titanium Mirror resets the player's shield to ×1.0 (GDD §3.7).
-      if (id === CardId.TitaniumMirror) this.services.shield.grantFresh(player.id);
     }
     return dealt;
   }
@@ -1079,9 +1088,6 @@ export class MatchController {
     const p = this.state.players.find((x) => x.id === playerId);
     if (!p) return;
     p.bay = orderedIds.filter((id) => getCard(id)).map((id) => ({ id, uid: this.nextBayUid() }));
-    // A fresh Titanium Mirror grants its ×1.0 shield (normally done on deal).
-    for (const b of p.bay)
-      if (b.id === CardId.TitaniumMirror) this.services.shield.grantFresh(p.id);
     this.armPlayerForEra(p);
   }
 

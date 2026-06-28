@@ -86,6 +86,8 @@ export interface ScoreOptions {
   taxed: boolean;
   /** Base shot-clock seconds for the match (defaults to clockTotal). */
   baseClockSeconds?: number;
+  /** Current era, 1-based (era-scaling cards like Booster Pack). Defaults to 1. */
+  era?: number;
   /** Words submitted so far this match (Blueprint / Scavenger). Defaults to []. */
   history?: readonly Submission[];
   // ── Hook-only context (threaded by match.ts for capability checks + lifecycle) ──
@@ -142,6 +144,7 @@ export function makeBayEvaluator(
     cardsToRight: bay.length - 1 - index,
     cardIndex: index,
     bayLength: bay.length,
+    era: opts.era ?? 1,
     baseClockSeconds: opts.baseClockSeconds ?? opts.clockTotal,
     history: opts.history ?? [],
     bayCardIds: bay.map((slot) => slot.id),
@@ -308,6 +311,7 @@ export function armedClockSeconds(baseSeconds: number, bay: readonly BayCard[]):
     cardsToRight: 0,
     cardIndex: 0,
     bayLength: bay.length,
+    era: 1,
     baseClockSeconds: baseSeconds,
     history: [],
     resolveWordLength: () => 0,

@@ -5,7 +5,7 @@
  * submitting a word chosen from the dictionary.
  */
 
-import { BOT_THINK_SECONDS, chooseBotWord } from "../game/bots";
+import { BOT_CANDIDATE_COUNT, BOT_THINK_SECONDS, chooseBotWordScored, planBotBay } from "../game/bots";
 import type { Dictionary } from "../game/dictionary";
 import { MatchController, type PlayerSeed } from "../game/match";
 import type { AlphaChainSettings, SubmitResult } from "../game/types";
@@ -50,12 +50,30 @@ export class LocalController implements GameController {
       }
     });
 
-    // Bots auto-arrange their bays at intermission; the human is handled by the scene.
-    this.match.events.on("intermission", () => {
+    // Bots build + trim their engine when the optimize sub-phase opens (fired AFTER
+    // any intermission tutorials, so the bay and slot count are final). The human's
+    // optimize is handled by the scene.
+    this.match.events.on("subPhaseChanged", ({ intermissionPhase }) => {
+      if (intermissionPhase !== "optimize") return;
       for (const p of this.match.state.players) {
-        if (p.isBot) this.match.autoTrimBay(p.id);
+        if (!p.isBot) continue;
+        const { engine, discard } = planBotBay(p.bay, p.slots, this.botScoreOpts());
+        this.match.setPlayerBay(p.id, engine, discard);
       }
     });
+  }
+
+  /** Pure scoring context bots use to evaluate candidate words / bay orderings. */
+  private botScoreOpts() {
+    const s = this.match.state;
+    return {
+      prevWordLength: this.match.lastWordLength,
+      clockRemaining: s.clockRemaining,
+      clockTotal: s.clockTotal,
+      baseClockSeconds: s.settings.shotClockSeconds,
+      era: s.era,
+      history: s.history,
+    };
   }
 
   get events(): MatchController["events"] {
@@ -123,11 +141,15 @@ export class LocalController implements GameController {
   private playBotTurn(playerId: string): void {
     const s = this.match.state;
     if (s.phase !== "Round" || this.match.current.id !== playerId) return;
-    const word = chooseBotWord(this.dict, {
+    const player = s.players.find((p) => p.id === playerId);
+    const word = chooseBotWordScored(this.dict, {
       requiredLetter: s.requiredLetter,
       usedWords: s.usedWords,
       bannedLetter: s.bannedLetter,
       difficulty: s.settings.botDifficulty,
+      bay: player?.bay ?? [],
+      scoreOpts: this.botScoreOpts(),
+      candidateCount: BOT_CANDIDATE_COUNT[s.settings.botDifficulty],
     });
     if (word) {
       log.debug(`bot ${playerId} plays "${word}"`);

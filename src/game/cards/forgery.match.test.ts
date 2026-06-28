@@ -4,8 +4,8 @@ import { DEFAULT_SETTINGS } from "../settings";
 import type { AlphaChainSettings } from "../types";
 
 // End-to-end coverage: Forgery in a real player bay must inflate the perceived
-// length that ConsonantCrunch / VocalVowels gate on and that AnchorChain scales
-// by — proving the wiring (bay → scoreWord) carries the fix, not just scoreWord.
+// length that ConsonantCrunch / VocalVowels / Brick Layer gate on — proving the
+// wiring (bay → scoreWord) carries the fix, not just scoreWord.
 const WORDS = new Set(["barn", "idea", "cat"]);
 const two: PlayerSeed[] = [
   { id: "p1", name: "P1", isBot: false },
@@ -47,11 +47,11 @@ describe("Forgery in a live bay — perceived length reaches the scoring cards",
     expect(r.submission!.score).toBe(16);
   });
 
-  it("scales Anchor Chain's per-letter multiplier with the perceived length", () => {
+  it("pushes Brick Layer over its 6+ gate via the perceived length", () => {
     const m = make();
-    m.state.players[0].bay = [{ id: "Forgery" }, { id: "AnchorChain" }];
-    // "cat"=3 → perceived 6 → ×(0.5×6)=×3 on seed 3 → 9.
+    m.state.players[0].bay = [{ id: "Forgery" }, { id: "BrickLayer" }];
+    // "cat"=3 → perceived 6 → Brick Layer triggers: +3 × 6 = +18 on seed 3 → 21.
     const r = m.submitWord("p1", "cat");
-    expect(r.submission!.score).toBe(9);
+    expect(r.submission!.score).toBe(21);
   });
 });

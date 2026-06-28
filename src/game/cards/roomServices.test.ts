@@ -9,7 +9,6 @@ import { describe, expect, it } from "vitest";
 import { EngineEffects, type RoomServices, type EngineEffectsDeps } from "./roomServices";
 
 const stubDeps: EngineEffectsDeps = {
-  cardsOf: () => [],
   activePlayers: () => [],
   leaderId: () => "",
   armedClockOf: () => 0,

@@ -99,9 +99,12 @@ describe("High Roller — +10 per rare letter (Q, X, Z, J)", () => {
   });
 });
 
-describe("Booster Pack — +3 per card to its right", () => {
-  it("adds 3 for each card placed after it", () => {
-    expect(score("cat", ["BoosterPack", "TheAnchor"])).toBe(16); // 3 +3(right) +10
+describe("Booster Pack — +2 per card to its right, scaled by era", () => {
+  it("adds 2 × cardsToRight × era (era 1 by default)", () => {
+    expect(score("cat", ["BoosterPack", "TheAnchor"])).toBe(15); // 3 +2(1 right ×era1) +10
+  });
+  it("scales with the era", () => {
+    expect(score("cat", ["BoosterPack", "TheAnchor"], { era: 3 })).toBe(19); // 3 +6 +10
   });
   it("adds nothing when it is the rightmost card", () => {
     const r = scoreWord("cat", bay("TheAnchor", "BoosterPack"), opts);
@@ -152,12 +155,12 @@ describe("Sesquipedalian — ×5 at 10+ letters", () => {
   });
 });
 
-describe("Guttural Roar — ×1.5 when the only vowels are A or E", () => {
+describe("Chant — ×2 when the only vowels are A or E", () => {
   it("triggers when every vowel is a/e", () => {
-    expect(score("cat", ["GutturalRoar"])).toBe(5); // 3 × 1.5 = 4.5 → 5
+    expect(score("cat", ["GutturalRoar"])).toBe(6); // 3 × 2
   });
   it("triggers vacuously on a word with no vowels", () => {
-    expect(score("rhythm", ["GutturalRoar"])).toBe(9); // 6 × 1.5
+    expect(score("rhythm", ["GutturalRoar"])).toBe(12); // 6 × 2
   });
   it("skips when an i/o/u vowel is present", () => {
     const r = scoreWord("cot", bay("GutturalRoar"), opts);
@@ -174,15 +177,15 @@ describe("Perfect Link — ×1.5 when the word ends in a vowel", () => {
   });
 });
 
-describe("Try Hard — ×1.1 at 7, +0.1/letter beyond", () => {
+describe("Try Hard — ×1.5 at 7, +0.1/letter beyond", () => {
   it("skips at 6 letters or fewer", () => {
     expect(scoreWord("cat", bay("TryHard"), opts).steps[0].triggered).toBe(false);
   });
-  it("×1.1 at exactly 7 letters", () => {
-    expect(score("monster", ["TryHard"])).toBe(8); // 7 × 1.1 = 7.7 → 8
+  it("×1.5 at exactly 7 letters", () => {
+    expect(score("monster", ["TryHard"])).toBe(11); // 7 × 1.5 = 10.5 → 11
   });
-  it("×1.2 at 8 letters", () => {
-    expect(score("elephant", ["TryHard"])).toBe(10); // 8 × 1.2 = 9.6 → 10
+  it("×1.6 at 8 letters", () => {
+    expect(score("elephant", ["TryHard"])).toBe(13); // 8 × 1.6 = 12.8 → 13
   });
 });
 
@@ -206,29 +209,21 @@ describe("The Vault / Redline — flat multipliers", () => {
   });
 });
 
-describe("The Roulette Wheel — ×1.75 on a clean word", () => {
+describe("Roulette Wheel — ×2 on a clean word", () => {
   it("rewards a clean word", () => {
-    expect(score("cat", ["RouletteWheel"])).toBe(5); // 3 × 1.75 = 5.25 → 5
+    expect(score("cat", ["RouletteWheel"])).toBe(6); // 3 × 2
   });
 });
 
-describe("The Blindfold — ×1.8 and hides the input", () => {
-  it("always multiplies by 1.8", () => {
-    expect(score("cat", ["Blindfold"])).toBe(5); // 3 × 1.8 = 5.4 → 5
+describe("Blindfold — ×1.5 and hides the input", () => {
+  it("always multiplies by 1.5", () => {
+    expect(score("cat", ["Blindfold"])).toBe(5); // 3 × 1.5 = 4.5 → 5
   });
   it("reports that it hides the owner's input", () => {
     expect(bayHidesInput(makeBayEvaluator("cat", bay("Blindfold"), opts))).toBe(true);
   });
   it("a bay without it does not hide the input", () => {
     expect(bayHidesInput(makeBayEvaluator("cat", bay("TheAnchor"), opts))).toBe(false);
-  });
-});
-
-describe("The Titanium Mirror — passive ×1.0 with no shield state", () => {
-  it("leaves the score unchanged when no shield service is present", () => {
-    const r = scoreWord("cat", bay("TitaniumMirror"), opts);
-    expect(r.finalScore).toBe(3);
-    expect(r.steps[0].valueText).toBe("×1");
   });
 });
 
@@ -252,10 +247,13 @@ describe("Stonemason — +4/ltr at 8+", () => {
   });
 });
 
-describe("Numismatist — +6 per rare letter, +2 per distinct", () => {
-  it("rewards rare letters and variety", () => {
-    // "quiz": 2 rare (q,z), 4 distinct → 6×2 + 2×4 = 20. seed 4 + 20.
-    expect(score("quiz", ["Numismatist"])).toBe(24);
+describe("Numismatist — ×(1 + 0.6 per rare letter)", () => {
+  it("multiplies for rare letters", () => {
+    // "quiz": 2 rare (q,z) → ×(1 + 0.6×2) = ×2.2. seed 4 × 2.2 = 8.8 → 9.
+    expect(score("quiz", ["Numismatist"])).toBe(9);
+  });
+  it("skips cleanly with no rare letters", () => {
+    expect(scoreWord("cat", bay("Numismatist"), opts).steps[0].triggered).toBe(false);
   });
 });
 
@@ -270,12 +268,50 @@ describe("The Flywheel — ×1.15 per other multiplier (cap ×2.3)", () => {
   });
 });
 
+// ── New archetype cards ──────────────────────────────────────────────────────
+
+describe("Heat Sink — +30% clock but ×0.9 score", () => {
+  it("shaves 10% off the score where it folds", () => {
+    expect(score("cat", ["TheAnchor", "HeatSink"])).toBe(12); // (3+10) × 0.9 = 11.7 → 12
+  });
+});
+
+describe("Tilesmith — + letter-tile value", () => {
+  it("adds common-letter tile values", () => {
+    expect(score("cat", ["Tilesmith"])).toBe(8); // 3 + (c3 a1 t1 = 5)
+  });
+  it("rewards rare letters more", () => {
+    expect(score("quiz", ["Tilesmith"])).toBe(26); // 4 + (q10 u1 i1 z10 = 22)
+  });
+});
+
+describe("Bookends — ×2 when first letter = last letter", () => {
+  it("doubles when the ends match", () => {
+    expect(score("tat", ["Bookends"])).toBe(6); // 3 × 2
+  });
+  it("skips when the ends differ", () => {
+    expect(scoreWord("cat", bay("Bookends"), opts).steps[0].triggered).toBe(false);
+  });
+});
+
+describe("Dividend — +2 per card in the bay", () => {
+  it("pays per bay slot", () => {
+    expect(score("cat", ["Dividend"])).toBe(5); // 3 + 2×1
+    expect(score("cat", ["Dividend", "TheAnchor"])).toBe(17); // 3 + 2×2 + 10
+  });
+});
+
+describe("Crescendo — clean-streak multiplier", () => {
+  it("skips with no streak service in scope (pure scoring)", () => {
+    expect(scoreWord("cat", bay("Crescendo"), opts).steps[0].triggered).toBe(false);
+  });
+});
+
 // ── FX / hook-only cards: an inert "FX" step that never moves the score ───────
 
 describe("FX cards fold inert (behaviour lives in the lifecycle hooks)", () => {
   const FX_CARDS = [
     "SlowBurn",
-    "HeatSink",
     "Catalyst",
     "Forgery",
     "MagnifyingGlass",
@@ -286,12 +322,9 @@ describe("FX cards fold inert (behaviour lives in the lifecycle hooks)", () => {
     "TollBooth",
     "TaxCollector",
     "ChronoSyphon",
-    "FlakCannon",
-    "BountyHunter",
     "BaitAndSwitch",
     "LoanShark",
     "TheSniper",
-    "TheLeech",
     "Insurance",
   ];
   for (const id of FX_CARDS) {

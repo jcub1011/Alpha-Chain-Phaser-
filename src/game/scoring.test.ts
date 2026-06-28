@@ -67,16 +67,16 @@ describe("scoreTimeout — the penalty walk (mirrors scoreWord)", () => {
     expect(scoreTimeout(bay(), opts).finalScore).toBe(-10);
   });
 
-  it("a glass-cannon card folds in its own drain (Vault −5)", () => {
-    expect(scoreTimeout(bay("TheVault"), opts).finalScore).toBe(-15); // -10 base, -5 Vault
+  it("a glass-cannon card folds in its own drain (Overclock −12)", () => {
+    expect(scoreTimeout(bay("TheVault"), opts).finalScore).toBe(-22); // -10 base, -12 Overclock
   });
 
   it("stacks multiple speed cards", () => {
-    expect(scoreTimeout(bay("TheVault", "Redline"), opts).finalScore).toBe(-27); // -10 -5 -12
+    expect(scoreTimeout(bay("TheVault", "Redline"), opts).finalScore).toBe(-46); // -10 -12 -24
   });
 
   it("a Magnifying Glass magnifies the loss too (Redline ×1.5)", () => {
-    expect(scoreTimeout(bay("MagnifyingGlass", "Redline"), opts).finalScore).toBe(-28); // -10 + (-12×1.5)
+    expect(scoreTimeout(bay("MagnifyingGlass", "Redline"), opts).finalScore).toBe(-46); // -10 + (-24×1.5)
   });
 
   it("Insurance negates the base penalty (lose nothing on a timeout)", () => {
@@ -114,10 +114,10 @@ describe("roundHalfUp", () => {
 describe("armedClockSeconds", () => {
   it("applies percentage clock modifiers", () => {
     expect(armedClockSeconds(20, bay())).toBe(20);
-    expect(armedClockSeconds(20, bay("TheVault"))).toBe(18); // -10%
-    expect(armedClockSeconds(20, bay("Redline"))).toBe(16); // -20%
-    expect(armedClockSeconds(20, bay("TheVault", "Redline"))).toBe(14); // -30%
-    expect(armedClockSeconds(20, bay("Redline", "HeatSink"))).toBe(24); // -20% +40%
+    expect(armedClockSeconds(20, bay("TheVault"))).toBe(16); // -20%
+    expect(armedClockSeconds(20, bay("Redline"))).toBe(14); // -30%
+    expect(armedClockSeconds(20, bay("TheVault", "Redline"))).toBe(10); // -50%
+    expect(armedClockSeconds(20, bay("Redline", "HeatSink"))).toBe(20); // -30% +30%
   });
 
   it("never falls below the 3s floor", () => {

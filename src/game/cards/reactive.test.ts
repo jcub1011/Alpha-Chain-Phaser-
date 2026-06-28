@@ -113,26 +113,6 @@ describe("Bait & Switch → hijack → Tax Collector (multi-turn opponent-messes
   });
 });
 
-describe("The Bounty Hunter — fires only on the round leader's short word", () => {
-  it("does not dock the leader for a 6+ letter word", () => {
-    const m = make(3);
-    m.state.players[1].bay = [{ id: "BountyHunter" }]; // an opponent watches the leader
-    expect(m.computeLeaderId()).toBe("p1");
-    const r = m.submitWord("p1", "rabbit"); // leader, 6 letters → not short
-    expect(r.submission!.score).toBe(6);
-    expect(m.state.players[0].score).toBe(6); // untouched
-  });
-
-  it("does not dock a non-leader who plays a short word", () => {
-    const m = make(3);
-    m.state.players[0].bay = [{ id: "BountyHunter" }]; // the leader holds it
-    m.submitWord("p1", "rabbit"); // leader plays first → required letter 't'
-    const r = m.submitWord("p2", "tap"); // non-leader, short word → no dock
-    expect(r.submission!.score).toBe(3);
-    expect(m.state.players[1].score).toBe(3);
-  });
-});
-
 describe("The Toll Booth — no toll on an opponent's taxed word", () => {
   it("banks nothing when the opponent's letter-using word is itself taxed", () => {
     const m = make(2);
@@ -196,18 +176,5 @@ describe("Chrono Syphon — every opponent banks the leftover seconds", () => {
         },
       ]),
     );
-  });
-});
-
-describe("Flak Cannon — shaves every higher-scoring opponent", () => {
-  it("applies the 10% shave to two higher-scoring opponents", () => {
-    const m = make(3);
-    m.state.players[0].bay = [{ id: "FlakCannon" }];
-    m.state.players[1].score = 999;
-    m.state.players[2].score = 999;
-    m.submitWord("p1", "cat"); // p1's turn ends → Flak fires at p2 and p3
-    expect(m.current.id).toBe("p2");
-    expect(m.state.clockTotal).toBe(18); // p2 arms now: 20 − 10%
-    expect(m.services.timePenalty.peek("p3")).toBe(2); // p3's shave still queued
   });
 });

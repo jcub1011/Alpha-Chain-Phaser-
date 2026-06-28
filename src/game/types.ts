@@ -33,7 +33,7 @@ export const CardOp = {
 export type CardOp = (typeof CardOp)[keyof typeof CardOp];
 
 /**
- * Single source of truth for the 49 modifier-card ids. The string VALUES are
+ * Single source of truth for the modifier-card ids. The string VALUES are
  * load-bearing and must stay byte-identical: they match the SVG symbol ids in
  * cards.svg (`<use href="#${id}">`) and travel over the wire as BayCard.id.
  * Reference cards by `CardId.X` instead of a bare literal so typos are caught
@@ -61,8 +61,6 @@ export const CardId = {
   TheVault: "TheVault",
   Redline: "Redline",
   PanicButton: "PanicButton",
-  AnchorChain: "AnchorChain",
-  HyperDrive: "HyperDrive",
   SlowBurn: "SlowBurn",
   Speedracer: "Speedracer",
   Blindfold: "Blindfold",
@@ -78,19 +76,20 @@ export const CardId = {
   TollBooth: "TollBooth",
   TaxCollector: "TaxCollector",
   ChronoSyphon: "ChronoSyphon",
-  FlakCannon: "FlakCannon",
-  BountyHunter: "BountyHunter",
   BaitAndSwitch: "BaitAndSwitch",
-  TitaniumMirror: "TitaniumMirror",
   // ── Rebalance additions (more viable archetypes vs. the speed build) ──
   TheLexicon: "TheLexicon",
   Stonemason: "Stonemason",
   LoanShark: "LoanShark",
   Numismatist: "Numismatist",
   TheSniper: "TheSniper",
-  TheLeech: "TheLeech",
   Insurance: "Insurance",
   TheFlywheel: "TheFlywheel",
+  // ── New archetype cards (quality / consistency / engine-width) ──
+  Tilesmith: "Tilesmith",
+  Crescendo: "Crescendo",
+  Bookends: "Bookends",
+  Dividend: "Dividend",
 } as const;
 export type CardId = (typeof CardId)[keyof typeof CardId];
 

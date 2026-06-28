@@ -23,6 +23,21 @@ import type { PlayerState } from "../types";
 /** Round to one decimal (per-letter multiplier steps are 0.1) for clean chips. */
 const round1 = (n: number): number => Math.round(n * 10) / 10;
 
+/** Scrabble-style letter-tile point values (Tilesmith). Rarer letters score more. */
+const TILE_VALUES: Record<string, number> = {
+  a: 1, e: 1, i: 1, o: 1, u: 1, l: 1, n: 1, s: 1, t: 1, r: 1,
+  d: 2, g: 2,
+  b: 3, c: 3, m: 3, p: 3,
+  f: 4, h: 4, v: 4, w: 4, y: 4,
+  k: 5,
+  j: 8, x: 8,
+  q: 10, z: 10,
+};
+
+/** Sum of a word's letter-tile values (unknown chars score 0). */
+const tileValue = (word: string): number =>
+  [...word].reduce((sum, ch) => sum + (TILE_VALUES[ch] ?? 0), 0);
+
 /** A card minus its `id` — the id is assigned from the catalogue key when
  *  CARD_LIBRARY is built, so the key and id can never desync. */
 type CardDef = Omit<ModifierCard, "id">;
@@ -133,10 +148,11 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     name: "Booster Pack",
     color: "#ffb020",
     family: CardFamily.Economy,
-    op: CardOp.Multiplicative,
-    magnitudeText: "×(1 + ×0.1/right)",
-    description: "×1.0 + ×0.1 multiplier per card to its right in the bay.",
-    fold: (v, c) => (c.cardsToRight > 0 ? mul(v, 1 + (0.1 * c.cardsToRight * c.magnification())) : skip(v)),
+    op: CardOp.Additive,
+    magnitudeText: "+2×era /right",
+    description: "+2 per card to its right in the bay, multiplied by the current era.",
+    fold: (v, c) =>
+      c.cardsToRight > 0 ? add(v, 2 * c.cardsToRight * c.era * c.magnification()) : skip(v),
   },
 
   Scavenger: {
@@ -266,44 +282,11 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     color: "#ff2e6e",
     family: CardFamily.Clock,
     op: CardOp.Multiplicative,
-    magnitudeText: "×(1 + 0.05 × time)",
+    magnitudeText: "≤×2",
     description:
-      "Adds a ×0.05 for every second left in your shot clock.",
-    // ×2.5 when there are >=2s left (submitted early), else ×1.3.
-    fold: (v, c) => mul(v, (1 + c.clockRemaining * 0.05) * c.magnification()),
+      "+×0.05 for every second left in your shot clock, capped at ×2.",
+    fold: (v, c) => mul(v, Math.min(2, 1 + c.clockRemaining * 0.05) * c.magnification()),
   },
-
-  // AnchorChain: {
-  //   name: "The Anchor Chain",
-  //   maxInstances: 1,
-  //   color: "#5b7fb0",
-  //   family: CardFamily.Clock,
-  //   op: CardOp.Multiplicative,
-  //   magnitudeText: "×0.5/ltr",
-  //   description:
-  //     "Locks your shot clock at an unmodifiable 5s for the era. ×0.5 per letter. Time out and lose 10 points.",
-  //   // ×(0.5 per letter), Forgery-aware (resolveWordLength) — Forgery's whole point
-  //   // is to inflate length scoring. Diverges from the C# AnchorChainCard, which
-  //   // used the real length (an oversight in that port).
-  //   fold: (v, c) => mul(v, 0.5 * c.resolveWordLength() * c.magnification()),
-  //   timeoutFold: (v, c) => add(v, -10 * c.magnification()),
-  //   shotClockOverride: () => 5,
-  // },
-
-  // HyperDrive: {
-  //   name: "Hyper-Drive",
-  //   maxInstances: 1,
-  //   color: "#46d0ff",
-  //   family: CardFamily.Clock,
-  //   op: CardOp.Multiplicative,
-  //   magnitudeText: "×1.5",
-  //   description:
-  //     "Caps your shot clock at 5s. ×1.5 when the word is 7+ letters. Time out and lose 8 points.",
-  //   // Per-word ×1.5 folded at its own slot (boosts the seed + everything to its left).
-  //   fold: (v, c) => (c.resolveWordLength() > 6 ? mul(v, 1.5 * c.magnification()) : skip(v)),
-  //   timeoutFold: (v, c) => add(v, -8 * c.magnification()),
-  //   shotClockCap: () => 5,
-  // },
 
   SlowBurn: {
     name: "Slow Burn",
@@ -324,7 +307,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     color: "#ffd23f",
     family: CardFamily.Clock,
     op: CardOp.Multiplicative,
-    magnitudeText: "×(1 + ClockRem / ClockTot)",
+    magnitudeText: "×(1+Remain /Total)",
     description:
       "×(1 + remaining clock time ÷ total clock time). Time out and lose 10 points.",
     fold: (v, c) => mul(v, (1 + c.clockRemaining / c.clockTotal) * c.magnification()),
@@ -350,11 +333,11 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     name: "Heat Sink",
     color: "#7fd8ff",
     family: CardFamily.Clock,
-    op: CardOp.Fx,
-    magnitudeText: "FX",
-    description: "+30% shot clock.",
+    op: CardOp.Multiplicative,
+    magnitudeText: "×0.9",
+    description: "+30% shot clock, but ×0.9 to your score.",
     clock: { pctDelta: 0.3 },
-    fold: (v) => fx(v),
+    fold: (v, c) => mul(v, 0.9 * c.magnification()),
   },
 
   Catalyst: {
@@ -446,7 +429,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     op: CardOp.Fx,
     magnitudeText: "FX",
     description:
-      "When your word is taxed, score the first half of it through your engine.",
+      "When your word is taxed, score the first half of it through your engine anyways.",
     fold: (v) => fx(v),
     writeOffBonus: (c, score) => (c.word.length > 0 ? score(c.word.substring(0, Math.ceil(c.word.length / 2))) : 0),
   },
@@ -544,49 +527,6 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     },
   },
 
-  // ── §3.6 Automated aggression (route through the victim's Titanium Mirror) ──
-  // FlakCannon: {
-  //   name: "Flak Cannon",
-  //   color: "#ff7043",
-  //   family: CardFamily.Economy,
-  //   op: CardOp.Fx,
-  //   magnitudeText: "FX",
-  //   description: "Takes 10% off the next shot clock of every player scoring higher than you.",
-  //   fold: (v) => fx(v),
-  //   roomServices: ["timePenalty"],
-  //   onTurnEnded: (c) => {
-  //     const owner = c.player;
-  //     const fx2 = c.effects;
-  //     if (!owner || !fx2) return;
-  //     const mag = c.magnification();
-  //     for (const opp of fx2.orderedActivePlayers()) {
-  //       if (opp.id === owner.id || opp.score <= owner.score) continue;
-  //       const shave = Math.max(1, Math.round(fx2.armedClockOf(opp) * 0.1 * mag));
-  //       fx2.timeShave(owner, opp, shave, "Flak Cannon");
-  //     }
-  //   },
-  // },
-
-  // BountyHunter: {
-  //   name: "The Bounty Hunter",
-  //   color: "#d4a017",
-  //   family: CardFamily.Economy,
-  //   op: CardOp.Fx,
-  //   magnitudeText: "FX",
-  //   description: "If the round leader plays a word shorter than 6 letters, they lose 15 points.",
-  //   fold: (v) => fx(v),
-  //   onOpponentWordResolved: (c) => {
-  //     const res = c.resolution;
-  //     const fx2 = c.effects;
-  //     if (!res || !fx2) return;
-  //     if (res.submitterId !== fx2.roundLeaderId || res.word.length >= 6) return;
-  //     const owner = c.player;
-  //     const leader = c.players?.find((p) => p.id === res.submitterId);
-  //     if (!owner || !leader || owner.id === leader.id) return;
-  //     fx2.drain(owner, leader, Math.round(15 * c.magnification()), "Bounty Hunter");
-  //   },
-  // },
-
   BaitAndSwitch: {
     name: "Bait & Switch",
     color: "#b388ff",
@@ -604,30 +544,9 @@ const CARD_DEFS: Record<CardId, CardDef> = {
       const owner = c.player;
       if (!owner) return;
       const next = fx2.peekNextActivePlayer(owner.id);
-      if (next) fx2.letterHijack(owner, next, res.offendingLetter, "Bait & Switch");
+      if (next) fx2.letterHijack(next, res.offendingLetter, "Bait & Switch");
     },
   },
-
-  // ── §3.7 The Shield ──
-  // TitaniumMirror: {
-  //   name: "The Titanium Mirror",
-  //   maxInstances: 1,
-  //   color: "#9fd3e0",
-  //   family: CardFamily.Utility,
-  //   op: CardOp.Multiplicative,
-  //   magnitudeText: "shield",
-  //   description:
-  //     "×1.0. Reflects incoming attacks back at their source, losing 0.1× per block across eras.",
-  //   roomServices: ["shield"],
-  //   fold: (v, c) => {
-  //     const m = c.player && c.services ? c.services.shield.getMultiplier(c.player.id) : 1;
-  //     return mul(v, m * c.magnification());
-  //   },
-  //   intercept: (owner, services) => {
-  //     services.shield.decay(owner.id, 0.1);
-  //     return true;
-  //   },
-  // },
 
   // ── Rebalance additions: archetypes to rival the speed build ────────────────
   // Long-word / Wordsmith — reward big words and the time to type them.
@@ -685,12 +604,12 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     name: "Numismatist",
     color: "#caa24a",
     family: CardFamily.Economy,
-    op: CardOp.Additive,
-    magnitudeText: "+6/rare",
-    description: "+6 per rare letter (Q, X, Z, J).",
+    op: CardOp.Multiplicative,
+    magnitudeText: "×1.6 /rare",
+    description: "×(1 + 0.6 per rare letter Q, X, Z, J).",
     fold: (v, c) => {
       const rare = [...c.word].filter((ch) => RARE_START.has(ch)).length;
-      return add(v, (6 * rare) * c.magnification());
+      return rare > 0 ? mul(v, (1 + 0.6 * rare) * c.magnification()) : skip(v);
     },
   },
 
@@ -709,37 +628,18 @@ const CARD_DEFS: Record<CardId, CardDef> = {
       const owner = c.player;
       const fx2 = c.effects;
       if (!owner || !fx2) return;
+      // The overall leader among ALL active players — including the owner, so a
+      // leading Blind Sniper shaves its own clock (a built-in anti-snowball cost).
       let top: PlayerState | null = null;
-      for (const opp of fx2.orderedActivePlayers()) {
-        if (opp.id === owner.id) continue;
-        if (!top || opp.score > top.score) top = opp;
+      for (const p of fx2.orderedActivePlayers()) {
+        if (!top || p.score > top.score) top = p;
       }
-      if (top && top.score > owner.score) {
+      if (top) {
         const shave = Math.max(1, Math.round(fx2.armedClockOf(top) * 0.2 * c.magnification()));
-        fx2.timeShave(owner, top, shave, "The Sniper");
+        fx2.timeShave(top, shave, "Blind Sniper");
       }
     },
   },
-
-  // TheLeech: {
-  //   name: "The Leech",
-  //   color: "#7a4fb0",
-  //   family: CardFamily.Economy,
-  //   op: CardOp.Fx,
-  //   magnitudeText: "FX",
-  //   description: "At turn end, drain 3 points from every player scoring higher than you.",
-  //   fold: (v) => fx(v),
-  //   onTurnEnded: (c) => {
-  //     const owner = c.player;
-  //     const fx2 = c.effects;
-  //     if (!owner || !fx2) return;
-  //     const amount = Math.max(1, Math.round(3 * c.magnification()));
-  //     for (const opp of fx2.orderedActivePlayers()) {
-  //       if (opp.id === owner.id || opp.score <= owner.score) continue;
-  //       fx2.drain(owner, opp, amount, "The Leech");
-  //     }
-  //   },
-  // },
 
   // Defensive / Combo engine.
   Insurance: {
@@ -772,6 +672,55 @@ const CARD_DEFS: Record<CardId, CardDef> = {
       const factor = Math.min(2.3, round1(1 + 0.15 * others));
       return mul(v, factor * c.magnification());
     },
+  },
+
+  // ── New archetype cards: word quality, clean-streak consistency, engine width ──
+  Tilesmith: {
+    name: "Tilesmith",
+    color: "#c9a227",
+    family: CardFamily.Letter,
+    op: CardOp.Additive,
+    magnitudeText: "+tile",
+    description: "Scores the word based on its letter-tile values (Scrabble-style).",
+    fold: (v, c) => add(v, tileValue(c.word) * c.magnification()),
+  },
+
+  Crescendo: {
+    name: "Crescendo",
+    color: "#ff8fb0",
+    family: CardFamily.Economy,
+    op: CardOp.Multiplicative,
+    magnitudeText: "×1+0.25 /clean",
+    description:
+      "×(1 + 0.25 per clean word you've played this era), capped at ×2. Being taxed resets it.",
+    roomServices: ["crescendoStreak"],
+    fold: (v, c) => {
+      const streak = c.player && c.services ? c.services.crescendoStreak.get(c.player.id) : 0;
+      return streak > 0 ? mul(v, Math.min(2, 1 + 0.25 * streak) * c.magnification()) : skip(v);
+    },
+  },
+
+  Bookends: {
+    name: "Bookends",
+    color: "#8fb0ff",
+    family: CardFamily.Letter,
+    op: CardOp.Multiplicative,
+    magnitudeText: "×2",
+    description: "×2 when the word's first and last letter are the same.",
+    fold: (v, c) => {
+      const w = c.word;
+      return w.length >= 2 && w[0] === w[w.length - 1] ? mul(v, 2 * c.magnification()) : skip(v);
+    },
+  },
+
+  Dividend: {
+    name: "Dividend",
+    color: "#4caf6e",
+    family: CardFamily.Economy,
+    op: CardOp.Additive,
+    magnitudeText: "+2/card",
+    description: "+2 for each card in your bay.",
+    fold: (v, c) => add(v, 2 * c.bayLength * c.magnification()),
   },
 };
 

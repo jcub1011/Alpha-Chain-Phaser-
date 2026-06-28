@@ -37,9 +37,10 @@ describe("Forgery — perceived length doubling", () => {
     expect(scoreWord("idea", bay("Forgery", "VocalVowels"), opts).finalScore).toBe(16);
   });
 
-  it("scales Anchor Chain's per-letter multiplier with the perceived length", () => {
-    // "cat"=3 → perceived 6 → ×(0.5×6)=×3 on seed 3 → 9 (was 5 with real length).
-    expect(scoreWord("cat", bay("Forgery", "AnchorChain"), opts).finalScore).toBe(9);
+  it("pushes Brick Layer over its 6+ gate via the perceived length", () => {
+    // "cat"=3 → perceived 6 → Brick Layer triggers: +3 × 6 = +18 on seed 3 → 21
+    // (real length 3 would skip the gate entirely).
+    expect(scoreWord("cat", bay("Forgery", "BrickLayer"), opts).finalScore).toBe(21);
   });
 
   it("does not affect cards placed BEFORE it", () => {

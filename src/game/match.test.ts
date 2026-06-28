@@ -224,15 +224,15 @@ describe("shot-clock timeout penalty", () => {
     m.state.players[0].bay = [{ id: "Redline" }];
     m.state.players[0].score = 100;
     runClockOut(m);
-    expect(m.state.players[0].score).toBe(78); // 100 − (10 + 12)
+    expect(m.state.players[0].score).toBe(66); // 100 − (10 + 24)
   });
 
   it("lets the score go negative (consistent with drains)", () => {
     const m = armed();
-    m.state.players[0].bay = [{ id: "PanicButton" }]; // base 10 + 20
+    m.state.players[0].bay = [{ id: "Redline" }]; // base 10 + 24
     m.state.players[0].score = 5;
     runClockOut(m);
-    expect(m.state.players[0].score).toBe(-25); // 5 − 30
+    expect(m.state.players[0].score).toBe(-29); // 5 − 34
   });
 
   it("emits a timed-out submission carrying the penalty breakdown", () => {
@@ -247,9 +247,9 @@ describe("shot-clock timeout penalty", () => {
     m.events.on("timeout", (e) => (penalty = e.penalty));
     runClockOut(m);
     expect(captured?.timedOut).toBe(true);
-    expect(captured?.score).toBe(-15); // −(10 + 5)
-    expect(penalty).toBe(15);
-    expect(m.state.players[0].score).toBe(5); // 20 − 15
+    expect(captured?.score).toBe(-22); // −(10 + 12)
+    expect(penalty).toBe(22);
+    expect(m.state.players[0].score).toBe(-2); // 20 − 22
   });
 
   it("Insurance refunds the base penalty (general onTimeout-style reaction)", () => {
@@ -352,15 +352,10 @@ describe("per-card deal caps", () => {
   const countIn = (bay: { id: string }[], id: string) => bay.filter((b) => b.id === id).length;
 
   it("declares the configured deviating caps; everything else defaults", () => {
-    expect(capOf("TitaniumMirror")).toBe(1);
     expect(capOf("Sesquipedalian")).toBe(1);
-    expect(capOf("AnchorChain")).toBe(1);
-    expect(capOf("HyperDrive")).toBe(1);
     expect(capOf("Blindfold")).toBe(1);
     expect(capOf("RouletteWheel")).toBe(1);
     expect(capOf("TollBooth")).toBe(1);
-    expect(capOf("Redline")).toBe(2);
-    expect(capOf("PanicButton")).toBe(2);
     expect(capOf("Speedracer")).toBe(2);
     // No override → falls back to the shared default.
     expect(getCard("TheAnchor")?.maxInstances).toBeUndefined();
@@ -386,12 +381,12 @@ describe("per-card deal caps", () => {
     const p1 = driveToIntermission(1000).state.players[0];
     const expectedTotal = DEALABLE_CARD_IDS.reduce((sum, id) => sum + capOf(id), 0);
     expect(p1.bay.length).toBe(expectedTotal);
-    // Exhaustion means every card sits at exactly its cap — including the unique
-    // Titanium Mirror at 1 (the old hard-coded one-per-bay rule, now data-driven).
+    // Exhaustion means every card sits at exactly its cap — including unique
+    // (maxInstances: 1) cards like Sesquipedalian.
     for (const id of DEALABLE_CARD_IDS) {
       expect(countIn(p1.bay, id)).toBe(capOf(id));
     }
-    expect(countIn(p1.bay, "TitaniumMirror")).toBe(1);
+    expect(countIn(p1.bay, "Sesquipedalian")).toBe(1);
   });
 });
 

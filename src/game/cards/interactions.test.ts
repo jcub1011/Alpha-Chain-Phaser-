@@ -37,7 +37,7 @@ describe("Catalyst reclassifies Y/W/H as vowels for cards to its right", () => {
   });
 
   it("can break Guttural Roar by introducing a non-A/E vowel", () => {
-    expect(score("way", "GutturalRoar")).toBe(5); // plain vowel 'a' only → ×1.5
+    expect(score("way", "GutturalRoar")).toBe(6); // plain vowel 'a' only → ×2
     // Catalyst adds w,y as vowels → not all A/E → skip.
     expect(triggered("way", "Catalyst", "GutturalRoar")).toBe(false);
   });
@@ -56,8 +56,8 @@ describe("Forgery + Catalyst work together but on independent axes", () => {
 });
 
 describe("Magnifying Glass stacks across families", () => {
-  it("magnifies a conditional multiplier (Guttural Roar ×1.5 → ×2.25)", () => {
-    expect(score("cat", "MagnifyingGlass", "GutturalRoar")).toBe(7); // 3 × 2.25 = 6.75 → 7
+  it("magnifies a conditional multiplier (Chant ×2 → ×3)", () => {
+    expect(score("cat", "MagnifyingGlass", "GutturalRoar")).toBe(9); // 3 × 3 = 9
   });
 
   it("magnifies The Double Down's bonus (×2 → ×3)", () => {
