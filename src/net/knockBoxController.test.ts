@@ -284,6 +284,73 @@ describe("KnockBoxController — host-authoritative sync", () => {
   });
 });
 
+describe("KnockBoxController — lobby settings sync", () => {
+  it("broadcasts the host's lobby settings to guests before a match starts", () => {
+    const hub = new Hub();
+    const hostPeer = new FakePeer(hub, "host", true, roster);
+    const guestPeer = new FakePeer(hub, "guest", false, roster);
+    const hostCtl = new KnockBoxController(hostPeer, dict, orderPreservingRng);
+    const guestCtl = new KnockBoxController(guestPeer, dict, orderPreservingRng);
+    hostPeer.fireReady();
+    guestPeer.fireReady();
+
+    // No match has started — the host edits a setting in the lobby.
+    hostCtl.setLobbySettings({ ...DEFAULT_SETTINGS, shotClockSeconds: 45, eraCount: 7 });
+
+    // The guest's read-only lobby sees the host's values, not its own defaults.
+    expect(guestCtl.lobbySettings?.shotClockSeconds).toBe(45);
+    expect(guestCtl.lobbySettings?.eraCount).toBe(7);
+    // The host keeps its own copy too.
+    expect(hostCtl.lobbySettings?.shotClockSeconds).toBe(45);
+  });
+
+  it("notifies lobby subscribers on the guest when settings arrive", () => {
+    const hub = new Hub();
+    const hostPeer = new FakePeer(hub, "host", true, roster);
+    const guestPeer = new FakePeer(hub, "guest", false, roster);
+    const hostCtl = new KnockBoxController(hostPeer, dict, orderPreservingRng);
+    const guestCtl = new KnockBoxController(guestPeer, dict, orderPreservingRng);
+    hostPeer.fireReady();
+    guestPeer.fireReady();
+
+    let notified = 0;
+    guestCtl.onLobbyChange(() => notified++);
+    hostCtl.setLobbySettings({ ...DEFAULT_SETTINGS, shotClockSeconds: 30 });
+    expect(notified).toBeGreaterThan(0);
+  });
+
+  it("re-sends current lobby settings to a guest that (re)syncs in the lobby", () => {
+    const hub = new Hub();
+    const hostPeer = new FakePeer(hub, "host", true, roster);
+    const hostCtl = new KnockBoxController(hostPeer, dict, orderPreservingRng);
+    hostPeer.fireReady();
+    // Host sets its lobby settings before the guest has joined/synced.
+    hostCtl.setLobbySettings({ ...DEFAULT_SETTINGS, shotClockSeconds: 50 });
+
+    // A late guest joins and fires ready → its onReady sends {t:"sync"} to the host,
+    // which (no match yet) replies with the current lobby settings.
+    const guestPeer = new FakePeer(hub, "guest", false, roster);
+    const guestCtl = new KnockBoxController(guestPeer, dict, orderPreservingRng);
+    guestPeer.fireReady();
+    expect(guestCtl.lobbySettings?.shotClockSeconds).toBe(50);
+  });
+
+  it("ignores setLobbySettings on a guest (only the host publishes)", () => {
+    const hub = new Hub();
+    const hostPeer = new FakePeer(hub, "host", true, roster);
+    const guestPeer = new FakePeer(hub, "guest", false, roster);
+    const hostCtl = new KnockBoxController(hostPeer, dict, orderPreservingRng);
+    const guestCtl = new KnockBoxController(guestPeer, dict, orderPreservingRng);
+    hostPeer.fireReady();
+    guestPeer.fireReady();
+
+    guestCtl.setLobbySettings({ ...DEFAULT_SETTINGS, shotClockSeconds: 99 });
+    // No broadcast happened: the host never adopted the guest's value.
+    expect(hostCtl.lobbySettings).toBeUndefined();
+    expect(guestCtl.lobbySettings).toBeUndefined();
+  });
+});
+
 describe("KnockBoxController — edge cases", () => {
   const startBoth = () => {
     const hub = new Hub();

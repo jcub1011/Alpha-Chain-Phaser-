@@ -68,6 +68,10 @@ export class KnockBoxController implements GameController {
   private host?: MatchController;
   private pending: WireEvent[] = [];
   private startSettings?: AlphaChainSettings;
+  /** Host's working lobby settings, broadcast to guests before the match starts so
+   *  their read-only lobby mirrors the host's choices. On a guest, the last settings
+   *  received from the host (undefined until the first arrives). */
+  private _lobbySettings?: AlphaChainSettings;
   private lobbyCbs: (() => void)[] = [];
   private sessionEndedCbs: ((reason: string) => void)[] = [];
   /** The host's player id (learned from snapshots), for host-departure detection. */
@@ -132,6 +136,22 @@ export class KnockBoxController implements GameController {
   /** The lobby roster (for the pre-match waiting surface). */
   get roster(): { id: string; displayName: string }[] {
     return this.peer.players;
+  }
+
+  /** The current lobby settings (host's working copy / last received from host).
+   *  Read by <ac-net-lobby> so a guest's read-only form mirrors the host. */
+  get lobbySettings(): AlphaChainSettings | undefined {
+    return this._lobbySettings;
+  }
+
+  /** Host-only: publish the working lobby settings to every guest so their
+   *  read-only lobby reflects the host's live choices before the match starts.
+   *  No-op for guests (only the host edits settings). The host's own UI already
+   *  holds the draft, so it ignores its own echoed broadcast (see onMessage). */
+  setLobbySettings(settings: AlphaChainSettings): void {
+    if (!this.peer.isHost) return;
+    this._lobbySettings = settings;
+    this.peer.sendToAll({ t: "lobby", settings } satisfies NetMessage);
   }
 
   // ── GameController ──────────────────────────────────────────────────────────
@@ -274,7 +294,26 @@ export class KnockBoxController implements GameController {
         if (this.peer.isHost) this.applyIntent(from, payload.action);
         break;
       case "sync":
-        if (this.peer.isHost && this.host) this.sendSnapshotTo(from);
+        if (this.peer.isHost) {
+          // In a match: re-push the authoritative snapshot. Still in the lobby (no
+          // MatchController yet): re-push the current lobby settings so a late joiner
+          // / reconnecting guest sees the host's choices, not its own defaults.
+          if (this.host) this.sendSnapshotTo(from);
+          else if (this._lobbySettings)
+            this.peer.sendTo(from, {
+              t: "lobby",
+              settings: this._lobbySettings,
+            } satisfies NetMessage);
+        }
+        break;
+      case "lobby":
+        // Host → all lobby-settings push. Guests adopt it and refresh the lobby; the
+        // host ignores its own echo (sendToAll delivers back to the sender), exactly
+        // like the "snap" echo below.
+        if (!this.peer.isHost) {
+          this._lobbySettings = payload.settings;
+          this.notifyLobby();
+        }
         break;
       case "snap":
         // The host already applied its own snapshot directly; ignore the echo.

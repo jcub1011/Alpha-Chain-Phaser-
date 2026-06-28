@@ -22,7 +22,14 @@ export class AcNetLobby extends AcElement {
 
   override connectedCallback(): void {
     super.connectedCallback();
-    this.unsub = this.controller?.onLobbyChange(() => this.requestUpdate());
+    // onLobbyChange fires on roster changes AND (on a guest) when the host's settings
+    // arrive. A guest mirrors the host's settings into its read-only draft; the host
+    // owns its own draft and ignores this.
+    this.unsub = this.controller?.onLobbyChange(() => {
+      const ls = this.controller?.lobbySettings;
+      if (this.readOnly && ls) this.draft = { ...ls };
+      this.requestUpdate();
+    });
   }
   override disconnectedCallback(): void {
     super.disconnectedCallback();
@@ -31,7 +38,29 @@ export class AcNetLobby extends AcElement {
 
   override willUpdate(changed: PropertyValues): void {
     // The persisted settings arrive as a property after first paint; sync the draft.
-    if (changed.has("settings") && this.settings) this.draft = { ...this.settings };
+    // Skip on a guest once the host's settings have arrived, so we don't clobber the
+    // host's choices with the guest's own local defaults.
+    if (
+      changed.has("settings") &&
+      this.settings &&
+      !(this.readOnly && this.controller?.lobbySettings)
+    ) {
+      this.draft = { ...this.settings };
+      // Host: publish the initial / restored settings so guests see them immediately.
+      this.pushSettings();
+    }
+  }
+
+  override firstUpdated(): void {
+    // Belt-and-suspenders: ensure the host publishes its settings even if the draft
+    // was seeded before the controller property was wired up.
+    this.pushSettings();
+  }
+
+  /** Host only: broadcast the working settings so guests' read-only lobby mirrors
+   *  them. No-op for guests (the controller method itself also guards on isHost). */
+  private pushSettings(): void {
+    if (this.controller?.isHost) this.controller.setLobbySettings(this.draft);
   }
 
   private step<K extends keyof AlphaChainSettings>(
@@ -44,11 +73,13 @@ export class AcNetLobby extends AcElement {
     const next = Math.round(Math.max(min, Math.min(max, raw)) * 10) / 10; // tame fp drift
     this.draft = { ...this.draft, [key]: next };
     saveSettings(this.draft);
+    this.pushSettings();
   }
 
   private set<K extends keyof AlphaChainSettings>(key: K, value: AlphaChainSettings[K]): void {
     this.draft = { ...this.draft, [key]: value };
     saveSettings(this.draft);
+    this.pushSettings();
   }
 
   private start(): void {

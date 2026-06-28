@@ -53,6 +53,17 @@ export interface SnapshotMsg {
   };
 }
 
+/**
+ * Host → all: the working lobby settings, so guests' read-only lobby reflects the
+ * host's live choices BEFORE a match starts. Once a match begins the settings ride
+ * the snapshot's WireMatchState instead; this message only covers the pre-match
+ * lobby (where there is no MatchController yet, so no snapshot is broadcast).
+ */
+export interface LobbySettingsMsg {
+  t: "lobby";
+  settings: AlphaChainSettings;
+}
+
 /** Guest → host on (re)entry: "send me the current state." */
 export interface SyncMsg {
   t: "sync";
@@ -64,4 +75,4 @@ export interface IntentMsg {
   action: Intent;
 }
 
-export type NetMessage = SnapshotMsg | SyncMsg | IntentMsg;
+export type NetMessage = SnapshotMsg | SyncMsg | IntentMsg | LobbySettingsMsg;
