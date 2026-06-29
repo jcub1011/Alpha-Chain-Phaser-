@@ -259,6 +259,14 @@ describe("shot-clock timeout penalty", () => {
     runClockOut(m);
     expect(m.state.players[0].score).toBe(30); // −10 base + 10 refund = net 0
   });
+
+  it("breaks the Crescendo clean-streak on a real timeout", () => {
+    const m = armed();
+    m.services.crescendoStreak.increment("p1"); // p1 had an unbroken clean run
+    expect(m.services.crescendoStreak.get("p1")).toBe(1);
+    runClockOut(m); // p1 times out → the run is no longer clean
+    expect(m.services.crescendoStreak.get("p1")).toBe(0);
+  });
 });
 
 describe("shot-clock submit grace window", () => {

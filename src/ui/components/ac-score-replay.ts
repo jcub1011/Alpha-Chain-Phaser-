@@ -317,10 +317,10 @@ export class AcScoreReplay extends AcElement {
                       );
                       const who = tgt?.id === this.controller.humanId ? "You" : (tgt?.name ?? "");
                       return html`<div
-                        class="sr-effect ${eff.reflected ? "is-reflected" : ""}"
+                        class="sr-effect"
                         style="--accent:${tgt ? playerAccentVar(tgt.accentIndex) : ""};"
                       >
-                        ${eff.reflected ? "⛊ " : ""}<b>${eff.source}</b> → ${who} · ${eff.text}
+                        <b>${eff.source}</b> → ${who} · ${eff.text}
                       </div>`;
                     })
                   : html`<div class="sr-effect is-placeholder" aria-hidden="true">·</div>`}

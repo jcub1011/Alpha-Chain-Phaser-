@@ -39,8 +39,10 @@ export interface EvalContext {
   cardIndex: number;
   /** Total slots in the bay being evaluated. */
   bayLength: number;
-  /** The current era (1-based). Era-scaling cards (Booster Pack) read this. */
+  /** The current era (1-based). */
   era: number;
+  /** Owner's bay slot capacity (Booster Pack scales by it). Falls back to bayLength. */
+  slots?: number;
   /** The match's base shot-clock seconds (settings.shotClockSeconds). */
   baseClockSeconds: number;
   /** Words submitted so far this match (Blueprint / Scavenger read this). */
@@ -133,6 +135,8 @@ export interface ModifierCard {
   timeoutFold?(value: number, ctx: EvalContext): FoldResult;
 
   // ── Capability hooks (all optional; presence = opting in) ──
+  /** Floors the net timeout loss at 0 regardless of drain order (Insurance). */
+  negatesTimeoutLoss?: boolean;
   /** IShotClockOverride — pins the clock to a fixed value (Anchor Chain). */
   shotClockOverride?(ctx: EvalContext): number | null;
   /** IShotClockCap — lowers a longer clock, never raises (Hyper-Drive). */

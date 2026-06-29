@@ -315,9 +315,6 @@
   font-size: 12px;
   opacity: 0.85;
 }
-.sandbox-effect.reflected {
-  color: var(--ac-accent-clock, #8ad);
-}
 
 /* ── Submission history ── */
 .sandbox-history {

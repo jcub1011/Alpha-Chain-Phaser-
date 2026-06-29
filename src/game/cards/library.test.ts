@@ -99,12 +99,13 @@ describe("High Roller — +10 per rare letter (Q, X, Z, J)", () => {
   });
 });
 
-describe("Booster Pack — +2 per card to its right, scaled by era", () => {
-  it("adds 2 × cardsToRight × era (era 1 by default)", () => {
-    expect(score("cat", ["BoosterPack", "TheAnchor"])).toBe(15); // 3 +2(1 right ×era1) +10
+describe("Booster Pack — +2 per card to its right, scaled by slot capacity", () => {
+  it("adds 2 × cardsToRight × slots (slots defaults to bay length)", () => {
+    // 2-card bay → slots defaults to 2: 3 +2(1 right ×2 slots) +10
+    expect(score("cat", ["BoosterPack", "TheAnchor"])).toBe(17);
   });
-  it("scales with the era", () => {
-    expect(score("cat", ["BoosterPack", "TheAnchor"], { era: 3 })).toBe(19); // 3 +6 +10
+  it("scales with the player's slot capacity", () => {
+    expect(score("cat", ["BoosterPack", "TheAnchor"], { slots: 5 })).toBe(23); // 3 +10 +10
   });
   it("adds nothing when it is the rightmost card", () => {
     const r = scoreWord("cat", bay("TheAnchor", "BoosterPack"), opts);

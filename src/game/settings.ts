@@ -169,7 +169,7 @@ export function availableBanLetters(
   if (rule === "AllowRepeat" || history.length === 0) return legal;
   const excluded =
     rule === "NoConsecutive"
-      ? new Set([history[history.length - 1]])
+      ? new Set([history[history.length - 1].toLowerCase()])
       : new Set(history.map((l) => l.toLowerCase()));
   const available = legal.filter((c) => !excluded.has(c));
   // Pool exhausted: reset the exclusion set rather than leave nothing to ban.

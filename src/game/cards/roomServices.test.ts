@@ -10,7 +10,6 @@ import { EngineEffects, type RoomServices, type EngineEffectsDeps } from "./room
 
 const stubDeps: EngineEffectsDeps = {
   activePlayers: () => [],
-  leaderId: () => "",
   armedClockOf: () => 0,
 };
 

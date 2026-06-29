@@ -34,29 +34,34 @@ export interface BotPick {
   rng?: () => number;
 }
 
-export function chooseBotWord(dict: Dictionary, opts: BotPick): string | null {
-  const rng = opts.rng ?? Math.random;
+/** Shared candidate-gathering setup both pickers walk: the per-letter pools to scan
+ *  (the required letter, or the shuffled alphabet) and the fresh → clean → in-band
+ *  acceptance tiers, tried in order from strictest to loosest (last resort may eat the tax). */
+function botCandidateTiers(opts: BotPick, rng: () => number) {
   const [lo, hi] = LENGTH_BAND[opts.difficulty];
-
   const lettersToTry = opts.requiredLetter
     ? [opts.requiredLetter.toLowerCase()]
     : shuffle(ALPHABET, rng);
+  const fresh = (w: string) => !opts.usedWords.has(w);
+  const clean = (w: string) => opts.bannedLetter === "" || !w.includes(opts.bannedLetter);
+  const inBand = (w: string) => w.length >= lo && w.length <= hi;
+  return {
+    lettersToTry,
+    tiers: [
+      (w: string) => fresh(w) && clean(w) && inBand(w),
+      (w: string) => fresh(w) && clean(w),
+      (w: string) => fresh(w),
+    ],
+  };
+}
+
+export function chooseBotWord(dict: Dictionary, opts: BotPick): string | null {
+  const rng = opts.rng ?? Math.random;
+  const { lettersToTry, tiers } = botCandidateTiers(opts, rng);
 
   for (const letter of lettersToTry) {
     const pool = dict.wordsStartingWith(letter);
     if (pool.length === 0) continue;
-
-    const fresh = (w: string) => !opts.usedWords.has(w);
-    const clean = (w: string) => opts.bannedLetter === "" || !w.includes(opts.bannedLetter);
-
-    // Prefer: in-band length AND clean of the banned letter.
-    const inBand = (w: string) => w.length >= lo && w.length <= hi;
-    const tiers = [
-      (w: string) => fresh(w) && clean(w) && inBand(w),
-      (w: string) => fresh(w) && clean(w),
-      (w: string) => fresh(w), // last resort: may eat the tax
-    ];
-
     for (const accept of tiers) {
       const pick = sampleWhere(pool, accept, rng);
       if (pick) return pick;
@@ -139,19 +144,7 @@ export function chooseBotWordScored(dict: Dictionary, opts: BotScoredPick): stri
   const rng = opts.rng ?? Math.random;
   if (opts.candidateCount <= 0) return chooseBotWord(dict, opts);
 
-  const [lo, hi] = LENGTH_BAND[opts.difficulty];
-  const lettersToTry = opts.requiredLetter
-    ? [opts.requiredLetter.toLowerCase()]
-    : shuffle(ALPHABET, rng);
-
-  const fresh = (w: string) => !opts.usedWords.has(w);
-  const clean = (w: string) => opts.bannedLetter === "" || !w.includes(opts.bannedLetter);
-  const inBand = (w: string) => w.length >= lo && w.length <= hi;
-  const tiers = [
-    (w: string) => fresh(w) && clean(w) && inBand(w),
-    (w: string) => fresh(w) && clean(w),
-    (w: string) => fresh(w),
-  ];
+  const { lettersToTry, tiers } = botCandidateTiers(opts, rng);
 
   const candidates = new Set<string>();
   for (const letter of lettersToTry) {

@@ -264,10 +264,7 @@ export class AcSandbox extends AcElement {
               <div class="sandbox-effects">
                 <span class="sandbox-turn-label">Off-turn effects</span>
                 ${sub.effects.map(
-                  (fx) =>
-                    html`<div class="sandbox-effect ${fx.reflected ? "reflected" : ""}">
-                      ${fx.reflected ? "⛊ " : ""}${fx.source} · ${fx.text}
-                    </div>`,
+                  (fx) => html`<div class="sandbox-effect">${fx.source} · ${fx.text}</div>`,
                 )}
               </div>
             `

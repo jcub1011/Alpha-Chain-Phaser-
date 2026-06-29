@@ -149,10 +149,12 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     color: "#ffb020",
     family: CardFamily.Economy,
     op: CardOp.Additive,
-    magnitudeText: "+2×era /right",
-    description: "+2 per card to its right in the bay, multiplied by the current era.",
+    magnitudeText: "+2×slots /right",
+    description: "+2 per card to its right in the bay, multiplied by your slot count.",
     fold: (v, c) =>
-      c.cardsToRight > 0 ? add(v, 2 * c.cardsToRight * c.era * c.magnification()) : skip(v),
+      c.cardsToRight > 0
+        ? add(v, 2 * c.cardsToRight * (c.slots ?? c.bayLength) * c.magnification())
+        : skip(v),
   },
 
   Scavenger: {
@@ -651,8 +653,9 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     description: "Scores nothing on a normal word. If you time out, you lose no points.",
     fold: (v) => fx(v),
     // Negate the timeout loss: bring the running penalty back up to 0 (the refund is
-    // shown in the replay). scoreTimeout also floors the net at 0 so glass-cannon
+    // shown in the replay). negatesTimeoutLoss also floors the net at 0 so glass-cannon
     // drains placed to the right of this card can't re-open a loss (order-independent).
+    negatesTimeoutLoss: true,
     timeoutFold: (v) => (v < 0 ? add(v, -v) : skip(v)),
   },
 
@@ -692,7 +695,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     op: CardOp.Multiplicative,
     magnitudeText: "×1+0.25 /clean",
     description:
-      "×(1 + 0.25 per clean word you've played this era), capped at ×2. Being taxed resets it.",
+      "×(1 + 0.25 per clean word you've played this era), capped at ×2. Being taxed or timing out resets it.",
     roomServices: ["crescendoStreak"],
     fold: (v, c) => {
       const streak = c.player && c.services ? c.services.crescendoStreak.get(c.player.id) : 0;

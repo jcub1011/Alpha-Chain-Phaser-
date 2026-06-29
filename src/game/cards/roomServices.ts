@@ -171,8 +171,6 @@ export class BanLetterService {
 export interface EngineEffectsDeps {
   /** Active (non-eliminated) players in turn order. */
   activePlayers(): PlayerState[];
-  /** The current round leader's id (highest score; turn order breaks ties). */
-  leaderId(): string;
   /** Armed clock seconds for a player (for percentage time shaves). */
   armedClockOf(player: PlayerState): number;
 }
@@ -204,15 +202,11 @@ export class EngineEffects {
     return out;
   }
 
-  get roundLeaderId(): string {
-    return this.deps.leaderId();
-  }
-
   orderedActivePlayers(): PlayerState[] {
     return this.deps.activePlayers();
   }
 
-  /** The armed shot clock a player would get right now (Flak Cannon shaves a %). */
+  /** The armed shot clock a player would get right now (Blind Sniper shaves a %). */
   armedClockOf(player: PlayerState): number {
     return this.deps.armedClockOf(player);
   }

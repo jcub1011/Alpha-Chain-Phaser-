@@ -115,9 +115,6 @@ export class MatchController {
   private roundSettleRemaining = 0;
   private pendingEraEnd: "intermission" | "gameOver" | null = null;
   private prevWordLength = 0;
-  /** Round leader id, fixed at each round's start (not live); exposed to cards
-   *  via EngineEffects.leaderId. */
-  private roundLeaderId = "";
   /** The current player's in-progress word, streamed in via setDraft, so a shot-clock
    *  timeout can auto-submit it. Transient (not part of MatchState; never serialized);
    *  reset on every turn arm. */
@@ -190,7 +187,6 @@ export class MatchController {
     );
     this.effects = new EngineEffects(this.services, {
       activePlayers: () => this.turnOrderedActive(),
-      leaderId: () => this.roundLeaderId,
       armedClockOf: (p) => armedClockSeconds(this.state.settings.shotClockSeconds, p.bay),
     });
     this.installLogging();
@@ -252,14 +248,6 @@ export class MatchController {
     return this.state.players.filter((p) => !p.eliminated);
   }
 
-  /** The current leader's id (highest score; earliest turn order breaks ties). */
-  computeLeaderId(): string {
-    const active = this.turnOrderedActive();
-    let lead = active[0];
-    for (const p of active) if (p.score > lead.score) lead = p;
-    return lead?.id ?? "";
-  }
-
   /** Build the shared bay evaluator + hook context for `player` scoring `word`. */
   private bayEval(player: PlayerState, word: string, taxed: boolean): BayEvaluator {
     return makeBayEvaluator(word, player.bay, {
@@ -269,6 +257,7 @@ export class MatchController {
       taxed,
       baseClockSeconds: this.state.settings.shotClockSeconds,
       era: this.state.era,
+      slots: player.slots,
       history: this.state.history,
       services: this.services,
       effects: this.effects,
@@ -364,13 +353,17 @@ export class MatchController {
         if (this.roundSettleRemaining <= 0) this.resolveEraEnd();
         return;
       }
-      s.clockRemaining = Math.max(0, s.clockRemaining - dt);
+      const before = s.clockRemaining;
+      s.clockRemaining = Math.max(0, before - dt);
       this.events.emit("clockTick", s.clockRemaining);
       if (s.clockRemaining <= 0) {
         if (this.clockGraceRemaining > 0) {
           // Hold the turn open for one grace window so a buzzer-time submit that is
           // still in flight over the network can land. grace=0 (solo/tests) skips this.
-          this.clockGraceRemaining = Math.max(0, this.clockGraceRemaining - dt);
+          // Only the slice of this tick that fell AFTER the clock hit zero eats grace;
+          // a coarse catch-up tick must not burn the whole window before zero.
+          const overshoot = Math.max(0, dt - before);
+          this.clockGraceRemaining = Math.max(0, this.clockGraceRemaining - overshoot);
           if (this.clockGraceRemaining <= 0) this.timeoutCurrent();
         } else {
           this.timeoutCurrent();
@@ -474,7 +467,6 @@ export class MatchController {
     this.state.players = shuffle(this.state.players, this.rng);
     const opener = this.state.players.findIndex((p) => !p.eliminated);
     this.state.currentPlayerIndex = opener < 0 ? 0 : opener;
-    this.roundLeaderId = this.computeLeaderId();
     this.armCurrentTurn();
   }
 
@@ -539,8 +531,6 @@ export class MatchController {
         return;
       }
       this.state.roundInEra++;
-      // New round → re-mark the round leader.
-      this.roundLeaderId = this.computeLeaderId();
     }
     this.armCurrentTurn();
   }
@@ -629,6 +619,7 @@ export class MatchController {
       clockTotal: s.clockTotal,
       baseClockSeconds: s.settings.shotClockSeconds,
       era: s.era,
+      slots: player.slots,
       history: s.history,
     };
     const breakdown = scoreWord(word, player.bay, { ...scoreOpts, taxed });
@@ -757,6 +748,7 @@ export class MatchController {
       taxed: false,
       baseClockSeconds: s.settings.shotClockSeconds,
       era: s.era,
+      slots: p.slots,
       history: s.history,
       services: this.services,
       effects: this.effects,
@@ -769,6 +761,8 @@ export class MatchController {
     // here would hide the penalty whenever the player is at or below it.
     p.score += breakdown.finalScore;
     const penalty = -breakdown.finalScore;
+    // A timeout is not a clean submission: it breaks the Crescendo run, same as a tax.
+    this.services.crescendoStreak.reset(p.id);
 
     // A synthetic "timed-out" submission drives the same theater + leaderboard
     // reveal as a scored word. It is NOT pushed to history (no real word, so it
@@ -1009,7 +1003,7 @@ export class MatchController {
     const active = this.activePlayers;
     let last = active[0];
     for (const p of active) if (p.score < last.score) last = p;
-    // Defensive: mirror computeLeaderId — never index into an empty active set.
+    // Defensive: never index into an empty active set.
     return last?.id ?? "";
   }
 

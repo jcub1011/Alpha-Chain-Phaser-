@@ -339,9 +339,6 @@
 .sr-effect b {
   color: var(--accent, var(--ac-cyan));
 }
-.sr-effect.is-reflected {
-  border-style: dashed;
-}
 /* Invisible stand-in that holds the strip's row height when no effects fired,
    so the strip toggling on/off between plays never shifts the layout. */
 .sr-effect.is-placeholder {

@@ -57,14 +57,15 @@ export class LocalController implements GameController {
       if (intermissionPhase !== "optimize") return;
       for (const p of this.match.state.players) {
         if (!p.isBot) continue;
-        const { engine, discard } = planBotBay(p.bay, p.slots, this.botScoreOpts());
+        const { engine, discard } = planBotBay(p.bay, p.slots, this.botScoreOpts(p.slots));
         this.match.setPlayerBay(p.id, engine, discard);
       }
     });
   }
 
-  /** Pure scoring context bots use to evaluate candidate words / bay orderings. */
-  private botScoreOpts() {
+  /** Pure scoring context bots use to evaluate candidate words / bay orderings.
+   *  `slots` is the scoring bot's bay capacity (Booster Pack scales by it). */
+  private botScoreOpts(slots: number) {
     const s = this.match.state;
     return {
       prevWordLength: this.match.lastWordLength,
@@ -72,6 +73,7 @@ export class LocalController implements GameController {
       clockTotal: s.clockTotal,
       baseClockSeconds: s.settings.shotClockSeconds,
       era: s.era,
+      slots,
       history: s.history,
     };
   }
@@ -148,7 +150,7 @@ export class LocalController implements GameController {
       bannedLetter: s.bannedLetter,
       difficulty: s.settings.botDifficulty,
       bay: player?.bay ?? [],
-      scoreOpts: this.botScoreOpts(),
+      scoreOpts: this.botScoreOpts(player?.slots ?? 0),
       candidateCount: BOT_CANDIDATE_COUNT[s.settings.botDifficulty],
     });
     if (word) {

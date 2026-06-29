@@ -11,7 +11,6 @@ import { buildMagnifier } from "./cards/magnifier";
 import { skip, type EvalContext, type ModifierCard } from "./cards/card";
 import type { EngineEffects, RoomServices } from "./cards/roomServices";
 import { BASE_TIMEOUT_PENALTY, isVowel, MAX_WORD_SCORE, MIN_SHOT_CLOCK_SECONDS } from "./settings";
-import { CardId } from "./types";
 import type { BayCard, PlayerState, ScoreBreakdown, ScoreStep, Submission } from "./types";
 
 /** The per-word facts shared by every card, before bay-position context. */
@@ -86,8 +85,10 @@ export interface ScoreOptions {
   taxed: boolean;
   /** Base shot-clock seconds for the match (defaults to clockTotal). */
   baseClockSeconds?: number;
-  /** Current era, 1-based (era-scaling cards like Booster Pack). Defaults to 1. */
+  /** Current era, 1-based. Defaults to 1. */
   era?: number;
+  /** Owner's bay slot capacity (Booster Pack scales by it). Defaults to bayLength. */
+  slots?: number;
   /** Words submitted so far this match (Blueprint / Scavenger). Defaults to []. */
   history?: readonly Submission[];
   // ── Hook-only context (threaded by match.ts for capability checks + lifecycle) ──
@@ -145,6 +146,7 @@ export function makeBayEvaluator(
     cardIndex: index,
     bayLength: bay.length,
     era: opts.era ?? 1,
+    slots: opts.slots ?? bay.length,
     baseClockSeconds: opts.baseClockSeconds ?? opts.clockTotal,
     history: opts.history ?? [],
     bayCardIds: bay.map((slot) => slot.id),
@@ -230,9 +232,9 @@ export function scoreTimeout(bay: readonly BayCard[], opts: ScoreOptions): Score
   });
 
   let finalScore = roundHalfUp(value);
-  // Insurance negates the timeout loss entirely: floor the net at 0 so it never
-  // matters whether a glass-cannon drain sits to the right of the Insurance card.
-  if (finalScore < 0 && bay.some((b) => b.id === CardId.Insurance)) finalScore = 0;
+  // A card may negate the timeout loss entirely (Insurance): floor the net at 0 so it
+  // never matters whether a glass-cannon drain sits to the right of that card.
+  if (finalScore < 0 && resolved.some((c) => c?.negatesTimeoutLoss)) finalScore = 0;
   return { word: "", seed, steps, finalBeforeTax: finalScore, taxed: false, finalScore };
 }
 
