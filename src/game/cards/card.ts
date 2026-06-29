@@ -15,6 +15,7 @@
  */
 
 import { isVowel, MAX_WORD_SCORE } from "../settings";
+import { CardRarity } from "../types";
 import type { CardFamily, CardOp, PlayerState, Submission, WordResolution } from "../types";
 import type { EffectMagnifier } from "./magnifier";
 import type { EngineEffects, RoomServices, RoomServiceKey } from "./roomServices";
@@ -98,6 +99,10 @@ export interface ModifierCard {
   name: string;
   family: CardFamily;
   op: CardOp;
+  /** Rarity tier — governs deal frequency (RARITY_DEAL_WEIGHT) and the card's
+   *  gem/glow. Independent of {@link maxInstances}. Required so every card
+   *  declares one (compile-time safety, like {@link family}). */
+  rarity: CardRarity;
   /** Static chip shown on the card face, e.g. "+10", "×1.5", "FX". */
   magnitudeText: string;
   description: string;
@@ -184,6 +189,16 @@ export interface ModifierCard {
 
 /** Default cap on copies of a single card per player when `maxInstances` is unset. */
 export const DEFAULT_MAX_INSTANCES = 3;
+
+/** Relative deal weight per rarity, used by the dealer's weighted pick. Higher =
+ *  offered more often. A specific Common is 10× as likely per draw as a specific
+ *  Legendary. One constant — tune the rarity economy here. */
+export const RARITY_DEAL_WEIGHT: Record<CardRarity, number> = {
+  [CardRarity.Common]: 10,
+  [CardRarity.Uncommon]: 5,
+  [CardRarity.Rare]: 2,
+  [CardRarity.Legendary]: 1,
+};
 
 const RARE_START = new Set(["q", "x", "z", "j"]);
 

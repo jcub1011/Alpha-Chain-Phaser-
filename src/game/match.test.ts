@@ -3,7 +3,20 @@ import { MatchController, type PlayerSeed } from "./match";
 import { DEFAULT_SETTINGS } from "./settings";
 import type { AlphaChainSettings } from "./types";
 import { DEALABLE_CARD_IDS, getCard } from "./cards/library";
-import { DEFAULT_MAX_INSTANCES } from "./cards/card";
+import { DEFAULT_MAX_INSTANCES, RARITY_DEAL_WEIGHT } from "./cards/card";
+
+/** Mirror the dealer's rarity-weighted pick (match.ts:dealCards) so tests can
+ *  predict which card a fixed rng roll selects from an ordered pool. */
+const weightedPick = (ids: readonly string[], roll: number): string => {
+  const weights = ids.map((id) => RARITY_DEAL_WEIGHT[getCard(id)!.rarity]);
+  const total = weights.reduce((sum, w) => sum + w, 0);
+  let r = roll * total;
+  for (let k = 0; k < ids.length; k++) {
+    r -= weights[k];
+    if (r < 0) return ids[k];
+  }
+  return ids[ids.length - 1];
+};
 
 const WORDS = new Set(["cat", "tiger", "rabbit", "tractor", "rat", "torch", "house", "elephant"]);
 const seeds: PlayerSeed[] = [
@@ -441,10 +454,11 @@ describe("per-card deal caps", () => {
   it("caps a repeatedly-drawn card at its maxInstances", () => {
     const p1 = driveToIntermission(10).state.players[0];
     expect(p1.bay.length).toBe(10);
-    // With a fixed rng the dealer keeps indexing the same pool slot until that
-    // card hits its cap, then moves on — so the first-picked card lands on EXACTLY
-    // its cap (without the cap it would have swallowed all 10 deals).
-    const firstPicked = DEALABLE_CARD_IDS[Math.floor(0.5 * DEALABLE_CARD_IDS.length)];
+    // With a fixed rng the dealer keeps re-selecting the same card until it hits
+    // its cap, then moves on — so the first-picked card lands on EXACTLY its cap
+    // (without the cap it would have swallowed all 10 deals). The pick is now
+    // rarity-weighted, so derive it via the same weighted algorithm.
+    const firstPicked = weightedPick(DEALABLE_CARD_IDS, 0.5);
     expect(countIn(p1.bay, firstPicked)).toBe(capOf(firstPicked));
     for (const id of DEALABLE_CARD_IDS) {
       expect(countIn(p1.bay, id)).toBeLessThanOrEqual(capOf(id));
@@ -463,6 +477,68 @@ describe("per-card deal caps", () => {
       expect(countIn(p1.bay, id)).toBe(capOf(id));
     }
     expect(countIn(p1.bay, "Sesquipedalian")).toBe(1);
+  });
+});
+
+describe("rarity-weighted dealing", () => {
+  // A simple deterministic LCG so we can prove two runs with the same seed deal
+  // identical bays under a *varying* (non-constant) rng.
+  const lcg = (seed: number) => () => {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    return seed / 0x100000000;
+  };
+
+  // Drive one full round (one valid word per player, succession-respecting,
+  // regardless of which player the rng makes the opener) and settle into the
+  // era-1 intermission, where dealCards has run for every player.
+  const driveOneRound = (rng: () => number, modifiersDealtPerEra: number) => {
+    const m = new MatchController(
+      seeds,
+      {
+        ...DEFAULT_SETTINGS,
+        enableTutorials: false,
+        preRoundCountdownSeconds: 1,
+        eraInterval: 1,
+        eraCount: 3,
+        modifiersDealtPerEra,
+      },
+      { isWord: (w) => WORDS.has(w), rng },
+    );
+    m.start();
+    m.tick(1);
+    for (let i = 0; i < seeds.length; i++) {
+      const cur = m.state.players[m.state.currentPlayerIndex];
+      const req = m.state.requiredLetter;
+      const word = [...WORDS].find(
+        (w) => (req === "" || w[0] === req) && !m.state.usedWords.has(w),
+      )!;
+      m.submitWord(cur.id, word);
+    }
+    m.tick(2.001); // settle into optimize
+    return m;
+  };
+
+  it("surfaces commoner rarities far more often than rarer ones", () => {
+    // Sweep a uniform spread of rolls; the rarity mix of the first pick mirrors
+    // the deal weights (10 / 5 / 2 / 1). Assert the monotonic ordering holds and
+    // commons dominate legendaries by a wide margin.
+    const counts: Record<string, number> = { common: 0, uncommon: 0, rare: 0, legendary: 0 };
+    const N = 150;
+    for (let i = 0; i < N; i++) {
+      const rarity = getCard(weightedPick(DEALABLE_CARD_IDS, (i + 0.5) / N))!.rarity;
+      counts[rarity]++;
+    }
+    expect(counts.common).toBeGreaterThan(counts.uncommon);
+    expect(counts.uncommon).toBeGreaterThan(counts.rare);
+    expect(counts.rare).toBeGreaterThan(counts.legendary);
+    expect(counts.common).toBeGreaterThan(counts.legendary * 5);
+  });
+
+  it("deals deterministically: same seed → identical bays (KnockBox replication)", () => {
+    const drive = () => driveOneRound(lcg(20260629), 8).state.players[0].bay.map((b) => b.id);
+    const a = drive();
+    expect(a.length).toBeGreaterThan(0); // guard: the deal actually happened
+    expect(drive()).toEqual(a); // same seed → byte-identical bay (no rng divergence)
   });
 });
 

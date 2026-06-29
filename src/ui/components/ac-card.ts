@@ -17,7 +17,7 @@ import { customElement, property } from "lit/decorators.js";
 import { getCard } from "../../game/cards/library";
 import type { ClockModifier } from "../../game/cards/card";
 import { CardOp } from "../../game/types";
-import { familyAccentVar } from "../app/util";
+import { familyAccentVar, rarityAccentVar } from "../app/util";
 import { AcElement } from "../app/AcElement";
 
 const chipVar = (op: CardOp): string =>
@@ -109,10 +109,14 @@ export class AcCard extends AcElement {
     const accent = familyAccentVar(card.family);
     const cardColor = card.color ?? accent;
     const chip = chipVar(card.op);
+    const rarity = card.rarity;
     return html`
       <div
         class="gc-flip"
-        style="--gc-accent:${accent}; --gc-card-color:${cardColor}; color:${accent};"
+        data-rarity=${rarity}
+        style="--gc-accent:${accent}; --gc-card-color:${cardColor}; --gc-rarity:${rarityAccentVar(
+          rarity,
+        )}; color:${accent};"
         @click=${this.onFlip}
       >
         <div class="gc gc-front">
@@ -173,6 +177,7 @@ export class AcCard extends AcElement {
               </span>`}
         </div>
         <div class="gc gc-back">
+          <span class="gc-rarity-label">${rarity}</span>
           <p class="gc-desc">${card.description}</p>
         </div>
       </div>

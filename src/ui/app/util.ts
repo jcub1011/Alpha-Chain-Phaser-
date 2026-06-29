@@ -1,7 +1,7 @@
 /* Small presentation helpers shared across components. */
 
 import { COLORS, PLAYER_ACCENTS } from "../../theme";
-import { CardFamily } from "../../game/types";
+import { CardFamily, CardRarity } from "../../game/types";
 
 /** CSS custom-property name for a player's accent, by turn-order index. */
 export const playerAccentVar = (index: number): string => `var(--ac-p${(index % 6) + 1})`;
@@ -23,6 +23,20 @@ export const familyAccentVar = (family: CardFamily): string => {
       return "var(--ac-accent-utility)";
     default:
       return "var(--ac-accent-neutral)";
+  }
+};
+
+/** CSS custom-property name for a card's rarity color (gem + glow). */
+export const rarityAccentVar = (rarity: CardRarity): string => {
+  switch (rarity) {
+    case CardRarity.Uncommon:
+      return "var(--ac-rarity-uncommon)";
+    case CardRarity.Rare:
+      return "var(--ac-rarity-rare)";
+    case CardRarity.Legendary:
+      return "var(--ac-rarity-legendary)";
+    default:
+      return "var(--ac-rarity-common)";
   }
 };
 

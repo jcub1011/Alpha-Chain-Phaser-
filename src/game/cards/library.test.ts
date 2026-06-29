@@ -7,7 +7,13 @@
 
 import { describe, expect, it } from "vitest";
 import { bayHidesInput, makeBayEvaluator, scoreWord, type ScoreOptions } from "../scoring";
-import type { BayCard, Submission } from "../types";
+import {
+  CardRarity,
+  type BayCard,
+  type CardRarity as CardRarityT,
+  type Submission,
+} from "../types";
+import { CARD_LIBRARY } from "./library";
 
 const bay = (...ids: string[]): BayCard[] => ids.map((id) => ({ id }));
 const opts = { prevWordLength: 0, clockRemaining: 10, clockTotal: 20, taxed: false };
@@ -305,6 +311,30 @@ describe("Dividend — +2 per card in the bay", () => {
 describe("Crescendo — clean-streak multiplier", () => {
   it("skips with no streak service in scope (pure scoring)", () => {
     expect(scoreWord("cat", bay("Crescendo"), opts).steps[0].triggered).toBe(false);
+  });
+});
+
+// ── Rarity coverage: every card is tiered, and the agreed distribution holds ──
+
+describe("card rarity assignments", () => {
+  const cards = Object.values(CARD_LIBRARY);
+  const validTiers = new Set<CardRarityT>(Object.values(CardRarity));
+
+  it("assigns every card a valid rarity tier", () => {
+    for (const c of cards) {
+      expect(validTiers.has(c.rarity), `${c.id} has rarity ${c.rarity}`).toBe(true);
+    }
+  });
+
+  it("matches the agreed 18 / 15 / 10 / 4 distribution", () => {
+    const counts: Record<CardRarityT, number> = {
+      common: 0,
+      uncommon: 0,
+      rare: 0,
+      legendary: 0,
+    };
+    for (const c of cards) counts[c.rarity]++;
+    expect(counts).toEqual({ common: 18, uncommon: 15, rare: 10, legendary: 4 });
   });
 });
 

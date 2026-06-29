@@ -32,6 +32,18 @@ export const CardOp = {
 } as const;
 export type CardOp = (typeof CardOp)[keyof typeof CardOp];
 
+/** A card's rarity tier. Drives how often the dealer offers it (rarer = less
+ *  likely, see RARITY_DEAL_WEIGHT) and the gem/glow shown on its face. Distinct
+ *  from {@link ModifierCard.maxInstances} (the per-player copy cap), which stays
+ *  hand-tuned — rarity is a layer on top of the limit system, not a replacement. */
+export const CardRarity = {
+  Common: "common",
+  Uncommon: "uncommon",
+  Rare: "rare",
+  Legendary: "legendary",
+} as const;
+export type CardRarity = (typeof CardRarity)[keyof typeof CardRarity];
+
 /**
  * Single source of truth for the modifier-card ids. The string VALUES are
  * load-bearing and must stay byte-identical: they match the SVG symbol ids in

@@ -40,6 +40,13 @@
   --ac-accent-utility: #e36ec9; /* orchid — utility/defensive */
   --ac-accent-neutral: #8aa0b3; /* slate — inert/unknown */
 
+  /* ── Card rarity tiers (loot palette; distinct hues from the family accents
+        so the rarity gem/glow reads separately from the family border) ──── */
+  --ac-rarity-common: #9aa7b5; /* slate-gray */
+  --ac-rarity-uncommon: #3ad07a; /* green */
+  --ac-rarity-rare: #b97bff; /* violet */
+  --ac-rarity-legendary: #ffcf4d; /* gold */
+
   /* ── Player accent rotation (assigned by turn-order index) ─────────── */
   --ac-p1: #00e5ff;
   --ac-p2: #ff2e8b;

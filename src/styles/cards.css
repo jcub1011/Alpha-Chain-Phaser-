@@ -130,6 +130,10 @@ ac-card {
   position: relative;
   width: var(--gc-w);
   height: var(--gc-h);
+  /* Match the faces' radius (the .gc faces fill this box at inset:0) so the
+     rarity glow's box-shadow rounds to the card's corners instead of the
+     container's sharp rectangle. */
+  border-radius: var(--r-md);
   transform-style: preserve-3d;
   transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
@@ -366,4 +370,55 @@ ac-card[mini] .gc-back {
    same description tooltip, since :hover never fires. */
 ac-card[mini][revealed] .gc-back {
   opacity: 1;
+}
+
+/* ── Rarity: a pulsating glow around the card ────────────────────────────────
+   The card's rarity color rides in on --gc-rarity (set inline by ac-card from
+   rarityAccentVar). The family accent still owns the border; rarity is conveyed
+   by a colored halo that surrounds the whole card and breathes. The glow lives
+   as a box-shadow on .gc-flip — separate from the faces' own shadow and from the
+   hover / [triggered] highlights (those sit on .gc), and box-shadow (unlike
+   filter) doesn't flatten the .gc-flip 3D flip. Common has no rule → no glow. */
+.gc-flip[data-rarity="uncommon"] {
+  --gc-glow-lo: 5px;
+  --gc-glow-hi: 10px;
+}
+.gc-flip[data-rarity="rare"] {
+  --gc-glow-lo: 7px;
+  --gc-glow-hi: 14px;
+}
+.gc-flip[data-rarity="legendary"] {
+  --gc-glow-lo: 9px;
+  --gc-glow-hi: 19px;
+}
+.gc-flip[data-rarity="uncommon"],
+.gc-flip[data-rarity="rare"],
+.gc-flip[data-rarity="legendary"] {
+  /* The static resting frame — also what shows under prefers-reduced-motion,
+     where the global rule (tokens.css) neutralizes the animation. */
+  box-shadow: 0 0 var(--gc-glow-lo) color-mix(in srgb, var(--gc-rarity) 55%, transparent);
+  animation: ac-rarity-glow 2.4s ease-in-out infinite;
+}
+
+/* Breathe the halo between the tier's low/high radius (and a touch brighter at
+   the peak) — a slight, continuous pulse rather than a hard flash. */
+@keyframes ac-rarity-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 var(--gc-glow-lo) color-mix(in srgb, var(--gc-rarity) 50%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 var(--gc-glow-hi) color-mix(in srgb, var(--gc-rarity) 80%, transparent);
+  }
+}
+
+/* Back-face rarity label: a small uppercase tag above the rules text. */
+.gc-rarity-label {
+  align-self: flex-start;
+  font-family: var(--font-mono);
+  font-weight: 800;
+  font-size: calc(var(--gc-w) * 0.082);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gc-rarity, var(--ac-rarity-common));
 }

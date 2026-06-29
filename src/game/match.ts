@@ -10,7 +10,7 @@
  */
 
 import { DEALABLE_CARD_IDS, getCard } from "./cards/library";
-import { DEFAULT_MAX_INSTANCES } from "./cards/card";
+import { DEFAULT_MAX_INSTANCES, RARITY_DEAL_WEIGHT } from "./cards/card";
 import { BanLetterService, EngineEffects, RoomServices } from "./cards/roomServices";
 import { createLogger } from "../log";
 import { Emitter } from "./emitter";
@@ -983,7 +983,23 @@ export class MatchController {
         return owned < max;
       });
       if (pool.length === 0) break;
-      const id = pool[Math.floor(this.rng() * pool.length)];
+      // Weighted pick: rarer cards carry a smaller deal weight (RARITY_DEAL_WEIGHT),
+      // so a Legendary surfaces ~10× less often than a Common. Exactly ONE rng()
+      // call per card so host-authoritative dealing stays deterministic across
+      // host/guests (the replicated-state footgun: any divergence in rng draw count
+      // desyncs bays). The last-slot fallback covers floating-point drift where the
+      // accumulated weights never quite drop `r` below zero.
+      const weights = pool.map((id) => RARITY_DEAL_WEIGHT[getCard(id)!.rarity]);
+      const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+      let r = this.rng() * totalWeight;
+      let id = pool[pool.length - 1];
+      for (let k = 0; k < pool.length; k++) {
+        r -= weights[k];
+        if (r < 0) {
+          id = pool[k];
+          break;
+        }
+      }
       dealt.push(id);
       player.bay.push({ id, uid: this.nextBayUid(), isNew: true });
     }

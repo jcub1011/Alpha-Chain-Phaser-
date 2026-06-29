@@ -17,7 +17,7 @@
  */
 
 import { add, clampScore, fx, mul, RARE_START, skip, type ModifierCard } from "./card";
-import { CardFamily, CardId, CardOp } from "../types";
+import { CardFamily, CardId, CardOp, CardRarity } from "../types";
 import type { PlayerState } from "../types";
 
 /** Round to one decimal (per-letter multiplier steps are 0.1) for clean chips. */
@@ -65,6 +65,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
   // ── §3.1 Core Additives (place left so multipliers act on a bigger base) ──
   TheAnchor: {
     name: "Decard",
+    rarity: CardRarity.Common,
     color: "#4f9dff",
     family: CardFamily.Letter,
     op: CardOp.Additive,
@@ -75,6 +76,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
 
   Vanilla: {
     name: "Vanilla",
+    rarity: CardRarity.Common,
     color: "#f2e2a8",
     family: CardFamily.Letter,
     op: CardOp.Additive,
@@ -88,6 +90,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
 
   ConsonantCrunch: {
     name: "Consonant Crunch",
+    rarity: CardRarity.Common,
     color: "#ff7a59",
     family: CardFamily.Letter,
     op: CardOp.Additive,
@@ -102,6 +105,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
 
   VocalVowels: {
     name: "Vocal Vowels",
+    rarity: CardRarity.Common,
     color: "#7be0c4",
     family: CardFamily.Letter,
     op: CardOp.Additive,
@@ -113,6 +117,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
 
   BrickLayer: {
     name: "Brick Layer",
+    rarity: CardRarity.Common,
     color: "#d96a3c",
     family: CardFamily.Letter,
     op: CardOp.Additive,
@@ -126,6 +131,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
 
   TheBlueprint: {
     name: "Tempo",
+    rarity: CardRarity.Common,
     color: "#9ad0ff",
     family: CardFamily.Letter,
     op: CardOp.Additive,
@@ -142,6 +148,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
 
   LetterHoarder: {
     name: "Character Collector",
+    rarity: CardRarity.Common,
     color: "#e9c46a",
     family: CardFamily.Letter,
     op: CardOp.Additive,
@@ -152,6 +159,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
 
   HighRoller: {
     name: "High Roller",
+    rarity: CardRarity.Common,
     color: "#ff5ca0",
     family: CardFamily.Economy,
     op: CardOp.Additive,
@@ -165,6 +173,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
 
   BoosterPack: {
     name: "Booster Pack",
+    rarity: CardRarity.Common,
     color: "#ffb020",
     family: CardFamily.Economy,
     op: CardOp.Additive,
@@ -178,6 +187,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
 
   Scavenger: {
     name: "Scavenger",
+    rarity: CardRarity.Common,
     color: "#c08552",
     family: CardFamily.Economy,
     op: CardOp.Additive,
@@ -192,6 +202,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
   // ── §3.2 Core Multipliers (place right so they scale accumulated additives) ──
   VowelSurge: {
     name: "Vowel Surge",
+    rarity: CardRarity.Uncommon,
     color: "#2ed6b6",
     family: CardFamily.Letter,
     op: CardOp.Multiplicative,
@@ -205,6 +216,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
 
   TheArchitect: {
     name: "Architect",
+    rarity: CardRarity.Rare,
     color: "#8f8cff",
     family: CardFamily.Letter,
     op: CardOp.Multiplicative,
@@ -215,6 +227,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
 
   Sesquipedalian: {
     name: "Deca-Quint",
+    rarity: CardRarity.Legendary,
     maxInstances: 1,
     color: "#b06bff",
     family: CardFamily.Letter,
@@ -226,6 +239,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
 
   GutturalRoar: {
     name: "Chant",
+    rarity: CardRarity.Uncommon,
     color: "#c98a3c",
     family: CardFamily.Letter,
     op: CardOp.Multiplicative,
@@ -240,6 +254,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
 
   PerfectLink: {
     name: "Perfect Link",
+    rarity: CardRarity.Common,
     color: "#57e08a",
     family: CardFamily.Letter,
     op: CardOp.Multiplicative,
@@ -251,6 +266,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
 
   TryHard: {
     name: "Try Hard",
+    rarity: CardRarity.Uncommon,
     color: "#ff8c42",
     family: CardFamily.Letter,
     op: CardOp.Multiplicative,
@@ -264,6 +280,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
 
   DoubleDown: {
     name: "Double Down",
+    rarity: CardRarity.Uncommon,
     color: "#ff4d9d",
     family: CardFamily.Economy,
     op: CardOp.Multiplicative,
@@ -276,6 +293,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
   // ── §3.3 Glass cannon (multipliers paid in your own shot clock) ──
   TheVault: {
     name: "Overclock",
+    rarity: CardRarity.Rare,
     color: "#9fb3d6",
     family: CardFamily.Clock,
     op: CardOp.Multiplicative,
@@ -288,6 +306,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
 
   Redline: {
     name: "Redline",
+    rarity: CardRarity.Rare,
     color: "#ff4d4d",
     family: CardFamily.Clock,
     op: CardOp.Multiplicative,
@@ -300,6 +319,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
 
   PanicButton: {
     name: "Reflex",
+    rarity: CardRarity.Uncommon,
     color: "#ff2e6e",
     family: CardFamily.Clock,
     op: CardOp.Multiplicative,
@@ -310,6 +330,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
 
   SlowBurn: {
     name: "Slow Burn",
+    rarity: CardRarity.Uncommon,
     color: "#ff9e57",
     family: CardFamily.Clock,
     op: CardOp.Fx,
@@ -323,6 +344,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
 
   Speedracer: {
     name: "Speedracer",
+    rarity: CardRarity.Uncommon,
     maxInstances: 2,
     color: "#ffd23f",
     family: CardFamily.Clock,
@@ -335,6 +357,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
 
   Blindfold: {
     name: "Blindfold",
+    rarity: CardRarity.Uncommon,
     maxInstances: 1,
     color: "#8a7dff",
     family: CardFamily.Clock,
@@ -350,6 +373,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
   // ── §3.8 Utility (FX; 0 points, enabling capabilities) ──
   HeatSink: {
     name: "Heat Sink",
+    rarity: CardRarity.Common,
     color: "#7fd8ff",
     family: CardFamily.Clock,
     op: CardOp.Multiplicative,
@@ -361,6 +385,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
 
   Catalyst: {
     name: "Catalyst",
+    rarity: CardRarity.Uncommon,
     color: "#b97bff",
     family: CardFamily.Utility,
     op: CardOp.Fx,
@@ -373,6 +398,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
 
   Forgery: {
     name: "Forgery",
+    rarity: CardRarity.Legendary,
     color: "#d8b46a",
     family: CardFamily.Utility,
     op: CardOp.Fx,
@@ -386,6 +412,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
 
   MagnifyingGlass: {
     name: "Magnifying Glass",
+    rarity: CardRarity.Legendary,
     color: "#9ad0ff",
     family: CardFamily.Utility,
     op: CardOp.Fx,
@@ -397,6 +424,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
 
   Wildcard: {
     name: "Wildcard",
+    rarity: CardRarity.Rare,
     color: "#ffd34d",
     family: CardFamily.Utility,
     op: CardOp.Fx,
@@ -412,6 +440,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
 
   Prism: {
     name: "Prism",
+    rarity: CardRarity.Rare,
     color: "#6fe0ff",
     family: CardFamily.Utility,
     op: CardOp.Fx,
@@ -431,6 +460,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
 
   IrsAgent: {
     name: "Fancy Accounting",
+    rarity: CardRarity.Common,
     color: "#4caf6e",
     family: CardFamily.Economy,
     op: CardOp.Fx,
@@ -443,6 +473,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
 
   TaxWriteOff: {
     name: "Tax Write-Off",
+    rarity: CardRarity.Common,
     color: "#3fa7a0",
     family: CardFamily.Economy,
     op: CardOp.Fx,
@@ -456,6 +487,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
   // ── §3.4 Personal-ban economy ──
   RouletteWheel: {
     name: "Roulette Wheel",
+    rarity: CardRarity.Legendary,
     maxInstances: 1,
     color: "#e0457b",
     family: CardFamily.Economy,
@@ -474,6 +506,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
 
   TollBooth: {
     name: "Toll Booth",
+    rarity: CardRarity.Rare,
     maxInstances: 1,
     color: "#caa24a",
     family: CardFamily.Economy,
@@ -507,6 +540,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
   // ── §3.5 Reactive economy (resolve via lifecycle hooks, not the scoring fold) ──
   TaxCollector: {
     name: "Tax Collector",
+    rarity: CardRarity.Rare,
     color: "#2fa85a",
     family: CardFamily.Economy,
     op: CardOp.Fx,
@@ -527,6 +561,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
 
   ChronoSyphon: {
     name: "Chrono Syphon",
+    rarity: CardRarity.Uncommon,
     color: "#5ad0c4",
     family: CardFamily.Economy,
     op: CardOp.Fx,
@@ -548,6 +583,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
 
   BaitAndSwitch: {
     name: "Bait & Switch",
+    rarity: CardRarity.Uncommon,
     color: "#b388ff",
     family: CardFamily.Utility,
     op: CardOp.Fx,
@@ -571,6 +607,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
   // Long-word / Wordsmith — reward big words and the time to type them.
   TheLexicon: {
     name: "Scholar",
+    rarity: CardRarity.Uncommon,
     color: "#7bb0ff",
     family: CardFamily.Letter,
     op: CardOp.Multiplicative,
@@ -582,6 +619,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
 
   Stonemason: {
     name: "Stonemason",
+    rarity: CardRarity.Uncommon,
     color: "#b5651d",
     family: CardFamily.Letter,
     op: CardOp.Additive,
@@ -596,6 +634,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
   // Economy / Parasite — bank off opponents (Loan Shark taxes the big scorers).
   LoanShark: {
     name: "Loan Shark",
+    rarity: CardRarity.Uncommon,
     color: "#2f8f5b",
     family: CardFamily.Economy,
     op: CardOp.Fx,
@@ -621,6 +660,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
 
   Numismatist: {
     name: "Numismatist",
+    rarity: CardRarity.Rare,
     color: "#caa24a",
     family: CardFamily.Economy,
     op: CardOp.Multiplicative,
@@ -635,6 +675,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
   // Aggression / Control — deny tempo (now sharper because timeouts cost points).
   TheSniper: {
     name: "Blind Sniper",
+    rarity: CardRarity.Rare,
     color: "#ff5252",
     family: CardFamily.Utility,
     op: CardOp.Fx,
@@ -663,6 +704,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
   // Defensive / Combo engine.
   Insurance: {
     name: "Insurance",
+    rarity: CardRarity.Common,
     color: "#4cc2ff",
     family: CardFamily.Utility,
     op: CardOp.Fx,
@@ -678,6 +720,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
 
   TheFlywheel: {
     name: "Flywheel",
+    rarity: CardRarity.Rare,
     color: "#8f8cff",
     family: CardFamily.Letter,
     op: CardOp.Multiplicative,
@@ -697,6 +740,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
   // ── New archetype cards: word quality, clean-streak consistency, engine width ──
   Tilesmith: {
     name: "Tilesmith",
+    rarity: CardRarity.Common,
     color: "#c9a227",
     family: CardFamily.Letter,
     op: CardOp.Additive,
@@ -707,6 +751,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
 
   Crescendo: {
     name: "Crescendo",
+    rarity: CardRarity.Uncommon,
     color: "#ff8fb0",
     family: CardFamily.Economy,
     op: CardOp.Multiplicative,
@@ -722,6 +767,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
 
   Bookends: {
     name: "Bookends",
+    rarity: CardRarity.Common,
     color: "#8fb0ff",
     family: CardFamily.Letter,
     op: CardOp.Multiplicative,
@@ -735,6 +781,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
 
   Dividend: {
     name: "Dividend",
+    rarity: CardRarity.Common,
     color: "#4caf6e",
     family: CardFamily.Economy,
     op: CardOp.Additive,
