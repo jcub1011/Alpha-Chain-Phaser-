@@ -130,10 +130,6 @@ ac-card {
   position: relative;
   width: var(--gc-w);
   height: var(--gc-h);
-  /* Match the faces' radius (the .gc faces fill this box at inset:0) so the
-     rarity glow's box-shadow rounds to the card's corners instead of the
-     container's sharp rectangle. */
-  border-radius: var(--r-md);
   transform-style: preserve-3d;
   transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
@@ -372,43 +368,76 @@ ac-card[mini][revealed] .gc-back {
   opacity: 1;
 }
 
-/* ── Rarity: a pulsating glow around the card ────────────────────────────────
+/* ── Rarity: a holographic sheen that sweeps across the card ──────────────────
    The card's rarity color rides in on --gc-rarity (set inline by ac-card from
-   rarityAccentVar). The family accent still owns the border; rarity is conveyed
-   by a colored halo that surrounds the whole card and breathes. The glow lives
-   as a box-shadow on .gc-flip — separate from the faces' own shadow and from the
-   hover / [triggered] highlights (those sit on .gc), and box-shadow (unlike
-   filter) doesn't flatten the .gc-flip 3D flip. Common has no rule → no glow. */
+   rarityAccentVar). The family accent still owns the border; rarity reads as a
+   foil sheen — a diagonal band of the rarity color that glides across the card
+   like a holographic Pokémon card, then rests off-screen until the next sweep.
+   It's a face pseudo-element (.gc carries the rounded corners + overflow:hidden,
+   so the band is clipped to the card), screen-blended over the art, with the
+   sweep driven by background-position. Tier sets the band's strength; Common has
+   no rule → no sheen. */
 .gc-flip[data-rarity="uncommon"] {
-  --gc-glow-lo: 5px;
-  --gc-glow-hi: 10px;
+  --gc-foil-opacity: 0.45;
 }
 .gc-flip[data-rarity="rare"] {
-  --gc-glow-lo: 7px;
-  --gc-glow-hi: 14px;
+  --gc-foil-opacity: 0.7;
 }
 .gc-flip[data-rarity="legendary"] {
-  --gc-glow-lo: 9px;
-  --gc-glow-hi: 19px;
+  --gc-foil-opacity: 0.95;
 }
-.gc-flip[data-rarity="uncommon"],
-.gc-flip[data-rarity="rare"],
-.gc-flip[data-rarity="legendary"] {
-  /* The static resting frame — also what shows under prefers-reduced-motion,
-     where the global rule (tokens.css) neutralizes the animation. */
-  box-shadow: 0 0 var(--gc-glow-lo) color-mix(in srgb, var(--gc-rarity) 55%, transparent);
-  animation: ac-rarity-glow 2.4s ease-in-out infinite;
+.gc-flip[data-rarity="uncommon"] .gc::after,
+.gc-flip[data-rarity="rare"] .gc::after,
+.gc-flip[data-rarity="legendary"] .gc::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: var(--gc-foil-opacity);
+  background-image: linear-gradient(
+    115deg,
+    transparent 32%,
+    color-mix(in srgb, var(--gc-rarity) 45%, transparent) 44%,
+    color-mix(in srgb, var(--gc-rarity) 80%, white) 50%,
+    color-mix(in srgb, var(--gc-rarity) 45%, transparent) 56%,
+    transparent 68%
+  );
+  background-size: 250% 250%;
+  background-repeat: no-repeat;
+  /* Screen lightens the art toward the band color; the transparent flanks leave
+     the rest of the card untouched, so only the moving streak shows. */
+  mix-blend-mode: screen;
+  animation: ac-foil-sweep 5s ease-in-out infinite;
 }
 
-/* Breathe the halo between the tier's low/high radius (and a touch brighter at
-   the peak) — a slight, continuous pulse rather than a hard flash. */
-@keyframes ac-rarity-glow {
-  0%,
-  100% {
-    box-shadow: 0 0 var(--gc-glow-lo) color-mix(in srgb, var(--gc-rarity) 50%, transparent);
+/* Glide the band across the card, then park it off-screen for the rest of the
+   loop so the sweep recurs every few seconds instead of running continuously. */
+@keyframes ac-foil-sweep {
+  0% {
+    background-position: 165% 50%;
   }
-  50% {
-    box-shadow: 0 0 var(--gc-glow-hi) color-mix(in srgb, var(--gc-rarity) 80%, transparent);
+  34%,
+  100% {
+    background-position: -65% 50%;
+  }
+}
+
+/* Many mini cards animate at once (opponent bays, the word-history replay piles
+   render hundreds), and a blended, animated layer on each would jank — so the
+   foil is full-size only. Mini cards still carry data-rarity + the back label. */
+ac-card[mini] .gc::after {
+  display: none;
+}
+
+/* Reduced motion: no sweep — park a faint static sheen mid-card so the tier
+   still reads (the global rule in tokens.css freezes the animation otherwise). */
+@media (prefers-reduced-motion: reduce) {
+  .gc-flip[data-rarity="uncommon"] .gc::after,
+  .gc-flip[data-rarity="rare"] .gc::after,
+  .gc-flip[data-rarity="legendary"] .gc::after {
+    background-position: 50% 50%;
   }
 }
 
