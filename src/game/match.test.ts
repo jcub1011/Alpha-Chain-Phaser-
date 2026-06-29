@@ -279,7 +279,13 @@ describe("shot-clock submit grace window", () => {
   const makeGraced = (grace: number) => {
     const m = new MatchController(
       seeds,
-      { ...DEFAULT_SETTINGS, enableTutorials: false, preRoundCountdownSeconds: 3, eraInterval: 4, eraCount: 1 },
+      {
+        ...DEFAULT_SETTINGS,
+        enableTutorials: false,
+        preRoundCountdownSeconds: 3,
+        eraInterval: 4,
+        eraCount: 1,
+      },
       { isWord: (w) => WORDS.has(w), rng: () => 0.5, submitGraceSeconds: grace },
     );
     m.start();

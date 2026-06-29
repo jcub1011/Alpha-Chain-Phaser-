@@ -5,7 +5,12 @@
  * submitting a word chosen from the dictionary.
  */
 
-import { BOT_CANDIDATE_COUNT, BOT_THINK_SECONDS, chooseBotWordScored, planBotBay } from "../game/bots";
+import {
+  BOT_CANDIDATE_COUNT,
+  BOT_THINK_SECONDS,
+  chooseBotWordScored,
+  planBotBay,
+} from "../game/bots";
 import type { Dictionary } from "../game/dictionary";
 import { MatchController, type PlayerSeed } from "../game/match";
 import type { AlphaChainSettings, SubmitResult } from "../game/types";

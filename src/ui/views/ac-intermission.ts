@@ -406,7 +406,9 @@ export class AcIntermission extends AcElement {
         ${locked
           ? html`<div class="im-lock-row">
               <button class="ac-btn im-lock is-unlock" @click=${() => this.unlock()}>UNLOCK</button>
-              <span class="im-lock-status">Locked in — waiting (${lockedCount}/${humans.length})</span>
+              <span class="im-lock-status"
+                >Locked in — waiting (${lockedCount}/${humans.length})</span
+              >
             </div>`
           : html`<button class="ac-btn im-lock" @click=${() => this.lockIn()}>LOCK IN</button>`}
       </div>

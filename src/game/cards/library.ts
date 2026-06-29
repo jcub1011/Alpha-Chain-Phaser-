@@ -25,13 +25,32 @@ const round1 = (n: number): number => Math.round(n * 10) / 10;
 
 /** Scrabble-style letter-tile point values (Tilesmith). Rarer letters score more. */
 const TILE_VALUES: Record<string, number> = {
-  a: 1, e: 1, i: 1, o: 1, u: 1, l: 1, n: 1, s: 1, t: 1, r: 1,
-  d: 2, g: 2,
-  b: 3, c: 3, m: 3, p: 3,
-  f: 4, h: 4, v: 4, w: 4, y: 4,
+  a: 1,
+  e: 1,
+  i: 1,
+  o: 1,
+  u: 1,
+  l: 1,
+  n: 1,
+  s: 1,
+  t: 1,
+  r: 1,
+  d: 2,
+  g: 2,
+  b: 3,
+  c: 3,
+  m: 3,
+  p: 3,
+  f: 4,
+  h: 4,
+  v: 4,
+  w: 4,
+  y: 4,
   k: 5,
-  j: 8, x: 8,
-  q: 10, z: 10,
+  j: 8,
+  x: 8,
+  q: 10,
+  z: 10,
 };
 
 /** Sum of a word's letter-tile values (unknown chars score 0). */
@@ -285,8 +304,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     family: CardFamily.Clock,
     op: CardOp.Multiplicative,
     magnitudeText: "≤×2",
-    description:
-      "+×0.05 for every second left in your shot clock, capped at ×2.",
+    description: "+×0.05 for every second left in your shot clock, capped at ×2.",
     fold: (v, c) => mul(v, Math.min(2, 1 + c.clockRemaining * 0.05) * c.magnification()),
   },
 
@@ -310,8 +328,7 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     family: CardFamily.Clock,
     op: CardOp.Multiplicative,
     magnitudeText: "×(1+Remain /Total)",
-    description:
-      "×(1 + remaining clock time ÷ total clock time). Time out and lose 10 points.",
+    description: "×(1 + remaining clock time ÷ total clock time). Time out and lose 10 points.",
     fold: (v, c) => mul(v, (1 + c.clockRemaining / c.clockTotal) * c.magnification()),
     timeoutFold: (v, c) => add(v, -10 * c.magnification()),
   },
@@ -430,10 +447,10 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     family: CardFamily.Economy,
     op: CardOp.Fx,
     magnitudeText: "FX",
-    description:
-      "When your word is taxed, score the first half of it through your engine anyways.",
+    description: "When your word is taxed, score the first half of it through your engine anyways.",
     fold: (v) => fx(v),
-    writeOffBonus: (c, score) => (c.word.length > 0 ? score(c.word.substring(0, Math.ceil(c.word.length / 2))) : 0),
+    writeOffBonus: (c, score) =>
+      c.word.length > 0 ? score(c.word.substring(0, Math.ceil(c.word.length / 2))) : 0,
   },
 
   // ── §3.4 Personal-ban economy ──

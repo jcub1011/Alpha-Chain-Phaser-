@@ -61,18 +61,14 @@ describe("chooseBotWordScored", () => {
   it("avoids the banned letter when a clean candidate exists", () => {
     // 'z' is banned; "tap" is clean, "zap"/"tzar" carry the banned letter.
     const dict = new Dictionary(["tap", "tang", "tzar"]);
-    const word = chooseBotWordScored(
-      dict,
-      basePick({ requiredLetter: "t", bannedLetter: "z" }),
-    );
+    const word = chooseBotWordScored(dict, basePick({ requiredLetter: "t", bannedLetter: "z" }));
     expect(word).not.toBeNull();
     expect(word!.includes("z")).toBe(false);
   });
 });
 
 describe("planBotBay", () => {
-  const withUids = (...ids: string[]): BayCard[] =>
-    ids.map((id, i) => ({ id, uid: `u${i}` }));
+  const withUids = (...ids: string[]): BayCard[] => ids.map((id, i) => ({ id, uid: `u${i}` }));
 
   it("orders additives left and multipliers right", () => {
     // Input is deliberately multiplier-first; planning should move it right.
