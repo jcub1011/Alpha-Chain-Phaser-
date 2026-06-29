@@ -84,6 +84,8 @@ export interface MatchDeps {
   isWord: (word: string) => boolean;
   /** Injectable RNG (defaults to Math.random) for deterministic tests. */
   rng?: () => number;
+  /** Host-side timeout grace (s); 0 = immediate (solo/tests). */
+  submitGraceSeconds?: number;
 }
 
 export interface MatchEvents {
@@ -120,6 +122,13 @@ export class MatchController {
    *  timeout can auto-submit it. Transient (not part of MatchState; never serialized);
    *  reset on every turn arm. */
   private currentDraft = "";
+  /** Host-side leeway (s) the turn lingers at clockRemaining 0 before timing out,
+   *  so a buzzer-time submit still in flight over the network can land. 0 ⇒ the
+   *  turn times out the instant the clock hits 0 (solo/tests). */
+  private readonly submitGraceSeconds: number;
+  /** Live countdown of the grace window once the clock has hit 0; re-seeded to
+   *  submitGraceSeconds whenever the clock is (re-)armed or refilled. */
+  private clockGraceRemaining = 0;
   readonly state: MatchState;
 
   /** Card-contributed, player-keyed room state (shield, guards, bans, penalties). */
@@ -130,6 +139,7 @@ export class MatchController {
   private readonly clockController = {
     refillToFull: (): void => {
       this.state.clockRemaining = this.state.clockTotal;
+      this.clockGraceRemaining = this.submitGraceSeconds; // refill restores a fresh grace window
       this.events.emit("clockTick", this.state.clockRemaining);
     },
   };
@@ -137,6 +147,7 @@ export class MatchController {
   constructor(seeds: PlayerSeed[], settings: AlphaChainSettings, deps: MatchDeps) {
     this.isWord = deps.isWord;
     this.rng = deps.rng ?? Math.random;
+    this.submitGraceSeconds = deps.submitGraceSeconds ?? 0;
     const players: PlayerState[] = seeds.map((s, i) => ({
       id: s.id,
       name: s.name,
@@ -355,7 +366,16 @@ export class MatchController {
       }
       s.clockRemaining = Math.max(0, s.clockRemaining - dt);
       this.events.emit("clockTick", s.clockRemaining);
-      if (s.clockRemaining <= 0) this.timeoutCurrent();
+      if (s.clockRemaining <= 0) {
+        if (this.clockGraceRemaining > 0) {
+          // Hold the turn open for one grace window so a buzzer-time submit that is
+          // still in flight over the network can land. grace=0 (solo/tests) skips this.
+          this.clockGraceRemaining = Math.max(0, this.clockGraceRemaining - dt);
+          if (this.clockGraceRemaining <= 0) this.timeoutCurrent();
+        } else {
+          this.timeoutCurrent();
+        }
+      }
     } else if (s.phase === "Intermission") {
       this.tickIntermission(dt);
     }
@@ -485,6 +505,7 @@ export class MatchController {
     if (penalty > 0) armed = Math.max(MIN_SHOT_CLOCK_SECONDS, armed - penalty);
     this.state.clockTotal = armed;
     this.state.clockRemaining = this.state.clockTotal;
+    this.clockGraceRemaining = this.submitGraceSeconds; // fresh grace window for the armed turn
     this.events.emit("turnArmed", {
       playerIndex: this.state.currentPlayerIndex,
       requiredLetter: this.state.requiredLetter,

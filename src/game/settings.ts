@@ -80,6 +80,10 @@ export const MODIFIER_SLOTS_START = 3;
  *  `timeoutFold` reactions (glass-cannon drains, Insurance's refund) fold in. */
 export const BASE_TIMEOUT_PENALTY = 10;
 
+/** Host-side leeway after the shot clock hits 0 before a turn times out, so a
+ *  buzzer-time submit has time to traverse the network. Networked host only. */
+export const SUBMIT_GRACE_SECONDS = 1;
+
 export const VOWELS = new Set(["a", "e", "i", "o", "u"]);
 export const isVowel = (c: string): boolean => VOWELS.has(c.toLowerCase());
 

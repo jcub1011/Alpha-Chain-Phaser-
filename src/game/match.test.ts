@@ -261,6 +261,68 @@ describe("shot-clock timeout penalty", () => {
   });
 });
 
+describe("shot-clock submit grace window", () => {
+  // Grace is a MatchDep (host-side latency leeway), not a setting. Each turn lingers
+  // at clockRemaining 0 for `grace` seconds before timing out, so a buzzer-time submit
+  // still in flight over the network can land. The crossing must be driven in small
+  // ticks: the grace is decremented by the same dt as the clock, so one coarse tick
+  // that overshoots 0 by more than `grace` would time out immediately (intended —
+  // that represents more than a grace window of real time having elapsed).
+  const makeGraced = (grace: number) => {
+    const m = new MatchController(
+      seeds,
+      { ...DEFAULT_SETTINGS, enableTutorials: false, preRoundCountdownSeconds: 3, eraInterval: 4, eraCount: 1 },
+      { isWord: (w) => WORDS.has(w), rng: () => 0.5, submitGraceSeconds: grace },
+    );
+    m.start();
+    m.tick(3); // burn countdown → p1's turn armed (empty bay → 20s clock)
+    return m;
+  };
+  const crossToZero = (m: MatchController) => {
+    m.tick(m.state.clockTotal - 0.05); // run down to ~0.05s left
+    m.tick(0.1); // overshoot the residue so clockRemaining clamps to exactly 0;
+    //              consumes only 0.1 of any grace window (no float underflow above 0)
+  };
+
+  it("holds the turn open during the grace window so a late submit still lands", () => {
+    const m = makeGraced(1);
+    let timedOut = false;
+    m.events.on("timeout", () => (timedOut = true));
+    crossToZero(m);
+    expect(m.state.clockRemaining).toBe(0);
+    expect(timedOut).toBe(false); // still in grace — no timeout yet
+    expect(m.current.id).toBe("p1"); // turn not advanced
+
+    const r = m.submitWord("p1", "cat"); // arrives "late" (clock at 0) but within grace
+    expect(r.accepted).toBe(true);
+    expect(timedOut).toBe(false);
+    expect(m.state.players[0].score).toBe(3);
+    expect(m.current.id).toBe("p2"); // accepted submit advanced the turn
+  });
+
+  it("times out once the grace window elapses with no submit", () => {
+    const m = makeGraced(1);
+    let timedOut = false;
+    m.events.on("timeout", () => (timedOut = true));
+    crossToZero(m); // grace now ~0.9s
+    m.tick(0.5);
+    expect(timedOut).toBe(false); // grace ~0.4s left
+    m.tick(0.5);
+    expect(timedOut).toBe(true); // grace exhausted → timeout
+    expect(m.state.players[0].score).toBe(-10);
+    expect(m.current.id).toBe("p2");
+  });
+
+  it("times out immediately at 0 when grace is disabled (solo/default)", () => {
+    const m = makeGraced(0);
+    let timedOut = false;
+    m.events.on("timeout", () => (timedOut = true));
+    crossToZero(m);
+    expect(timedOut).toBe(true); // no grace → byte-for-byte the old behaviour
+    expect(m.current.id).toBe("p2");
+  });
+});
+
 describe("turn order shuffles every era", () => {
   const threeSeeds: PlayerSeed[] = [
     { id: "p1", name: "P1", isBot: false },

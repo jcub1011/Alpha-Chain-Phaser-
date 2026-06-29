@@ -16,6 +16,7 @@
 
 import type { Dictionary } from "../game/dictionary";
 import { MatchController, type MatchEvents, type PlayerSeed } from "../game/match";
+import { SUBMIT_GRACE_SECONDS } from "../game/settings";
 import type { AlphaChainSettings, PlayerState, SubmitResult } from "../game/types";
 import { createLogger, type KnockBoxLogger } from "../log";
 import type { GameController, MatchLike } from "./controller";
@@ -409,6 +410,7 @@ export class KnockBoxController implements GameController {
     this.host = new MatchController(seeds, settings, {
       isWord: (w) => this.dict.has(w),
       rng: this.rng,
+      submitGraceSeconds: SUBMIT_GRACE_SECONDS,
     });
     for (const type of REPLAYED_EVENTS) {
       this.host.events.on(type, (payload) => this.pending.push({ type, payload } as WireEvent));
