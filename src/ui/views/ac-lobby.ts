@@ -203,6 +203,36 @@ export class AcLobby extends AcElement {
               () => this.step("modifiersDealtPerEra", 1, 0, 10),
               SETTING_HINTS.modifiersDealtPerEra,
             )}
+            ${this.stepper(
+              "Starting Slots",
+              String(d.modifierSlotsStart),
+              () => this.step("modifierSlotsStart", -1, 1, 20),
+              () => this.step("modifierSlotsStart", 1, 1, 20),
+              SETTING_HINTS.modifierSlotsStart,
+            )}
+            ${this.stepper(
+              "Slots Increase Every",
+              d.slotIncreaseEveryNEras === 0
+                ? "Never"
+                : `${d.slotIncreaseEveryNEras} era${d.slotIncreaseEveryNEras === 1 ? "" : "s"}`,
+              () => this.step("slotIncreaseEveryNEras", -1, 0, 20),
+              () => this.step("slotIncreaseEveryNEras", 1, 0, 20),
+              SETTING_HINTS.slotIncreaseEveryNEras,
+            )}
+            ${this.stepper(
+              "Slots Per Increase",
+              String(d.slotIncreaseAmount),
+              () => this.step("slotIncreaseAmount", -1, 1, 10),
+              () => this.step("slotIncreaseAmount", 1, 1, 10),
+              SETTING_HINTS.slotIncreaseAmount,
+            )}
+            ${this.stepper(
+              "Max Slots",
+              String(d.modifierSlotsMax),
+              () => this.step("modifierSlotsMax", -1, 1, 20),
+              () => this.step("modifierSlotsMax", 1, 1, 20),
+              SETTING_HINTS.modifierSlotsMax,
+            )}
             ${this.toggle(
               "Start With Engine Cards",
               d.dealEngineCardsFirstEra,

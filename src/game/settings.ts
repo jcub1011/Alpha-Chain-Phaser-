@@ -3,6 +3,10 @@ import type { AlphaChainSettings, BanMode, BanRepeatRule, BotDifficulty } from "
 
 const log = createLogger("settings");
 
+/** Engine bay slots a player starts with (ported from AlphaChainGameState.cs); also the
+ *  default for the configurable `modifierSlotsStart` setting. */
+export const MODIFIER_SLOTS_START = 3;
+
 /** Defaults ported from AlphaChainSettings.cs, plus single-player bot options. */
 export const DEFAULT_SETTINGS: AlphaChainSettings = {
   banMode: "All",
@@ -16,6 +20,10 @@ export const DEFAULT_SETTINGS: AlphaChainSettings = {
   eraCount: 4,
   survivalMode: false,
   modifiersDealtPerEra: 3,
+  modifierSlotsStart: MODIFIER_SLOTS_START,
+  slotIncreaseEveryNEras: 1,
+  slotIncreaseAmount: 1,
+  modifierSlotsMax: 12,
   engineAnimationSeconds: 1.0,
   enableTutorials: true,
   hostPlays: true,
@@ -28,7 +36,7 @@ const STORAGE_KEY = "alphachain.settings";
 
 /** Bump when a setting's valid range/enum changes so stale persisted blobs (which
  *  may now hold out-of-range values) are discarded rather than silently loaded. */
-const SETTINGS_VERSION = 2;
+const SETTINGS_VERSION = 3;
 
 /**
  * Load persisted settings, merged over defaults with per-field validation.
@@ -74,7 +82,6 @@ export function saveSettings(settings: AlphaChainSettings): void {
 /** Engine constants (ported from AlphaChainGameState.cs). */
 export const MIN_SHOT_CLOCK_SECONDS = 3;
 export const MAX_WORD_SCORE = 10000;
-export const MODIFIER_SLOTS_START = 3;
 
 /** Flat points a player loses when their shot clock expires, before any per-card
  *  `timeoutFold` reactions (glass-cannon drains, Insurance's refund) fold in. */
@@ -114,11 +121,27 @@ const SETTINGS_VALIDATORS: { [K in keyof AlphaChainSettings]: (v: unknown) => bo
   eraCount: inRange(1, 20),
   survivalMode: isBool,
   modifiersDealtPerEra: inRange(0, 10),
+  modifierSlotsStart: inRange(1, 20),
+  slotIncreaseEveryNEras: inRange(0, 20),
+  slotIncreaseAmount: inRange(1, 10),
+  modifierSlotsMax: inRange(1, 20),
   engineAnimationSeconds: inRange(0, 10),
   enableTutorials: isBool,
   hostPlays: isBool,
   botCount: inRange(1, 5),
 };
+
+/**
+ * Engine bay slot count at a given 1-based card-era index (the Nth card-bearing optimize:
+ * the first deal is 1, the next intermission 2, and so on). Slots start at `modifierSlotsStart`
+ * and grow by `slotIncreaseAmount` every `slotIncreaseEveryNEras` eras, capped at
+ * `modifierSlotsMax`. `slotIncreaseEveryNEras === 0` disables growth (stays at the start value).
+ */
+export function modifierSlotsForCardEra(s: AlphaChainSettings, cardEra: number): number {
+  const increases =
+    s.slotIncreaseEveryNEras > 0 ? Math.floor((cardEra - 1) / s.slotIncreaseEveryNEras) : 0;
+  return Math.min(s.modifierSlotsMax, s.modifierSlotsStart + s.slotIncreaseAmount * increases);
+}
 
 /** Letters legal to ban under a given mode. */
 export function legalBanLetters(mode: AlphaChainSettings["banMode"]): string[] {

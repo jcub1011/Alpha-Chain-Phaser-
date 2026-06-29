@@ -31,7 +31,7 @@ import {
   availableBanLetters,
   legalBanLetters,
   MIN_SHOT_CLOCK_SECONDS,
-  MODIFIER_SLOTS_START,
+  modifierSlotsForCardEra,
   isVowel,
 } from "./settings";
 import { byScoreDesc } from "./types";
@@ -156,7 +156,7 @@ export class MatchController {
       score: 0,
       eliminated: false,
       bay: [],
-      slots: MODIFIER_SLOTS_START,
+      slots: modifierSlotsForCardEra(settings, 1),
     }));
     this.state = {
       phase: "Setup",
@@ -814,11 +814,18 @@ export class MatchController {
 
   private enterIntermission(): void {
     this.setPhase("Intermission");
+    // `state.era` is still the era that just ended (it advances later in
+    // applySniperBanAndAdvance). The card-era index — which deal this is — depends on whether
+    // a pre-era-1 setup deal happened: with dealEngineCardsFirstEra the setup deal was cardEra 1,
+    // so end-of-era-E is E+1; without it, end-of-era-1 is itself the first deal (cardEra 1).
+    const cardEra = this.state.settings.dealEngineCardsFirstEra
+      ? this.state.era + 1
+      : this.state.era;
     const dealt: Record<string, string[]> = {};
     for (const p of this.state.players) {
       const newIds = this.dealCards(p, this.state.settings.modifiersDealtPerEra);
       dealt[p.id] = newIds;
-      p.slots += 1; // Expansion
+      p.slots = modifierSlotsForCardEra(this.state.settings, cardEra); // Expansion (capped)
     }
     const lastPlaceId = this.computeLastPlaceId();
     this.events.emit("intermission", { lastPlaceId, dealt });

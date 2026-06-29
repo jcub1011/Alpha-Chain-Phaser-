@@ -109,6 +109,15 @@ export interface AlphaChainSettings {
   eraCount: number; // eras per match
   survivalMode: boolean;
   modifiersDealtPerEra: number;
+  /** Engine bay slots a player has at their first card deal (consistent across the
+   *  dealEngineCardsFirstEra on/off modes). */
+  modifierSlotsStart: number;
+  /** Grow engine bay slots every N eras; 0 disables growth entirely. */
+  slotIncreaseEveryNEras: number;
+  /** Slots added at each increase. */
+  slotIncreaseAmount: number;
+  /** Hard cap engine bay slots can never grow past. */
+  modifierSlotsMax: number;
   engineAnimationSeconds: number; // score-replay duration
   /** Show the scripted Shiritori/Engine/Tax tutorials at their cue points. */
   enableTutorials: boolean;

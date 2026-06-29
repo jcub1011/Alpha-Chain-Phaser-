@@ -4,6 +4,7 @@ import {
   DEFAULT_SETTINGS,
   legalBanLetters,
   loadSettings,
+  modifierSlotsForCardEra,
   saveSettings,
 } from "./settings";
 
@@ -34,7 +35,7 @@ class MemoryStorage {
 const KEY = "alphachain.settings";
 // Mirrors the (unexported) SETTINGS_VERSION; corruption cases set it so they test the
 // per-field validators rather than tripping the version gate. Keep in sync.
-const VERSION = 2;
+const VERSION = 3;
 
 function setGlobalStorage(s: Storage | undefined): void {
   (globalThis as unknown as { localStorage?: Storage }).localStorage = s as Storage;
@@ -164,5 +165,57 @@ describe("availableBanLetters — ban-repeat rule", () => {
     const vowels = legalBanLetters("VowelsOnly"); // a e i o u
     // Every vowel already banned → excluding all would leave nothing, so reset.
     expect(availableBanLetters("VowelsOnly", "NoRepeat", vowels)).toEqual(vowels);
+  });
+});
+
+describe("modifierSlotsForCardEra — engine bay slot growth", () => {
+  const settings = (over: Partial<typeof DEFAULT_SETTINGS>) => ({ ...DEFAULT_SETTINGS, ...over });
+
+  it("grows by the default +1 every era from the start value", () => {
+    const s = settings({
+      modifierSlotsStart: 3,
+      slotIncreaseEveryNEras: 1,
+      slotIncreaseAmount: 1,
+      modifierSlotsMax: 99,
+    });
+    expect([1, 2, 3, 4].map((c) => modifierSlotsForCardEra(s, c))).toEqual([3, 4, 5, 6]);
+  });
+
+  it("stays flat at the start value when the frequency is 0 (never)", () => {
+    const s = settings({ modifierSlotsStart: 4, slotIncreaseEveryNEras: 0, modifierSlotsMax: 99 });
+    expect([1, 5, 20].map((c) => modifierSlotsForCardEra(s, c))).toEqual([4, 4, 4]);
+  });
+
+  it("increases only every N eras", () => {
+    const s = settings({
+      modifierSlotsStart: 3,
+      slotIncreaseEveryNEras: 2,
+      slotIncreaseAmount: 1,
+      modifierSlotsMax: 99,
+    });
+    // card-eras 1,2 → 3; 3,4 → 4; 5,6 → 5
+    expect([1, 2, 3, 4, 5, 6].map((c) => modifierSlotsForCardEra(s, c))).toEqual([
+      3, 3, 4, 4, 5, 5,
+    ]);
+  });
+
+  it("applies the per-increase amount", () => {
+    const s = settings({
+      modifierSlotsStart: 3,
+      slotIncreaseEveryNEras: 1,
+      slotIncreaseAmount: 2,
+      modifierSlotsMax: 99,
+    });
+    expect([1, 2, 3].map((c) => modifierSlotsForCardEra(s, c))).toEqual([3, 5, 7]);
+  });
+
+  it("clamps at the maximum cap", () => {
+    const s = settings({
+      modifierSlotsStart: 3,
+      slotIncreaseEveryNEras: 1,
+      slotIncreaseAmount: 1,
+      modifierSlotsMax: 5,
+    });
+    expect([1, 2, 3, 4, 10].map((c) => modifierSlotsForCardEra(s, c))).toEqual([3, 4, 5, 5, 5]);
   });
 });
