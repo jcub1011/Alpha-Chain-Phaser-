@@ -11,41 +11,20 @@ import { getCard } from "../game/cards/library";
 import { Emitter } from "../game/emitter";
 import type { MatchEvents } from "../game/match";
 import { DEFAULT_SETTINGS, legalBanLetters } from "../game/settings";
-import { byScoreDesc, type MatchState, type PlayerState } from "../game/types";
+import {
+  byScoreDesc,
+  emptyMatchState,
+  type GamePhase,
+  type MatchState,
+  type PlayerState,
+} from "../game/types";
 import type { MatchLike } from "./controller";
 import type { Intent, SnapshotMsg, WireEvent } from "./messages";
 import { deserializeState, type WireMatchState } from "./serialize";
 
-/** A blank state shown before the first snapshot arrives. */
-function emptyState(): MatchState {
-  return {
-    phase: "Setup",
-    era: 1,
-    round: 0,
-    roundInEra: 0,
-    players: [],
-    currentPlayerIndex: 0,
-    requiredLetter: "",
-    bannedLetter: "",
-    bannedLetterHistory: [],
-    usedWords: new Set(),
-    history: [],
-    clockRemaining: 0,
-    clockTotal: 0,
-    intermissionPhase: null,
-    currentTutorial: null,
-    subTimerRemaining: 0,
-    subTimerTotal: 0,
-    shownTutorials: [],
-    tutorialReady: [],
-    settings: { ...DEFAULT_SETTINGS },
-    winnerId: null,
-  };
-}
-
 export class NetMatch implements MatchLike {
   readonly events = new Emitter<MatchEvents>();
-  private _state: MatchState = emptyState();
+  private _state: MatchState = emptyMatchState({ ...DEFAULT_SETTINGS });
 
   /** Absolute expiry instants on the LOCAL monotonic clock (`now()` units), each
    *  null when its timer isn't running. Set on every snapshot from the host's
@@ -81,6 +60,7 @@ export class NetMatch implements MatchLike {
    *  host/client clocks cancel, so a mis-set system clock can't corrupt it), and
    *  anchoring it on `now()` makes the per-frame countdown immune to frame drift. */
   applySnapshot(wire: WireMatchState, events: WireEvent[], clock: SnapshotMsg["clock"]): void {
+    const prevPhase = this._state.phase;
     this._state = deserializeState(wire);
     const base = this.now();
     const anchor = (expiresAt: number | null): number | null =>
@@ -89,7 +69,36 @@ export class NetMatch implements MatchLike {
     this.subTimerExpiry = anchor(clock.subTimerExpiresAt);
     this.countdownExpiry = anchor(clock.countdownExpiresAt);
     this.countdownShown = -1; // re-seed countdownTick throttle for the new anchor
+    const replayed = new Set(events.map((e) => e.type));
     for (const e of events) this.events.emit(e.type, e.payload as never);
+    this.healPhaseFromState(prevPhase, replayed);
+  }
+
+  /** Re-derive phase-level transitions the UI animates off, for the snapshots the
+   *  authority sends with NO replay events: a sync/reconnect fullSnapshot, the
+   *  roster-change resync after a player leaves, and the contained-failure
+   *  re-broadcast. Without this a client that adopts an advanced state but sees no
+   *  `phaseChanged`/`gameOver` event stays stranded on the previous phase (never
+   *  leaves the lobby on reconnect, never reaches the game-over screen when a
+   *  disconnect ends the match).
+   *
+   *  Guarded twice against misfiring: it only emits an event that was NOT already in
+   *  the replay list (so a normal snapshot doesn't double-fire — critical for
+   *  gameOver, whose listener writes the Play Log), and only for genuine in-match
+   *  transitions — a fresh client syncing into a finished (GameOver) or empty (Setup)
+   *  lobby must NOT fabricate a gameOver or get shoved onto the match surface. */
+  private healPhaseFromState(prevPhase: GamePhase, replayed: Set<keyof MatchEvents>): void {
+    const s = this._state;
+    const active = (ph: GamePhase): boolean =>
+      ph === "Countdown" || ph === "Round" || ph === "Intermission" || ph === "Tutorial";
+    if (s.phase !== prevPhase && !replayed.has("phaseChanged")) {
+      if (active(s.phase) || (s.phase === "GameOver" && active(prevPhase))) {
+        this.events.emit("phaseChanged", s.phase);
+      }
+    }
+    if (s.phase === "GameOver" && active(prevPhase) && !replayed.has("gameOver")) {
+      this.events.emit("gameOver", { winnerId: s.winnerId, standings: this.standings() });
+    }
   }
 
   /** Refresh the visible countdowns from their absolute expiry anchors between

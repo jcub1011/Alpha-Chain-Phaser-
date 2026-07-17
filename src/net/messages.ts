@@ -8,9 +8,11 @@ import type { MatchEvents } from "../game/match";
 import type { AlphaChainSettings } from "../game/types";
 import type { WireMatchState } from "./serialize";
 
-/** Guest → host: an action the host validates against authoritative state. */
+/** Guest → authority: an action validated against authoritative state. In host mode
+ *  the authority is the host client; in server mode it is the sandboxed authority module. */
 export type Intent =
-  | { kind: "startMatch"; settings: AlphaChainSettings } // host's own start, looped through
+  | { kind: "startMatch"; settings: AlphaChainSettings } // owner's start, looped through
+  | { kind: "setSettings"; settings: AlphaChainSettings } // owner edits the pre-match lobby settings
   | { kind: "submit"; word: string }
   | { kind: "draftWord"; word: string } // current player's in-progress word, for timeout auto-submit
   | { kind: "reorderBay"; engine: string[]; discard: string[] }
@@ -18,7 +20,7 @@ export type Intent =
   | { kind: "unlockOptimize" } // a locked-in player re-opening their engine while others finish
   | { kind: "sniperBan"; letter: string }
   | { kind: "tutorialReady" } // any player marking the current tutorial page read
-  | { kind: "skipTutorial" }; // host-only: skip the on-screen tutorial dwell
+  | { kind: "skipTutorial" }; // owner-only: skip the on-screen tutorial dwell
 
 /** A match event serialized for replay on guests (payloads are already JSON-safe). */
 export interface WireEvent<K extends keyof MatchEvents = keyof MatchEvents> {
@@ -76,3 +78,26 @@ export interface IntentMsg {
 }
 
 export type NetMessage = SnapshotMsg | SyncMsg | IntentMsg | LobbySettingsMsg;
+
+/**
+ * Server-authoritative payload. In server mode the authority module returns this
+ * as an absolute-valued patch (broadcast by the platform as `{_kb:"delta", patch}`)
+ * or as a full snapshot (`{_kb:"state", state}`) — both carry the whole state, so
+ * the client applies either identically via NetMatch.applySnapshot. It is the
+ * SnapshotMsg body without the host-mode-only `t`/`hostId` framing.
+ */
+export interface ServerStatePayload {
+  state: WireMatchState;
+  events: WireEvent[];
+  clock: SnapshotMsg["clock"];
+}
+
+/** The `_kb` envelope the platform relay uses in server-authoritative mode. Client →
+ *  authority frames go out via peer.sendToHost; authority → client frames arrive as a
+ *  `message` stamped `from: "server"`. */
+export type KbEnvelope =
+  | { _kb: "intent"; action: Intent }
+  | { _kb: "sync" }
+  | { _kb: "state"; state: ServerStatePayload }
+  | { _kb: "delta"; patch: ServerStatePayload }
+  | { _kb: "error"; message?: string };

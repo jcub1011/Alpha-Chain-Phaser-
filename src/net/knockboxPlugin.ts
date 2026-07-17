@@ -19,6 +19,9 @@ import KnockBoxPluginImport from "../../addons/knockbox/knockbox-plugin.js";
 // The local (no-server) drop-in: default export is { KnockBoxLocalPlugin, KnockBoxLocalPeer }.
 import KnockBoxLocalImport from "../../addons/knockbox/knockbox-local.js";
 import type { LaunchMode } from "./launch";
+// The real server authority module + its config, run in-process by the local-tab peer
+// (LocalAuthorityActor) so ?kbLocal=tab exercises the true server-authoritative path.
+import { createAuthority, config as authorityConfig } from "../server/authority";
 
 interface KnockBoxGlobals {
   KnockBoxPlugin?: unknown;
@@ -38,11 +41,25 @@ const LocalPlugin: unknown =
   (KnockBoxLocalImport as { KnockBoxLocalPlugin?: unknown } | undefined)?.KnockBoxLocalPlugin ??
   g.KnockBoxLocalPlugin;
 
-/** Phaser global-plugin config for the launch mode (null in solo mode). */
+/** Phaser global-plugin config for the launch mode (null in solo mode).
+ *
+ * On the real platform the server runs authority.js and holds the dictionary, so the
+ * client passes nothing extra. In local-tab mode there is no server, so the local peer
+ * emulates it: it runs the real authority module (createAuthority + config) as a virtual
+ * `from:"server"` actor and backs kb.words with the same word list, fetched from the
+ * client-served copy at assets/words.txt. */
 export function knockboxPluginConfig(mode: LaunchMode): Record<string, unknown> | null {
   if (mode === "solo") return null;
   const plugin = mode === "local-tab" ? LocalPlugin : RealPlugin;
   if (!plugin) return null;
-  const data = mode === "local-tab" ? { mode: "tab" } : undefined;
+  const data =
+    mode === "local-tab"
+      ? {
+          mode: "tab",
+          authority: createAuthority,
+          authorityConfig,
+          words: { en: { url: "assets/words.txt", caseInsensitive: true } },
+        }
+      : undefined;
   return { key: "KnockBox", plugin, start: true, mapping: "knockbox", data };
 }

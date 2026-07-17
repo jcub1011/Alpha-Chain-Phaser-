@@ -10,7 +10,7 @@ import { customElement, property, state } from "lit/decorators.js";
 import type { Dictionary } from "../../game/dictionary";
 import type { AlphaChainSettings, GamePhase } from "../../game/types";
 import { LocalController } from "../../net/localController";
-import { KnockBoxController } from "../../net/knockBoxController";
+import { ServerController } from "../../net/serverController";
 import type { LaunchMode } from "../../net/launch";
 import type { GameController } from "../../net/controller";
 import { createLogger } from "../../log";
@@ -43,11 +43,11 @@ export class AcApp extends AcElement {
   @state() private controller?: GameController;
   @state() private phase: GamePhase = "Setup";
   @state() private screen: "lobby" | "netlobby" | "match" = "lobby";
-  /** Set when a networked session ends terminally (host left / socket closed). */
+  /** Set when a networked session ends terminally (socket closed for good). */
   @state() private sessionEnded?: string;
 
   /** The multiplayer controller, when launched for the KnockBox network. */
-  private net?: KnockBoxController;
+  private net?: ServerController;
 
   private raf = 0;
   private last = 0;
@@ -68,10 +68,12 @@ export class AcApp extends AcElement {
   override willUpdate(changed: Map<PropertyKey, unknown>): void {
     // A networked launch must NEVER show the solo bot lobby. As soon as we know the
     // mode is networked, switch to the multiplayer surface (which shows a connecting
-    // state until the peer attaches) and wire up the controller once the dict lands.
-    if ((changed.has("launchMode") || changed.has("dict")) && this.launchMode !== "solo") {
+    // state until the peer attaches) and wire up the controller. Server-authoritative
+    // play needs no client dictionary, so we do NOT wait on `dict` here (it's only
+    // fetched for solo / the Testing Bay).
+    if (changed.has("launchMode") && this.launchMode !== "solo") {
       if (this.screen === "lobby") this.screen = "netlobby";
-      if (this.dict && !this.net) this.setupNet();
+      if (!this.net) this.setupNet();
     }
   }
 
@@ -91,7 +93,9 @@ export class AcApp extends AcElement {
       return;
     }
     log.info("KnockBox peer attached; creating networked controller");
-    const net = new KnockBoxController(peer, this.dict!);
+    // Server-authoritative: the rules run in the server authority module, so the client
+    // controller needs no dictionary (the server validates words via kb.words).
+    const net = new ServerController(peer);
     this.net = net;
     this.controller = net;
     this.screen = "netlobby";
@@ -111,9 +115,9 @@ export class AcApp extends AcElement {
   }
 
   private onNetStart = (e: CustomEvent<AlphaChainSettings>): void => {
-    log.info("host requested match start");
+    log.info("owner requested match start");
     // Keep ac-app's settings in sync (mirrors solo onStart) so the multiplayer
-    // lobby re-seeds with the host's choices when they return after a match.
+    // lobby re-seeds with the owner's choices when they return after a match.
     this.settings = e.detail;
     this.net?.startMatch(e.detail);
   };

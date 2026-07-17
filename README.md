@@ -23,8 +23,9 @@ To package the game as a drop-in folder for the KnockBox-Games platform, run
 
 ## Architecture
 
-Pure game logic is fully decoupled from Phaser, so it is deterministic and unit-testable
-(and ready to run host-authoritative over the network later).
+Pure game logic is fully decoupled from Phaser, so it is deterministic and unit-testable —
+and it runs unchanged inside the server-authoritative authority module (`src/server/authority.ts`),
+which the KnockBox server executes sandboxed, one instance per lobby.
 
 - `src/game/` — engine-agnostic core (no Phaser imports)
   - `match.ts` — the FSM + single source of truth (`Setup → Countdown → Round → Intermission → … → GameOver`)
@@ -34,8 +35,12 @@ Pure game logic is fully decoupled from Phaser, so it is deterministic and unit-
   - `bots.ts` — difficulty-tuned opponent word selection
 - `src/net/` — the gameplay/transport seam
   - `controller.ts` — `GameController` interface
-  - `localController.ts` — solo-vs-bots implementation (a `KnockBoxController` will implement
-    the same interface against `addons/knockbox/`)
+  - `localController.ts` — solo-vs-bots implementation (non-networked)
+  - `serverController.ts` — networked implementation: sends intents to, and renders the
+    authoritative state broadcast by, the server authority module (`addons/knockbox/`)
+  - `netMatch.ts` — the read-only mirror every networked client renders from
+- `src/server/authority.ts` — the server-authoritative rules module (bundled to `authority.js`);
+  validates words via the server word service (`kb.words`) so clients can't submit fake words
 - `src/ui/` — reusable Phaser widgets (`Card`, `ShotClockRing`, `WordInput`, panels/buttons, icons)
 - `src/scenes/` — `Boot → Lobby → Game → Intermission → GameOver`
 - `src/theme.ts` — neon-noir palette + animation factories ported from the original CSS
@@ -51,4 +56,5 @@ Pure game logic is fully decoupled from Phaser, so it is deterministic and unit-
 - The remaining 28 cards (reactive economy, automated aggression, the shield, glass-cannon
   clock/UI effects) plug into the same `ModifierCard` interface + match hooks.
 - Survival mode, tutorials, personal bans.
-- `KnockBoxController` for networked multiplayer (KBAuthority, per-recipient fog-of-war).
+- Server-authoritative multiplayer via `src/server/authority.ts` (done): predictable latency,
+  the session survives the owner leaving, and rules run where clients can't tamper.

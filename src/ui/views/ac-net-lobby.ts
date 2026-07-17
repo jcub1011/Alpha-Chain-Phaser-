@@ -1,30 +1,33 @@
 /*
- * <ac-net-lobby> — the pre-match multiplayer surface. The host sees the joined
+ * <ac-net-lobby> — the pre-match multiplayer surface. The owner sees the joined
  * roster + settings steppers + START MATCH (and can join as a player or sit out
- * as a shared display). Guests see the roster and wait for the host to start.
- * Emits `ac-net-start` with the chosen settings (host only).
+ * as a shared display). Other players see the roster and wait for the owner to
+ * start. Emits `ac-net-start` with the chosen settings (owner only).
+ *
+ * Server-authoritative: lobby powers gate on the owner (peer.isOwner), never the
+ * host — in server mode there is no host client.
  */
 
 import { html, nothing, type PropertyValues, type TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { DEFAULT_SETTINGS, saveSettings } from "../../game/settings";
 import type { AlphaChainSettings } from "../../game/types";
-import type { KnockBoxController } from "../../net/knockBoxController";
+import type { ServerController } from "../../net/serverController";
 import { AcElement } from "../app/AcElement";
 import { SETTING_HINTS } from "./settings-hints";
 
 @customElement("ac-net-lobby")
 export class AcNetLobby extends AcElement {
-  @property({ attribute: false }) controller!: KnockBoxController;
+  @property({ attribute: false }) controller!: ServerController;
   @property({ attribute: false }) settings: AlphaChainSettings = { ...DEFAULT_SETTINGS };
   @state() private draft: AlphaChainSettings = { ...DEFAULT_SETTINGS };
   private unsub?: () => void;
 
   override connectedCallback(): void {
     super.connectedCallback();
-    // onLobbyChange fires on roster changes AND (on a guest) when the host's settings
-    // arrive. A guest mirrors the host's settings into its read-only draft; the host
-    // owns its own draft and ignores this.
+    // onLobbyChange fires on roster/owner changes AND (on a non-owner) when the owner's
+    // settings arrive. A non-owner mirrors the owner's settings into its read-only draft;
+    // the owner owns its own draft and ignores this.
     this.unsub = this.controller?.onLobbyChange(() => {
       const ls = this.controller?.lobbySettings;
       if (this.readOnly && ls) this.draft = { ...ls };
@@ -57,10 +60,10 @@ export class AcNetLobby extends AcElement {
     this.pushSettings();
   }
 
-  /** Host only: broadcast the working settings so guests' read-only lobby mirrors
-   *  them. No-op for guests (the controller method itself also guards on isHost). */
+  /** Owner only: publish the working settings so other players' read-only lobby mirrors
+   *  them. No-op for non-owners (the controller method itself also guards on isOwner). */
   private pushSettings(): void {
-    if (this.controller?.isHost) this.controller.setLobbySettings(this.draft);
+    if (this.controller?.isOwner) this.controller.setLobbySettings(this.draft);
   }
 
   private step<K extends keyof AlphaChainSettings>(
@@ -93,9 +96,9 @@ export class AcNetLobby extends AcElement {
     location.search = "?sandbox";
   }
 
-  /** Guests see the host's settings but can't edit them. */
+  /** Non-owners see the owner's settings but can't edit them. */
   private get readOnly(): boolean {
-    return !(this.controller?.isHost ?? false);
+    return !(this.controller?.isOwner ?? false);
   }
 
   /** Label + a subtext line carrying the setting's explanation. */
@@ -175,7 +178,8 @@ export class AcNetLobby extends AcElement {
   override render(): TemplateResult {
     const c = this.controller;
     const roster = c?.roster ?? [];
-    const isHost = c?.isHost ?? false;
+    const isOwner = c?.isOwner ?? false;
+    const ownerId = c?.ownerId ?? null;
     const d = this.draft;
 
     return html`
@@ -191,14 +195,15 @@ export class AcNetLobby extends AcElement {
           </div>
           <ul class="net-roster">
             ${roster.map(
-              (p, i) => html`<li>${p.displayName}${i === 0 ? html` <em>(host)</em>` : null}</li>`,
+              (p) =>
+                html`<li>${p.displayName}${p.id === ownerId ? html` <em>(owner)</em>` : null}</li>`,
             )}
           </ul>
 
           <div class="net-settings">
-            ${!isHost
+            ${!isOwner
               ? html`<p class="set-readonly-note">
-                  Settings (read-only) — the host controls these.
+                  Settings (read-only) — the owner controls these.
                 </p>`
               : nothing}
             ${this.stepper(
@@ -340,12 +345,12 @@ export class AcNetLobby extends AcElement {
           </div>
         </div>
 
-        ${isHost
+        ${isOwner
           ? html`
               <button class="ac-btn lobby-start" @click=${this.start}>START MATCH</button>
               <button class="lobby-bay" @click=${this.openBay}>🧪 Testing Bay</button>
             `
-          : html`<p class="lobby-rules">Waiting for the host to start…</p>`}
+          : html`<p class="lobby-rules">Waiting for the owner to start…</p>`}
       </div>
     `;
   }
