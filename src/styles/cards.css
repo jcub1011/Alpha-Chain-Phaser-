@@ -383,8 +383,18 @@ ac-card[mini][revealed] .gc-back {
    Geometry lives in the --gc-shine-* knobs below, so the whole look retunes by
    editing a handful of numbers. The band leans 15° off vertical: a linear-gradient
    angle names its *axis* and the band runs perpendicular to it, hence 90deg + 15deg.
-   Its edges cut off over 2.5% rather than fading, which is what makes it read as
-   a hard specular highlight instead of a wash.
+
+   The profile is a hard-edged MAIN band with a small faded WISP trailing it across
+   a gap. The main band is one flat plateau cut dead at both edges — doubled stops
+   (`color a b`) hold it level right up to the cut, and that hard edge is what makes
+   it read as foil rather than as a wash. The wisp is the opposite: a low soft bump
+   that ramps up and back down, easing the eye into the main band so it doesn't just
+   pop. The gap between them is what keeps the wisp legible as a separate glint
+   instead of merging into a shoulder — close it and you're back to a smooth ramp.
+
+   The wisp trails on the low side of the gradient axis. The sweep runs
+   background-position 175% -> -75%, which moves the band left-to-right across the
+   face, so low-side means the wisp arrives first and the hard edge lands last.
 
    Rarity rides on BRIGHTNESS and WIDTH, never on hue alone. The palette's green
    (#3ad07a) and gold (#ffcf4d) are a classic confusion pair: simulated through
@@ -401,43 +411,53 @@ ac-card[mini][revealed] .gc-back {
    putting them here is what lets a surface or a single card override one. */
 .gc-flip:is([data-rarity="uncommon"], [data-rarity="rare"], [data-rarity="legendary"]) {
   --gc-shine-angle: 15deg; /* lean off vertical */
-  --gc-shine-falloff: 2.5%; /* soft edge on each side */
   --gc-shine-sweep: 800ms; /* time to cross the face */
   --gc-shine-tint: 70%; /* share of rarity color vs white in the band */
 }
 /* The tier ramp. Same specificity as the block above, so these must stay after it
    to win on source order. Rare sits at the 0.4 the whole set used to share, with
-   the other two stepped either side of it. */
+   the other two stepped either side of it. The widths hold a 1 : 1.5 : 2.25 ratio —
+   rescale all three together or the tiers stop reading as evenly spaced, and note
+   that --gc-shine-wisp and --gc-shine-gap derive from width, so they follow along. */
 .gc-flip[data-rarity="uncommon"] {
   --gc-shine-intensity: 0.28;
-  --gc-shine-width: 10%;
+  --gc-shine-width: 8%;
 }
 .gc-flip[data-rarity="rare"] {
   --gc-shine-intensity: 0.42;
-  --gc-shine-width: 15%;
+  --gc-shine-width: 12%;
 }
 .gc-flip[data-rarity="legendary"] {
   --gc-shine-intensity: 0.6;
-  --gc-shine-width: 22%;
+  --gc-shine-width: 18%;
 }
 .gc-flip:is([data-rarity="uncommon"], [data-rarity="rare"], [data-rarity="legendary"])
   .gc-front::after {
-  /* Real foil goes white-hot at the peak and shows its color in the shoulders, so
-     the core keeps only half the tint while the flanks carry all of it. Screen
-     blending over a dark face washes out any color that starts near white, which
-     is why the tint has to run this high to read at all. */
-  --gc-shine-core: color-mix(
+  /* Real foil goes white-hot at the peak and shows its color in the weaker light,
+     so the main band keeps only half the tint while the wisp carries all of it.
+     Screen blending over a dark face washes out any color that starts near white,
+     which is why the tint has to run this high to read at all. */
+  --gc-shine-hot: color-mix(in srgb, var(--gc-rarity) calc(var(--gc-shine-tint) * 0.5), white);
+  --gc-shine-lit: color-mix(in srgb, var(--gc-rarity) var(--gc-shine-tint), white);
+  --gc-shine-main: color-mix(
     in srgb,
-    color-mix(in srgb, var(--gc-rarity) calc(var(--gc-shine-tint) * 0.5), white)
-      calc(var(--gc-shine-intensity) * 100%),
+    var(--gc-shine-hot) calc(var(--gc-shine-intensity) * 100%),
     transparent
   );
-  --gc-shine-edge: color-mix(
+  --gc-shine-glint: color-mix(
     in srgb,
-    color-mix(in srgb, var(--gc-rarity) var(--gc-shine-tint), white)
-      calc(var(--gc-shine-intensity) * 60%),
+    var(--gc-shine-lit) calc(var(--gc-shine-intensity) * 30%),
     transparent
   );
+  /* Wisp size and its stand-off, both scaled off the main band's half-width so the
+     whole profile grows with the tier rather than drifting out of proportion. */
+  --gc-shine-wisp: calc(var(--gc-shine-width) * 0.45);
+  --gc-shine-gap: calc(var(--gc-shine-width) * 0.4);
+  --gc-shine-w0: calc(50% - var(--gc-shine-width) - var(--gc-shine-gap) - var(--gc-shine-wisp));
+  --gc-shine-w1: calc(
+    50% - var(--gc-shine-width) - var(--gc-shine-gap) - var(--gc-shine-wisp) * 0.5
+  );
+  --gc-shine-w2: calc(50% - var(--gc-shine-width) - var(--gc-shine-gap));
 
   content: "";
   position: absolute;
@@ -446,11 +466,11 @@ ac-card[mini][revealed] .gc-back {
   pointer-events: none;
   background-image: linear-gradient(
     calc(90deg + var(--gc-shine-angle)),
-    transparent calc(50% - var(--gc-shine-width) - var(--gc-shine-falloff)),
-    var(--gc-shine-edge) calc(50% - var(--gc-shine-width)),
-    var(--gc-shine-core) 50%,
-    var(--gc-shine-edge) calc(50% + var(--gc-shine-width)),
-    transparent calc(50% + var(--gc-shine-width) + var(--gc-shine-falloff))
+    transparent 0 var(--gc-shine-w0),
+    var(--gc-shine-glint) var(--gc-shine-w1),
+    transparent var(--gc-shine-w2) calc(50% - var(--gc-shine-width)),
+    var(--gc-shine-main) calc(50% - var(--gc-shine-width)) calc(50% + var(--gc-shine-width)),
+    transparent calc(50% + var(--gc-shine-width)) 100%
   );
   background-repeat: no-repeat;
   /* Painted 2.6× the card's width: at position 175% the band sits off the left
