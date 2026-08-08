@@ -33,9 +33,11 @@ export const CardOp = {
 export type CardOp = (typeof CardOp)[keyof typeof CardOp];
 
 /** A card's rarity tier. Drives how often the dealer offers it (rarer = less
- *  likely, see RARITY_DEAL_WEIGHT) and the hover shine on its face. Distinct
- *  from {@link ModifierCard.maxInstances} (the per-player copy cap), which stays
- *  hand-tuned — rarity is a layer on top of the limit system, not a replacement. */
+ *  likely by default, but the per-tier weights are host-configurable — see the
+ *  `rarityWeight*` settings and `rarityDealWeights`) and the hover shine on its
+ *  face. Distinct from {@link ModifierCard.maxInstances} (the per-player copy
+ *  cap), which stays hand-tuned — rarity is a layer on top of the limit system,
+ *  not a replacement. */
 export const CardRarity = {
   Common: "common",
   Uncommon: "uncommon",
@@ -121,6 +123,16 @@ export interface AlphaChainSettings {
   eraCount: number; // eras per match
   survivalMode: boolean;
   modifiersDealtPerEra: number;
+  /* Per-tier dealer weights. RELATIVE, not percentages: a tier's share of a draw is
+   * its weight × how many cards it holds, over the sum across tiers. Defaults are
+   * 10 / 5 / 2 / 1 (see DEFAULT_RARITY_DEAL_WEIGHT), so a specific Common is 10× as
+   * likely as a specific Legendary. A weight of 0 drops the tier from the deal pool
+   * entirely — that is how a host runs "no Commons" or "Rares only". Zeroing ALL
+   * four means nothing is dealt. Read through `rarityDealWeights(settings)`. */
+  rarityWeightCommon: number;
+  rarityWeightUncommon: number;
+  rarityWeightRare: number;
+  rarityWeightLegendary: number;
   /** Engine bay slots a player has at their first card deal (consistent across the
    *  dealEngineCardsFirstEra on/off modes). */
   modifierSlotsStart: number;

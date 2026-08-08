@@ -1,21 +1,27 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { MatchController, type PlayerSeed } from "./match";
-import { DEFAULT_SETTINGS } from "./settings";
-import type { AlphaChainSettings } from "./types";
+import { DEFAULT_SETTINGS, rarityDealWeights } from "./settings";
+import type { AlphaChainSettings, CardRarity } from "./types";
 import { DEALABLE_CARD_IDS, getCard } from "./cards/library";
-import { DEFAULT_MAX_INSTANCES, RARITY_DEAL_WEIGHT } from "./cards/card";
+import { DEFAULT_MAX_INSTANCES } from "./cards/card";
 
 /** Mirror the dealer's rarity-weighted pick (match.ts:dealCards) so tests can
- *  predict which card a fixed rng roll selects from an ordered pool. */
-const weightedPick = (ids: readonly string[], roll: number): string => {
-  const weights = ids.map((id) => RARITY_DEAL_WEIGHT[getCard(id)!.rarity]);
+ *  predict which card a fixed rng roll selects from an ordered pool. Zero-weight
+ *  tiers leave the pool entirely, exactly as the dealer filters them. */
+const weightedPick = (
+  ids: readonly string[],
+  roll: number,
+  tierWeight: Record<CardRarity, number> = rarityDealWeights(DEFAULT_SETTINGS),
+): string => {
+  const pool = ids.filter((id) => tierWeight[getCard(id)!.rarity] > 0);
+  const weights = pool.map((id) => tierWeight[getCard(id)!.rarity]);
   const total = weights.reduce((sum, w) => sum + w, 0);
   let r = roll * total;
-  for (let k = 0; k < ids.length; k++) {
+  for (let k = 0; k < pool.length; k++) {
     r -= weights[k];
-    if (r < 0) return ids[k];
+    if (r < 0) return pool[k];
   }
-  return ids[ids.length - 1];
+  return pool[pool.length - 1];
 };
 
 const WORDS = new Set(["cat", "tiger", "rabbit", "tractor", "rat", "torch", "house", "elephant"]);
@@ -446,6 +452,8 @@ describe("per-card deal caps", () => {
     expect(capOf("RouletteWheel")).toBe(1);
     expect(capOf("TollBooth")).toBe(1);
     expect(capOf("Speedracer")).toBe(2);
+    // The one card capped ABOVE the default, so five compounding glasses stay reachable.
+    expect(capOf("MagnifyingGlass")).toBe(5);
     // No override → falls back to the shared default.
     expect(getCard("TheAnchor")?.maxInstances).toBeUndefined();
     expect(capOf("TheAnchor")).toBe(DEFAULT_MAX_INSTANCES);
@@ -491,7 +499,11 @@ describe("rarity-weighted dealing", () => {
   // Drive one full round (one valid word per player, succession-respecting,
   // regardless of which player the rng makes the opener) and settle into the
   // era-1 intermission, where dealCards has run for every player.
-  const driveOneRound = (rng: () => number, modifiersDealtPerEra: number) => {
+  const driveOneRound = (
+    rng: () => number,
+    modifiersDealtPerEra: number,
+    overrides: Partial<AlphaChainSettings> = {},
+  ) => {
     const m = new MatchController(
       seeds,
       {
@@ -501,6 +513,7 @@ describe("rarity-weighted dealing", () => {
         eraInterval: 1,
         eraCount: 3,
         modifiersDealtPerEra,
+        ...overrides,
       },
       { isWord: (w) => WORDS.has(w), rng },
     );
@@ -539,6 +552,116 @@ describe("rarity-weighted dealing", () => {
     const a = drive();
     expect(a.length).toBeGreaterThan(0); // guard: the deal actually happened
     expect(drive()).toEqual(a); // same seed → byte-identical bay (no rng divergence)
+  });
+});
+
+// ── Host-configurable rarity weights (the rarityWeight* settings) ─────────────
+
+describe("host-configured rarity weights", () => {
+  const lcg = (seed: number) => () => {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    return seed / 0x100000000;
+  };
+
+  // One full round into the era-1 intermission, where every player has been dealt.
+  const driveWithWeights = (overrides: Partial<AlphaChainSettings>, rng = lcg(20260808)) => {
+    const m = new MatchController(
+      seeds,
+      {
+        ...DEFAULT_SETTINGS,
+        enableTutorials: false,
+        preRoundCountdownSeconds: 1,
+        eraInterval: 1,
+        eraCount: 3,
+        modifiersDealtPerEra: 8,
+        ...overrides,
+      },
+      { isWord: (w) => WORDS.has(w), rng },
+    );
+    m.start();
+    m.tick(1);
+    for (let i = 0; i < seeds.length; i++) {
+      const cur = m.state.players[m.state.currentPlayerIndex];
+      const req = m.state.requiredLetter;
+      const word = [...WORDS].find(
+        (w) => (req === "" || w[0] === req) && !m.state.usedWords.has(w),
+      )!;
+      m.submitWord(cur.id, word);
+    }
+    m.tick(2.001); // settle into optimize
+    return m;
+  };
+
+  const ONLY_RARE = {
+    rarityWeightCommon: 0,
+    rarityWeightUncommon: 0,
+    rarityWeightRare: 1,
+    rarityWeightLegendary: 0,
+  };
+
+  const raritiesOf = (m: MatchController) =>
+    m.state.players.flatMap((p) => p.bay.map((b) => getCard(b.id)!.rarity));
+
+  it('deals only the tiers with weight ("Rares Only")', () => {
+    const dealt = raritiesOf(driveWithWeights(ONLY_RARE));
+    expect(dealt.length).toBeGreaterThan(0); // guard: the deal actually happened
+    expect(new Set(dealt)).toEqual(new Set(["rare"]));
+  });
+
+  it("inverts the default mix when the rare tiers carry all the weight", () => {
+    // Proves the setting — not the old 10/5/2/1 constant — drives the pick: Legendaries
+    // are the ONLY thing dealt, which the defaults would make vanishingly unlikely.
+    const dealt = raritiesOf(
+      driveWithWeights({
+        rarityWeightCommon: 0,
+        rarityWeightUncommon: 0,
+        rarityWeightRare: 0,
+        rarityWeightLegendary: 1,
+      }),
+    );
+    expect(new Set(dealt)).toEqual(new Set(["legendary"]));
+  });
+
+  it("deals nothing when every tier is zeroed (no hang, no biased fallback)", () => {
+    // The pool empties, so dealCards breaks out early. Without the zero-weight filter
+    // totalWeight would be 0 and the float-drift fallback would deal the same last
+    // card every time — the bug this guards.
+    const m = driveWithWeights({
+      rarityWeightCommon: 0,
+      rarityWeightUncommon: 0,
+      rarityWeightRare: 0,
+      rarityWeightLegendary: 0,
+    });
+    for (const p of m.state.players) expect(p.bay).toEqual([]);
+  });
+
+  it("respects per-card caps within a single enabled tier", () => {
+    // Rares only, asking for far more than the tier can supply: every rare lands at
+    // exactly its cap and nothing exceeds it (Toll Booth 1, Magnifying Glass 5, rest 3).
+    const m = driveWithWeights({ ...ONLY_RARE, modifiersDealtPerEra: 1000 });
+    const bay = m.state.players[0].bay;
+    const rares = DEALABLE_CARD_IDS.filter((id) => getCard(id)!.rarity === "rare");
+    const expectedTotal = rares.reduce(
+      (sum, id) => sum + (getCard(id)!.maxInstances ?? DEFAULT_MAX_INSTANCES),
+      0,
+    );
+    expect(bay.length).toBe(expectedTotal);
+    for (const id of rares) {
+      expect(bay.filter((b) => b.id === id).length).toBe(
+        getCard(id)!.maxInstances ?? DEFAULT_MAX_INSTANCES,
+      );
+    }
+  });
+
+  it("stays deterministic under non-default weights (same seed → identical bays)", () => {
+    const drive = () =>
+      driveWithWeights(
+        { rarityWeightCommon: 1, rarityWeightLegendary: 20 },
+        lcg(4242),
+      ).state.players[0].bay.map((b) => b.id);
+    const a = drive();
+    expect(a.length).toBeGreaterThan(0);
+    expect(drive()).toEqual(a);
   });
 });
 

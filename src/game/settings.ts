@@ -1,4 +1,5 @@
 import { createLogger } from "../log";
+import { CardRarity } from "./types";
 import type { AlphaChainSettings, BanMode, BanRepeatRule, BotDifficulty } from "./types";
 
 const log = createLogger("settings");
@@ -6,6 +7,21 @@ const log = createLogger("settings");
 /** Engine bay slots a player starts with (ported from AlphaChainGameState.cs); also the
  *  default for the configurable `modifierSlotsStart` setting. */
 export const MODIFIER_SLOTS_START = 3;
+
+/** Baseline relative deal weight per rarity — the defaults for the host-configurable
+ *  `rarityWeight*` settings. Higher = offered more often; a specific Common is 10× as
+ *  likely per draw as a specific Legendary. Lives here rather than beside the card model
+ *  because `cards/card.ts` imports from this module, so the reverse import would cycle. */
+export const DEFAULT_RARITY_DEAL_WEIGHT: Record<CardRarity, number> = {
+  [CardRarity.Common]: 10,
+  [CardRarity.Uncommon]: 5,
+  [CardRarity.Rare]: 2,
+  [CardRarity.Legendary]: 1,
+};
+
+/** Upper bound on a single tier's deal weight. Shared by the persistence validator and
+ *  both lobbies' steppers so the editable range and the accepted range can't drift. */
+export const MAX_RARITY_DEAL_WEIGHT = 20;
 
 /** Defaults ported from AlphaChainSettings.cs, plus single-player bot options. */
 export const DEFAULT_SETTINGS: AlphaChainSettings = {
@@ -20,6 +36,10 @@ export const DEFAULT_SETTINGS: AlphaChainSettings = {
   eraCount: 4,
   survivalMode: false,
   modifiersDealtPerEra: 3,
+  rarityWeightCommon: DEFAULT_RARITY_DEAL_WEIGHT[CardRarity.Common],
+  rarityWeightUncommon: DEFAULT_RARITY_DEAL_WEIGHT[CardRarity.Uncommon],
+  rarityWeightRare: DEFAULT_RARITY_DEAL_WEIGHT[CardRarity.Rare],
+  rarityWeightLegendary: DEFAULT_RARITY_DEAL_WEIGHT[CardRarity.Legendary],
   modifierSlotsStart: MODIFIER_SLOTS_START,
   slotIncreaseEveryNEras: 1,
   slotIncreaseAmount: 1,
@@ -121,6 +141,11 @@ const SETTINGS_VALIDATORS: { [K in keyof AlphaChainSettings]: (v: unknown) => bo
   eraCount: inRange(1, 20),
   survivalMode: isBool,
   modifiersDealtPerEra: inRange(0, 10),
+  // 0 is a legal, meaningful value: it disables the tier (see rarityDealWeights).
+  rarityWeightCommon: inRange(0, MAX_RARITY_DEAL_WEIGHT),
+  rarityWeightUncommon: inRange(0, MAX_RARITY_DEAL_WEIGHT),
+  rarityWeightRare: inRange(0, MAX_RARITY_DEAL_WEIGHT),
+  rarityWeightLegendary: inRange(0, MAX_RARITY_DEAL_WEIGHT),
   modifierSlotsStart: inRange(1, 20),
   slotIncreaseEveryNEras: inRange(0, 20),
   slotIncreaseAmount: inRange(1, 10),
@@ -141,6 +166,21 @@ export function modifierSlotsForCardEra(s: AlphaChainSettings, cardEra: number):
   const increases =
     s.slotIncreaseEveryNEras > 0 ? Math.floor((cardEra - 1) / s.slotIncreaseEveryNEras) : 0;
   return Math.min(s.modifierSlotsMax, s.modifierSlotsStart + s.slotIncreaseAmount * increases);
+}
+
+/**
+ * The dealer's per-tier weights for a given settings object — the single read path for
+ * the host-configurable rarity economy (see the `rarityWeight*` settings). Weights are
+ * relative, and a tier at 0 is excluded from the deal pool outright rather than merely
+ * being unlikely; see MatchController.dealCards.
+ */
+export function rarityDealWeights(s: AlphaChainSettings): Record<CardRarity, number> {
+  return {
+    [CardRarity.Common]: s.rarityWeightCommon,
+    [CardRarity.Uncommon]: s.rarityWeightUncommon,
+    [CardRarity.Rare]: s.rarityWeightRare,
+    [CardRarity.Legendary]: s.rarityWeightLegendary,
+  };
 }
 
 /** Letters legal to ban under a given mode. */

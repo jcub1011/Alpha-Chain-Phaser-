@@ -412,7 +412,12 @@ const CARD_DEFS: Record<CardId, CardDef> = {
 
   MagnifyingGlass: {
     name: "Magnifying Glass",
-    rarity: CardRarity.Legendary,
+    rarity: CardRarity.Rare,
+    // The only card capped ABOVE the default 3, and deliberately so: five in series
+    // compound to ×7.59375, which we want reachable as a build-around rather than
+    // impossible. Rarity is the brake here — at Rare the dealer rarely offers five,
+    // and five glasses plus something to magnify needs 6 of the 12 max bay slots.
+    maxInstances: 5,
     color: "#9ad0ff",
     family: CardFamily.Utility,
     op: CardOp.Fx,
@@ -802,3 +807,36 @@ export const DEALABLE_CARD_IDS: CardId[] = Object.keys(CARD_LIBRARY) as CardId[]
 
 export const getCard = (id: string): ModifierCard | undefined =>
   (CARD_LIBRARY as Record<string, ModifierCard>)[id];
+
+/** How many dealable cards sit in each rarity tier. */
+export const RARITY_CARD_COUNTS: Record<CardRarity, number> = DEALABLE_CARD_IDS.reduce(
+  (counts, id) => {
+    counts[CARD_LIBRARY[id].rarity]++;
+    return counts;
+  },
+  {
+    [CardRarity.Common]: 0,
+    [CardRarity.Uncommon]: 0,
+    [CardRarity.Rare]: 0,
+    [CardRarity.Legendary]: 0,
+  } as Record<CardRarity, number>,
+);
+
+/**
+ * Each tier's share of a single draw under the given deal weights, as a fraction in
+ * [0, 1] — a tier's card count × its weight, over the sum across tiers. Returns all
+ * zeros (never NaN) when every weight is 0, which is the "deal nothing" configuration.
+ *
+ * This is the FULL-POOL, UNCAPPED share: a real pool shrinks as a player's cards hit
+ * their maxInstances, which shifts the true odds mid-deal. Good enough to label a
+ * lobby stepper, not a balance oracle — don't assert game outcomes against it.
+ */
+export function rarityDealShare(weights: Record<CardRarity, number>): Record<CardRarity, number> {
+  const tiers = Object.values(CardRarity);
+  const total = tiers.reduce((sum, tier) => sum + RARITY_CARD_COUNTS[tier] * weights[tier], 0);
+  const share = {} as Record<CardRarity, number>;
+  for (const tier of tiers) {
+    share[tier] = total > 0 ? (RARITY_CARD_COUNTS[tier] * weights[tier]) / total : 0;
+  }
+  return share;
+}

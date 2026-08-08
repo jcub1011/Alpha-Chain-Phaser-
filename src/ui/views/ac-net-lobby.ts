@@ -7,10 +7,17 @@
 
 import { html, nothing, type PropertyValues, type TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import { DEFAULT_SETTINGS, saveSettings } from "../../game/settings";
+import {
+  DEFAULT_SETTINGS,
+  MAX_RARITY_DEAL_WEIGHT,
+  rarityDealWeights,
+  saveSettings,
+} from "../../game/settings";
+import { rarityDealShare } from "../../game/cards/library";
 import type { AlphaChainSettings } from "../../game/types";
 import type { KnockBoxController } from "../../net/knockBoxController";
 import { AcElement } from "../app/AcElement";
+import { RARITY_WEIGHT_ROWS, rarityWeightValue } from "../app/util";
 import { SETTING_HINTS } from "./settings-hints";
 
 @customElement("ac-net-lobby")
@@ -172,6 +179,29 @@ export class AcNetLobby extends AcElement {
     );
   }
 
+  /** The "Rarity Weights" group: one stepper per tier, each showing the share of a draw its
+   *  weight works out to, plus a warning when all four are zeroed (nothing gets dealt). The
+   *  steppers inherit the guest read-only disabling from `stepper`. */
+  private rarityWeights(): TemplateResult {
+    const d = this.draft;
+    const share = rarityDealShare(rarityDealWeights(d));
+    return html`
+      <p class="set-subhead">Rarity Weights</p>
+      ${RARITY_WEIGHT_ROWS.map((r) =>
+        this.stepper(
+          r.label,
+          rarityWeightValue(d[r.key], share[r.tier]),
+          () => this.step(r.key, -1, 0, MAX_RARITY_DEAL_WEIGHT),
+          () => this.step(r.key, 1, 0, MAX_RARITY_DEAL_WEIGHT),
+          SETTING_HINTS[r.key],
+        ),
+      )}
+      ${RARITY_WEIGHT_ROWS.every((r) => d[r.key] <= 0)
+        ? html`<p class="set-warn">Every tier is disabled — no cards will be dealt.</p>`
+        : nothing}
+    `;
+  }
+
   override render(): TemplateResult {
     const c = this.controller;
     const roster = c?.roster ?? [];
@@ -274,6 +304,7 @@ export class AcNetLobby extends AcElement {
               () => this.step("modifiersDealtPerEra", 1, 0, 10),
               SETTING_HINTS.modifiersDealtPerEra,
             )}
+            ${this.rarityWeights()}
             ${this.stepper(
               "Starting Slots",
               String(d.modifierSlotsStart),

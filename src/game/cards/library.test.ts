@@ -13,7 +13,8 @@ import {
   type CardRarity as CardRarityT,
   type Submission,
 } from "../types";
-import { CARD_LIBRARY } from "./library";
+import { CARD_LIBRARY, RARITY_CARD_COUNTS, rarityDealShare } from "./library";
+import { DEFAULT_RARITY_DEAL_WEIGHT } from "../settings";
 
 const bay = (...ids: string[]): BayCard[] => ids.map((id) => ({ id }));
 const opts = { prevWordLength: 0, clockRemaining: 10, clockTotal: 20, taxed: false };
@@ -326,7 +327,7 @@ describe("card rarity assignments", () => {
     }
   });
 
-  it("matches the agreed 18 / 15 / 10 / 4 distribution", () => {
+  it("matches the agreed 18 / 15 / 11 / 3 distribution", () => {
     const counts: Record<CardRarityT, number> = {
       common: 0,
       uncommon: 0,
@@ -334,7 +335,37 @@ describe("card rarity assignments", () => {
       legendary: 0,
     };
     for (const c of cards) counts[c.rarity]++;
-    expect(counts).toEqual({ common: 18, uncommon: 15, rare: 10, legendary: 4 });
+    expect(counts).toEqual({ common: 18, uncommon: 15, rare: 11, legendary: 3 });
+  });
+
+  it("exposes those same counts as RARITY_CARD_COUNTS", () => {
+    expect(RARITY_CARD_COUNTS).toEqual({ common: 18, uncommon: 15, rare: 11, legendary: 3 });
+  });
+});
+
+// ── rarityDealShare: the lobby's per-tier "share of a draw" readout ───────────
+
+describe("rarityDealShare", () => {
+  it("splits a draw across tiers by count × weight, summing to 1", () => {
+    const share = rarityDealShare(DEFAULT_RARITY_DEAL_WEIGHT);
+    const sum = Object.values(share).reduce((a, b) => a + b, 0);
+    expect(sum).toBeCloseTo(1, 10);
+    // Σ = 18×10 + 15×5 + 11×2 + 3×1 = 280.
+    expect(share.common).toBeCloseTo(180 / 280, 10);
+    expect(share.uncommon).toBeCloseTo(75 / 280, 10);
+    expect(share.rare).toBeCloseTo(22 / 280, 10);
+    expect(share.legendary).toBeCloseTo(3 / 280, 10);
+  });
+
+  it("gives a zeroed tier exactly no share, and redistributes the rest", () => {
+    const share = rarityDealShare({ ...DEFAULT_RARITY_DEAL_WEIGHT, common: 0 });
+    expect(share.common).toBe(0);
+    expect(Object.values(share).reduce((a, b) => a + b, 0)).toBeCloseTo(1, 10);
+  });
+
+  it("returns zeros rather than NaN when every tier is zeroed", () => {
+    const share = rarityDealShare({ common: 0, uncommon: 0, rare: 0, legendary: 0 });
+    expect(share).toEqual({ common: 0, uncommon: 0, rare: 0, legendary: 0 });
   });
 });
 

@@ -39,6 +39,25 @@ describe("Magnifying Glass — neighbor amplification", () => {
     ).toBe(37);
   });
 
+  it("stacks to the copy cap: five glasses → ×7.59375", () => {
+    // maxInstances is 5 for the glass, so this is the highest reachable stack.
+    // +10 × 7.59375 = +75.9375; seed 3 → 78.9375 → 79.
+    expect(
+      scoreWord(
+        "cat",
+        bay(
+          "MagnifyingGlass",
+          "MagnifyingGlass",
+          "MagnifyingGlass",
+          "MagnifyingGlass",
+          "MagnifyingGlass",
+          "TheAnchor",
+        ),
+        opts,
+      ).finalScore,
+    ).toBe(79);
+  });
+
   it("inert FX neighbour opts out (a glass never turns FX into a multiplier)", () => {
     // Glass to the left of a Tax Collector (FX) changes nothing.
     expect(scoreWord("cat", bay("MagnifyingGlass", "TaxCollector"), opts).finalScore).toBe(3);

@@ -10,7 +10,7 @@
  */
 
 import { DEALABLE_CARD_IDS, getCard } from "./cards/library";
-import { DEFAULT_MAX_INSTANCES, RARITY_DEAL_WEIGHT } from "./cards/card";
+import { DEFAULT_MAX_INSTANCES } from "./cards/card";
 import { BanLetterService, EngineEffects, RoomServices } from "./cards/roomServices";
 import { createLogger } from "../log";
 import { Emitter } from "./emitter";
@@ -32,6 +32,7 @@ import {
   legalBanLetters,
   MIN_SHOT_CLOCK_SECONDS,
   modifierSlotsForCardEra,
+  rarityDealWeights,
   isVowel,
 } from "./settings";
 import { byScoreDesc } from "./types";
@@ -971,25 +972,35 @@ export class MatchController {
 
   private dealCards(player: PlayerState, count: number): string[] {
     const dealt: string[] = [];
+    // Host-configurable per-tier weights, resolved once: pure, and the pool filter below
+    // must not vary mid-batch. Read from state.settings (the replicated field) — never
+    // from module state or loadSettings(), which are host-local and would diverge.
+    const tierWeight = rarityDealWeights(this.state.settings);
     for (let i = 0; i < count; i++) {
       // A card is dealable to this player only while they hold fewer than its
-      // maxInstances (default 3). Recompute each draw so a cap reached mid-batch
-      // (e.g. a card dealt twice this era) drops it from later draws too. If every
-      // dealable card is capped for this player the pool is empty and dealing stops
-      // early below.
+      // maxInstances (default 3), and only while its rarity tier carries weight — a
+      // tier the host zeroed leaves the pool outright rather than being merely
+      // unlikely, so "weight 0" reliably means "never dealt" (it also can't sneak in
+      // via the float-drift fallback below). Recompute each draw so a cap reached
+      // mid-batch (e.g. a card dealt twice this era) drops it from later draws too.
+      // An empty pool stops dealing early: every card capped for this player, or every
+      // tier zeroed (the host's "deal nothing" configuration).
       const pool = DEALABLE_CARD_IDS.filter((id) => {
-        const max = getCard(id)?.maxInstances ?? DEFAULT_MAX_INSTANCES;
+        const card = getCard(id);
+        if (!card || tierWeight[card.rarity] <= 0) return false;
+        const max = card.maxInstances ?? DEFAULT_MAX_INSTANCES;
         const owned = player.bay.filter((b) => b.id === id).length;
         return owned < max;
       });
       if (pool.length === 0) break;
-      // Weighted pick: rarer cards carry a smaller deal weight (RARITY_DEAL_WEIGHT),
-      // so a Legendary surfaces ~10× less often than a Common. Exactly ONE rng()
-      // call per card so host-authoritative dealing stays deterministic across
-      // host/guests (the replicated-state footgun: any divergence in rng draw count
-      // desyncs bays). The last-slot fallback covers floating-point drift where the
-      // accumulated weights never quite drop `r` below zero.
-      const weights = pool.map((id) => RARITY_DEAL_WEIGHT[getCard(id)!.rarity]);
+      // Weighted pick: rarer cards carry a smaller deal weight, so by default (10/5/2/1)
+      // a Legendary surfaces ~10× less often than a Common. Exactly ONE rng() call per
+      // card so host-authoritative dealing stays deterministic across host/guests (the
+      // replicated-state footgun: any divergence in rng draw count desyncs bays). Every
+      // pooled card has weight >= 1, so totalWeight > 0 here and the last-slot fallback
+      // covers only floating-point drift, where the accumulated weights never quite
+      // drop `r` below zero.
+      const weights = pool.map((id) => tierWeight[getCard(id)!.rarity]);
       const totalWeight = weights.reduce((sum, w) => sum + w, 0);
       let r = this.rng() * totalWeight;
       let id = pool[pool.length - 1];

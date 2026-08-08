@@ -18,6 +18,14 @@ export const SETTING_HINTS: Record<keyof AlphaChainSettings, string> = {
   eraCount: "How many eras are in a match.",
   eraInterval: "How many full rounds (one cycle of all players) are in an era.",
   modifiersDealtPerEra: "How many new modifier cards each player is dealt each intermission.",
+  rarityWeightCommon:
+    "How often Common cards are offered, relative to the other tiers — not a percentage. 0 means Commons are never dealt.",
+  rarityWeightUncommon:
+    "How often Uncommon cards are offered, relative to the other tiers — not a percentage. 0 means Uncommons are never dealt.",
+  rarityWeightRare:
+    "How often Rare cards are offered, relative to the other tiers — not a percentage. 0 means Rares are never dealt.",
+  rarityWeightLegendary:
+    "How often Legendary cards are offered, relative to the other tiers — not a percentage. 0 means Legendaries are never dealt.",
   modifierSlotsStart: "How many engine bay slots you have when cards are first dealt.",
   slotIncreaseEveryNEras: "How often engine bay slots increase — every N eras, or never (0).",
   slotIncreaseAmount: "How many engine bay slots are added at each increase.",
