@@ -16,7 +16,7 @@
 
 import type { Dictionary } from "../game/dictionary";
 import { MatchController, type MatchEvents, type PlayerSeed } from "../game/match";
-import { SUBMIT_GRACE_SECONDS } from "../game/settings";
+import { sanitizeSettings, SUBMIT_GRACE_SECONDS } from "../game/settings";
 import type { AlphaChainSettings, PlayerState, SubmitResult } from "../game/types";
 import { createLogger, type KnockBoxLogger } from "../log";
 import type { GameController, MatchLike } from "./controller";
@@ -312,7 +312,12 @@ export class KnockBoxController implements GameController {
         // host ignores its own echo (sendToAll delivers back to the sender), exactly
         // like the "snap" echo below.
         if (!this.peer.isHost) {
-          this._lobbySettings = payload.settings;
+          // Sanitize at the wire boundary rather than in the lobby view, so every consumer of
+          // lobbySettings gets a complete, in-range object. A sender on an older build omits
+          // whatever settings it predates, and a missing key reads as `undefined` — which
+          // survives arithmetic and comparisons silently (`undefined <= 0` is false), so the
+          // guest's lobby would render "undefined (0%)" rows and skip their own warnings.
+          this._lobbySettings = sanitizeSettings(payload.settings);
           this.notifyLobby();
         }
         break;

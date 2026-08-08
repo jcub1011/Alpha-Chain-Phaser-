@@ -123,15 +123,22 @@ export interface AlphaChainSettings {
   eraCount: number; // eras per match
   survivalMode: boolean;
   modifiersDealtPerEra: number;
-  /* Per-tier dealer weights. RELATIVE, not percentages: a tier's share of a draw is
-   * its weight × how many cards it holds, over the sum across tiers. Defaults are
-   * 10 / 5 / 2 / 1 (see DEFAULT_RARITY_DEAL_WEIGHT), so a specific Common is 10× as
-   * likely as a specific Legendary. A weight of 0 drops the tier from the deal pool
-   * entirely — that is how a host runs "no Commons" or "Rares only". Zeroing ALL
-   * four means nothing is dealt. Read through `rarityDealWeights(settings)`. */
+  /**
+   * Common's dealer weight, and the group doc for all four `rarityWeight*` settings.
+   * RELATIVE, not percentages: a tier's share of a draw is its weight × how many cards it
+   * holds, over the sum across tiers. Defaults are 10 / 5 / 2 / 1 (see
+   * DEFAULT_RARITY_DEAL_WEIGHT), so a specific Common is 10× as likely as a specific
+   * Legendary. A weight of 0 drops the tier from the deal pool entirely — that is how a
+   * host runs "no Commons" or "Rares only". Zeroing ALL four means nothing is dealt, and
+   * even one enabled tier can run a match dry (see `dealPoolCapacity`). Read through
+   * `rarityDealWeights(settings)`; never index a `rarityWeight*` key by hand.
+   */
   rarityWeightCommon: number;
+  /** Uncommon's relative dealer weight; 0 disables the tier. See `rarityWeightCommon`. */
   rarityWeightUncommon: number;
+  /** Rare's relative dealer weight; 0 disables the tier. See `rarityWeightCommon`. */
   rarityWeightRare: number;
+  /** Legendary's relative dealer weight; 0 disables the tier. See `rarityWeightCommon`. */
   rarityWeightLegendary: number;
   /** Engine bay slots a player has at their first card deal (consistent across the
    *  dealEngineCardsFirstEra on/off modes). */
@@ -150,6 +157,11 @@ export interface AlphaChainSettings {
   botCount: number; // 1–5 (local single-player only)
   botDifficulty: BotDifficulty;
 }
+
+/** The per-tier deal-weight setting keys, derived from the settings interface so a renamed
+ *  key is a compile error everywhere it's used. Pair a key with its tier only through
+ *  `RARITY_WEIGHT_KEYS` (settings.ts) — that map is the one place the relation is written. */
+export type RarityWeightKey = Extract<keyof AlphaChainSettings, `rarityWeight${string}`>;
 
 /** Sub-phase of the Intermission (mirrors the Blazor IntermissionSubPhase). */
 export type IntermissionPhase = "deal" | "optimize" | "sniperBan" | "tutorial" | null;

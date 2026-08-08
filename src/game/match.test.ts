@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { MatchController, type PlayerSeed } from "./match";
-import { DEFAULT_SETTINGS, rarityDealWeights } from "./settings";
+import { DEFAULT_SETTINGS, rarityDealWeights, totalCardsDealtPerPlayer } from "./settings";
 import type { AlphaChainSettings, CardRarity } from "./types";
-import { DEALABLE_CARD_IDS, getCard } from "./cards/library";
+import { DEALABLE_CARD_IDS, dealPoolCapacity, getCard } from "./cards/library";
 import { DEFAULT_MAX_INSTANCES } from "./cards/card";
 
 /** Mirror the dealer's rarity-weighted pick (match.ts:dealCards) so tests can
@@ -641,16 +641,50 @@ describe("host-configured rarity weights", () => {
     const m = driveWithWeights({ ...ONLY_RARE, modifiersDealtPerEra: 1000 });
     const bay = m.state.players[0].bay;
     const rares = DEALABLE_CARD_IDS.filter((id) => getCard(id)!.rarity === "rare");
-    const expectedTotal = rares.reduce(
-      (sum, id) => sum + (getCard(id)!.maxInstances ?? DEFAULT_MAX_INSTANCES),
-      0,
+    expect(bay.length).toBe(
+      dealPoolCapacity(rarityDealWeights({ ...DEFAULT_SETTINGS, ...ONLY_RARE })),
     );
-    expect(bay.length).toBe(expectedTotal);
     for (const id of rares) {
       expect(bay.filter((b) => b.id === id).length).toBe(
         getCard(id)!.maxInstances ?? DEFAULT_MAX_INSTANCES,
       );
     }
+  });
+
+  it("dealPoolCapacity is the dealer's real ceiling, not an estimate", () => {
+    // The lobby warns by comparing this number against totalCardsDealtPerPlayer, so the two
+    // sides have to agree: ask for far more than a single tier holds and the bay lands on
+    // exactly the advertised capacity. Legendary-only is the tightest case (7 copies).
+    const ONLY_LEGENDARY = {
+      rarityWeightCommon: 0,
+      rarityWeightUncommon: 0,
+      rarityWeightRare: 0,
+      rarityWeightLegendary: 1,
+    };
+    const capacity = dealPoolCapacity(
+      rarityDealWeights({ ...DEFAULT_SETTINGS, ...ONLY_LEGENDARY }),
+    );
+    const m = driveWithWeights({ ...ONLY_LEGENDARY, modifiersDealtPerEra: 1000 });
+    expect(m.state.players[0].bay.length).toBe(capacity);
+    // And it really is short of a default match's ask — the silent mid-match dry-up the
+    // lobby now warns about, rather than a theoretical edge case.
+    expect(capacity).toBeLessThan(totalCardsDealtPerPlayer(DEFAULT_SETTINGS));
+  });
+
+  it("skips the optimize sub-phase when the deal left every bay empty", () => {
+    // Nobody can arrange an empty bay, so holding everyone for intermissionCardSelectSeconds
+    // is dead time. Reached via a dry pool, and via Cards Per Era 0 (this case).
+    const m = driveWithWeights({ modifiersDealtPerEra: 0 });
+    for (const p of m.state.players) expect(p.bay).toEqual([]);
+    expect(m.state.intermissionPhase).not.toBe("optimize");
+    expect(m.state.intermissionPhase).toBe("sniperBan"); // straight on to the ban
+  });
+
+  it("still runs optimize when cards were dealt", () => {
+    // Guard on the skip above: it must not swallow an ordinary intermission.
+    const m = driveWithWeights({});
+    expect(m.state.players[0].bay.length).toBeGreaterThan(0);
+    expect(m.state.intermissionPhase).toBe("optimize");
   });
 
   it("stays deterministic under non-default weights (same seed → identical bays)", () => {

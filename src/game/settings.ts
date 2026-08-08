@@ -1,6 +1,12 @@
 import { createLogger } from "../log";
 import { CardRarity } from "./types";
-import type { AlphaChainSettings, BanMode, BanRepeatRule, BotDifficulty } from "./types";
+import type {
+  AlphaChainSettings,
+  BanMode,
+  BanRepeatRule,
+  BotDifficulty,
+  RarityWeightKey,
+} from "./types";
 
 const log = createLogger("settings");
 
@@ -22,6 +28,17 @@ export const DEFAULT_RARITY_DEAL_WEIGHT: Record<CardRarity, number> = {
 /** Upper bound on a single tier's deal weight. Shared by the persistence validator and
  *  both lobbies' steppers so the editable range and the accepted range can't drift. */
 export const MAX_RARITY_DEAL_WEIGHT = 20;
+
+/** Which setting carries each tier's deal weight — the ONLY place the tier↔key relation is
+ *  written. `rarityDealWeights` and the lobbies' stepper rows both derive from it, so the
+ *  pairing can't be transposed in one and not the other. Keyed by CardRarity, so a new tier
+ *  is a compile error here (and, transitively, a lobby row that can't be forgotten). */
+export const RARITY_WEIGHT_KEYS: Record<CardRarity, RarityWeightKey> = {
+  [CardRarity.Common]: "rarityWeightCommon",
+  [CardRarity.Uncommon]: "rarityWeightUncommon",
+  [CardRarity.Rare]: "rarityWeightRare",
+  [CardRarity.Legendary]: "rarityWeightLegendary",
+};
 
 /** Defaults ported from AlphaChainSettings.cs, plus single-player bot options. */
 export const DEFAULT_SETTINGS: AlphaChainSettings = {
@@ -76,16 +93,31 @@ export function loadSettings(): AlphaChainSettings {
       log.warn(`settings schema mismatch (stored=${String(stored.version)}); using defaults`);
       return { ...DEFAULT_SETTINGS };
     }
-    const result = { ...DEFAULT_SETTINGS };
-    for (const key of Object.keys(DEFAULT_SETTINGS) as (keyof AlphaChainSettings)[]) {
-      if (SETTINGS_VALIDATORS[key](stored[key])) (result[key] as unknown) = stored[key];
-    }
     log.debug("settings loaded from localStorage");
-    return result;
+    return sanitizeSettings(stored);
   } catch (err) {
     log.warn(`settings load failed; using defaults: ${String(err)}`);
     return { ...DEFAULT_SETTINGS };
   }
+}
+
+/**
+ * A complete, in-range settings object from an untrusted blob: every key is taken from `raw`
+ * only if it passes its validator, and otherwise keeps the default. Missing keys therefore
+ * fall back rather than arriving as `undefined` — which matters because `undefined` survives
+ * arithmetic and comparisons silently (`undefined <= 0` is false, `x + undefined` is NaN).
+ *
+ * Used for BOTH untrusted sources: the persisted localStorage blob (via loadSettings) and the
+ * host's lobby-settings broadcast, which is wire data from another client and may predate a
+ * setting this build expects (see KnockBoxController's "lobby" message).
+ */
+export function sanitizeSettings(raw: unknown): AlphaChainSettings {
+  const stored = (raw ?? {}) as Record<string, unknown>;
+  const result = { ...DEFAULT_SETTINGS };
+  for (const key of Object.keys(DEFAULT_SETTINGS) as (keyof AlphaChainSettings)[]) {
+    if (SETTINGS_VALIDATORS[key](stored[key])) (result[key] as unknown) = stored[key];
+  }
+  return result;
 }
 
 /** Persist settings (best-effort — swallows private-mode / quota errors). */
@@ -175,12 +207,23 @@ export function modifierSlotsForCardEra(s: AlphaChainSettings, cardEra: number):
  * being unlikely; see MatchController.dealCards.
  */
 export function rarityDealWeights(s: AlphaChainSettings): Record<CardRarity, number> {
-  return {
-    [CardRarity.Common]: s.rarityWeightCommon,
-    [CardRarity.Uncommon]: s.rarityWeightUncommon,
-    [CardRarity.Rare]: s.rarityWeightRare,
-    [CardRarity.Legendary]: s.rarityWeightLegendary,
-  };
+  const weights = {} as Record<CardRarity, number>;
+  for (const tier of Object.values(CardRarity)) weights[tier] = s[RARITY_WEIGHT_KEYS[tier]];
+  return weights;
+}
+
+/**
+ * How many cards each player will be ASKED for across a whole match — what the dealer tries
+ * to hand out, not what it can actually supply (compare `dealPoolCapacity`, which is the
+ * ceiling the enabled tiers can cover).
+ *
+ * One deal per era-end intermission, and the final era ends the match instead — so `eraCount
+ * - 1` deals — plus the pre-era-1 setup deal when `dealEngineCardsFirstEra` is on, which
+ * brings it back to `eraCount` (see MatchController.enterSetupIntermission / enterIntermission).
+ */
+export function totalCardsDealtPerPlayer(s: AlphaChainSettings): number {
+  const deals = s.dealEngineCardsFirstEra ? s.eraCount : s.eraCount - 1;
+  return Math.max(0, deals) * s.modifiersDealtPerEra;
 }
 
 /** Letters legal to ban under a given mode. */

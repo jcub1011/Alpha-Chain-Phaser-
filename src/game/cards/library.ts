@@ -16,7 +16,16 @@
  * evaluator. DEALABLE_CARD_IDS only widens as each card's tests pass.
  */
 
-import { add, clampScore, fx, mul, RARE_START, skip, type ModifierCard } from "./card";
+import {
+  add,
+  clampScore,
+  DEFAULT_MAX_INSTANCES,
+  fx,
+  mul,
+  RARE_START,
+  skip,
+  type ModifierCard,
+} from "./card";
 import { CardFamily, CardId, CardOp, CardRarity } from "../types";
 import type { PlayerState } from "../types";
 
@@ -839,4 +848,22 @@ export function rarityDealShare(weights: Record<CardRarity, number>): Record<Car
     share[tier] = total > 0 ? (RARITY_CARD_COUNTS[tier] * weights[tier]) / total : 0;
   }
   return share;
+}
+
+/**
+ * The most cards ONE player can ever be dealt under the given weights: every copy of every
+ * card in an enabled (weight > 0) tier, since a zeroed tier leaves the deal pool outright
+ * and each card is capped at its `maxInstances` per player.
+ *
+ * This is a hard ceiling, not an estimate. Once a player holds this many, `dealCards` finds
+ * an empty pool and stops early — so a lobby whose enabled tiers total less than
+ * `totalCardsDealtPerPlayer(settings)` will silently deal nothing in its later intermissions.
+ * Both lobbies warn on exactly that comparison.
+ */
+export function dealPoolCapacity(weights: Record<CardRarity, number>): number {
+  return DEALABLE_CARD_IDS.reduce((sum, id) => {
+    const card = CARD_LIBRARY[id];
+    if (weights[card.rarity] <= 0) return sum;
+    return sum + (card.maxInstances ?? DEFAULT_MAX_INSTANCES);
+  }, 0);
 }

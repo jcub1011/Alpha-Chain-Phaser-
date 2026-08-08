@@ -13,7 +13,7 @@ import {
   type CardRarity as CardRarityT,
   type Submission,
 } from "../types";
-import { CARD_LIBRARY, RARITY_CARD_COUNTS, rarityDealShare } from "./library";
+import { CARD_LIBRARY, dealPoolCapacity, RARITY_CARD_COUNTS, rarityDealShare } from "./library";
 import { DEFAULT_RARITY_DEAL_WEIGHT } from "../settings";
 
 const bay = (...ids: string[]): BayCard[] => ids.map((id) => ({ id }));
@@ -366,6 +366,34 @@ describe("rarityDealShare", () => {
   it("returns zeros rather than NaN when every tier is zeroed", () => {
     const share = rarityDealShare({ common: 0, uncommon: 0, rare: 0, legendary: 0 });
     expect(share).toEqual({ common: 0, uncommon: 0, rare: 0, legendary: 0 });
+  });
+});
+
+// ── dealPoolCapacity: the hard per-player ceiling the lobby warns against ─────
+
+describe("dealPoolCapacity", () => {
+  const ALL_TIERS = { common: 1, uncommon: 1, rare: 1, legendary: 1 };
+  const capOf = (id: string) => CARD_LIBRARY[id as keyof typeof CARD_LIBRARY].maxInstances ?? 3;
+
+  it("sums every copy of every card when no tier is disabled", () => {
+    const expected = Object.keys(CARD_LIBRARY).reduce((sum, id) => sum + capOf(id), 0);
+    expect(dealPoolCapacity(ALL_TIERS)).toBe(expected);
+    // The weights are relative, so only the zero/non-zero split can move the ceiling.
+    expect(dealPoolCapacity(DEFAULT_RARITY_DEAL_WEIGHT)).toBe(expected);
+  });
+
+  it("counts only the enabled tiers", () => {
+    const legendaryOnly = dealPoolCapacity({ ...ALL_TIERS, common: 0, uncommon: 0, rare: 0 });
+    // Deca-Quint 1 + Forgery 3 (the default cap) + Roulette Wheel 1 — a whole match's worth
+    // of intermissions has 5 cards to draw from, against a default ask of 9.
+    expect(legendaryOnly).toBe(5);
+    expect(dealPoolCapacity(ALL_TIERS) - dealPoolCapacity({ ...ALL_TIERS, legendary: 0 })).toBe(
+      legendaryOnly,
+    );
+  });
+
+  it("is 0 when every tier is disabled", () => {
+    expect(dealPoolCapacity({ common: 0, uncommon: 0, rare: 0, legendary: 0 })).toBe(0);
   });
 });
 

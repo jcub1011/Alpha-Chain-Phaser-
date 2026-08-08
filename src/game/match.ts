@@ -867,6 +867,15 @@ export class MatchController {
   private beginOptimize(): void {
     // Fresh lock-in slate every optimize: nobody has committed their engine yet.
     for (const p of this.state.players) p.lockedIn = false;
+    // Nobody holds a card, so there is nothing to arrange or discard: skip the sub-phase
+    // instead of holding everyone on an empty bay for intermissionCardSelectSeconds. Reached
+    // when modifiersDealtPerEra is 0, and when the host's enabled rarity tiers are exhausted
+    // and dealCards had an empty pool (see dealPoolCapacity). Decided from replicated state
+    // (players[].bay) and consuming no rng, so host and guests agree and dealing can't desync.
+    if (this.state.players.every((p) => p.bay.length === 0)) {
+      this.completeOptimize();
+      return;
+    }
     this.armSubTimer(this.state.settings.intermissionCardSelectSeconds);
     this.setIntermissionPhase("optimize", null);
   }
