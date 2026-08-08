@@ -33,7 +33,7 @@ export const CardOp = {
 export type CardOp = (typeof CardOp)[keyof typeof CardOp];
 
 /** A card's rarity tier. Drives how often the dealer offers it (rarer = less
- *  likely, see RARITY_DEAL_WEIGHT) and the gem/glow shown on its face. Distinct
+ *  likely, see RARITY_DEAL_WEIGHT) and the hover shine on its face. Distinct
  *  from {@link ModifierCard.maxInstances} (the per-player copy cap), which stays
  *  hand-tuned — rarity is a layer on top of the limit system, not a replacement. */
 export const CardRarity = {

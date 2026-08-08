@@ -146,18 +146,25 @@ ac-card[flipped] .gc-flip {
   flex-direction: column;
   gap: calc(var(--gc-h) * 0.05);
   padding: calc(var(--gc-h) * 0.05) calc(var(--gc-w) * 0.06);
-  border: 2.5px solid var(--gc-accent);
+  /* The border color is indirected through --gc-border so state rules ([triggered],
+     rarity tiers) can repaint the ring without restating the whole border shorthand. */
+  --gc-border: var(--gc-accent);
+  border: 2.5px solid var(--gc-border);
   border-radius: var(--r-md);
   overflow: hidden;
+  /* Scopes the rarity shine's `screen` blend (see .gc-front::after) to the card, so
+     it lightens the face and never the table behind it. */
   isolation: isolate;
   backface-visibility: hidden;
-  background:
+  /* A directional tint in the card's own color over an opaque panel fill. */
+  background-image:
     linear-gradient(
       157deg,
       color-mix(in srgb, var(--gc-card-color, var(--gc-accent)) 22%, transparent),
       color-mix(in srgb, var(--gc-card-color, var(--gc-accent)) 5%, transparent) 60%
     ),
-    var(--ac-panel-solid);
+    linear-gradient(var(--ac-panel-solid) 0 0);
+  background-repeat: no-repeat;
   box-shadow:
     var(--ac-drop-sm),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
@@ -319,7 +326,8 @@ ac-card[triggered] .gc {
   box-shadow:
     var(--ac-drop),
     0 0 30px color-mix(in srgb, var(--gc-accent) 80%, transparent);
-  border-color: color-mix(in srgb, var(--gc-accent) 100%, #fff 25%);
+  /* The border is a background layer now (see .gc), so brighten its paint. */
+  --gc-border: color-mix(in srgb, var(--gc-accent) 100%, #fff 25%);
 }
 
 /* Mini cards (opponent bays, sandbox, the engine-replay piles) keep the full
@@ -368,76 +376,109 @@ ac-card[mini][revealed] .gc-back {
   opacity: 1;
 }
 
-/* ── Rarity: a holographic sheen that sweeps across the card ──────────────────
-   The card's rarity color rides in on --gc-rarity (set inline by ac-card from
-   rarityAccentVar). The family accent still owns the border; rarity reads as a
-   foil sheen — a diagonal band of the rarity color that glides across the card
-   like a holographic Pokémon card, then rests off-screen until the next sweep.
-   It's a face pseudo-element (.gc carries the rounded corners + overflow:hidden,
-   so the band is clipped to the card), screen-blended over the art, with the
-   sweep driven by background-position. Tier sets the band's strength; Common has
-   no rule → no sheen. */
+/* ── Rarity: a single specular band ──────────────────────────────────────────
+   One band of light crosses the card face on hover — no keyframes, no second
+   bar, no resting glint. The face is clean until you point at it.
+
+   Geometry lives in the --gc-shine-* knobs below, so the whole look retunes by
+   editing a handful of numbers. The band leans 15° off vertical: a linear-gradient
+   angle names its *axis* and the band runs perpendicular to it, hence 90deg + 15deg.
+   Its edges cut off over 2.5% rather than fading, which is what makes it read as
+   a hard specular highlight instead of a wash.
+
+   Rarity rides on BRIGHTNESS and WIDTH, never on hue alone. The palette's green
+   (#3ad07a) and gold (#ffcf4d) are a classic confusion pair: simulated through
+   Viénot, their separation falls from 202 to 57 under protanopia, and the band
+   dilutes them further still by mixing toward white and screening at low alpha.
+   Luminance and size survive every type of color deficiency, so they carry the
+   signal and --gc-rarity only tints on top for those who can use it.
+
+   Common matches no tier rule and never shines; its tier reads from the back-face
+   .gc-rarity-label.
+
+   The knobs sit on .gc-flip, not on the ::after that reads them: a custom property
+   declared inside the pseudo-element's own rule would beat any inherited value, so
+   putting them here is what lets a surface or a single card override one. */
+.gc-flip:is([data-rarity="uncommon"], [data-rarity="rare"], [data-rarity="legendary"]) {
+  --gc-shine-angle: 15deg; /* lean off vertical */
+  --gc-shine-falloff: 2.5%; /* soft edge on each side */
+  --gc-shine-sweep: 800ms; /* time to cross the face */
+  --gc-shine-tint: 70%; /* share of rarity color vs white in the band */
+}
+/* The tier ramp. Same specificity as the block above, so these must stay after it
+   to win on source order. Rare sits at the 0.4 the whole set used to share, with
+   the other two stepped either side of it. */
 .gc-flip[data-rarity="uncommon"] {
-  --gc-foil-opacity: 0.45;
+  --gc-shine-intensity: 0.28;
+  --gc-shine-width: 10%;
 }
 .gc-flip[data-rarity="rare"] {
-  --gc-foil-opacity: 0.7;
+  --gc-shine-intensity: 0.42;
+  --gc-shine-width: 15%;
 }
 .gc-flip[data-rarity="legendary"] {
-  --gc-foil-opacity: 0.95;
+  --gc-shine-intensity: 0.6;
+  --gc-shine-width: 22%;
 }
-.gc-flip[data-rarity="uncommon"] .gc::after,
-.gc-flip[data-rarity="rare"] .gc::after,
-.gc-flip[data-rarity="legendary"] .gc::after {
+.gc-flip:is([data-rarity="uncommon"], [data-rarity="rare"], [data-rarity="legendary"])
+  .gc-front::after {
+  /* Real foil goes white-hot at the peak and shows its color in the shoulders, so
+     the core keeps only half the tint while the flanks carry all of it. Screen
+     blending over a dark face washes out any color that starts near white, which
+     is why the tint has to run this high to read at all. */
+  --gc-shine-core: color-mix(
+    in srgb,
+    color-mix(in srgb, var(--gc-rarity) calc(var(--gc-shine-tint) * 0.5), white)
+      calc(var(--gc-shine-intensity) * 100%),
+    transparent
+  );
+  --gc-shine-edge: color-mix(
+    in srgb,
+    color-mix(in srgb, var(--gc-rarity) var(--gc-shine-tint), white)
+      calc(var(--gc-shine-intensity) * 60%),
+    transparent
+  );
+
   content: "";
   position: absolute;
   inset: 0;
   z-index: 3;
-  border-radius: inherit;
   pointer-events: none;
-  opacity: var(--gc-foil-opacity);
   background-image: linear-gradient(
-    115deg,
-    transparent 32%,
-    color-mix(in srgb, var(--gc-rarity) 45%, transparent) 44%,
-    color-mix(in srgb, var(--gc-rarity) 80%, white) 50%,
-    color-mix(in srgb, var(--gc-rarity) 45%, transparent) 56%,
-    transparent 68%
+    calc(90deg + var(--gc-shine-angle)),
+    transparent calc(50% - var(--gc-shine-width) - var(--gc-shine-falloff)),
+    var(--gc-shine-edge) calc(50% - var(--gc-shine-width)),
+    var(--gc-shine-core) 50%,
+    var(--gc-shine-edge) calc(50% + var(--gc-shine-width)),
+    transparent calc(50% + var(--gc-shine-width) + var(--gc-shine-falloff))
   );
-  background-size: 250% 250%;
   background-repeat: no-repeat;
-  /* Screen lightens the art toward the band color; the transparent flanks leave
-     the rest of the card untouched, so only the moving streak shows. */
+  /* Painted 2.6× the card's width: at position 175% the band sits off the left
+     edge and at -75% off the right, so one transition carries it clean across
+     the face with both ends parked out of sight. */
+  background-size: 260% 100%;
+  background-position: 175% 0;
+  transition: background-position var(--gc-shine-sweep) cubic-bezier(0.33, 0.06, 0.2, 1);
+  /* Screen lightens the art under the band; the transparent flanks leave the rest
+     of the card untouched. .gc's `isolation: isolate` keeps it off the table. */
   mix-blend-mode: screen;
-  animation: ac-foil-sweep 5s ease-in-out infinite;
 }
 
-/* Glide the band across the card, then park it off-screen for the rest of the
-   loop so the sweep recurs every few seconds instead of running continuously. */
-@keyframes ac-foil-sweep {
-  0% {
-    background-position: 165% 50%;
-  }
-  34%,
-  100% {
-    background-position: -65% 50%;
-  }
-}
-
-/* Many mini cards animate at once (opponent bays, the word-history replay piles
-   render hundreds), and a blended, animated layer on each would jank — so the
-   foil is full-size only. Mini cards still carry data-rarity + the back label. */
-ac-card[mini] .gc::after {
+/* Mini cards (opponent bays, replay piles, sandbox) are too small for the band to
+   read as anything but a flash, and they're never the focus. */
+ac-card[mini] .gc-front::after {
   display: none;
 }
 
-/* Reduced motion: no sweep — park a faint static sheen mid-card so the tier
-   still reads (the global rule in tokens.css freezes the animation otherwise). */
-@media (prefers-reduced-motion: reduce) {
-  .gc-flip[data-rarity="uncommon"] .gc::after,
-  .gc-flip[data-rarity="rare"] .gc::after,
-  .gc-flip[data-rarity="legendary"] .gc::after {
-    background-position: 50% 50%;
+/* Hover drives the band across; hover-out transitions it back the way it came.
+   Under reduced motion the global killswitch (tokens.css) would collapse the
+   transition and *snap* the band on, so skip the rule entirely instead — the band
+   simply stays parked off-card and the face never changes. */
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  ac-card:not([mini]):hover
+    .gc-flip:is([data-rarity="uncommon"], [data-rarity="rare"], [data-rarity="legendary"])
+    .gc-front::after {
+    background-position: -75% 0;
   }
 }
 

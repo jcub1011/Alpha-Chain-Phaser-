@@ -26,7 +26,8 @@ export const familyAccentVar = (family: CardFamily): string => {
   }
 };
 
-/** CSS custom-property name for a card's rarity color (gem + glow). */
+/** CSS custom-property name for a card's rarity color — tints the hover shine
+ *  and the back-face rarity label. */
 export const rarityAccentVar = (rarity: CardRarity): string => {
   switch (rarity) {
     case CardRarity.Uncommon:
