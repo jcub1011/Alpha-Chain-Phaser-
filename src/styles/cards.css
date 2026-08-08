@@ -413,6 +413,27 @@ ac-card[mini][revealed] .gc-back {
   --gc-shine-angle: 15deg; /* lean off vertical */
   --gc-shine-sweep: 800ms; /* time to cross the face */
   --gc-shine-tint: 70%; /* share of rarity color vs white in the band */
+  /* Where the profile parks before and after the sweep. Kept as tight as it can be:
+     the old 175% -> -75% put the band a card-and-a-half off each side, so most of
+     the travel happened out of sight — and an eased curve spends its slow phases
+     exactly there, which reads as a pause followed by a whip rather than a glint
+     that gathers and slides.
+
+     These sit deliberately AT the floor, not comfortably past it. Solving the
+     gradient geometry for the point where the profile stops touching any card
+     corner gives 131 / -60 at the worst aspect ratio in use — so parking barely
+     outside that means the slow opening phase starts revealing light in the corner
+     almost immediately, instead of burning its first 200ms invisibly off-face. Park
+     further out and the build-up disappears; park closer and a sliver stays lit at
+     rest. (The 15deg lean is why a flat width estimate gets this wrong: the band's
+     top edge reaches further than its width alone suggests. The model assumes square
+     corners, and .gc's border-radius clips them, so the real margin is a little
+     larger than these numbers imply.) Widening the profile — --gc-shine-width,
+     --gc-shine-wisp, --gc-shine-gap — pushes the floor out too, so re-check the
+     resting corner after any such change. The trailing value is further out because
+     the wisp sits on that side. */
+  --gc-shine-from: 132%;
+  --gc-shine-to: -62%;
 }
 /* The tier ramp. Same specificity as the block above, so these must stay after it
    to win on source order. Rare sits at the 0.4 the whole set used to share, with
@@ -473,12 +494,20 @@ ac-card[mini][revealed] .gc-back {
     transparent calc(50% + var(--gc-shine-width)) 100%
   );
   background-repeat: no-repeat;
-  /* Painted 2.6× the card's width: at position 175% the band sits off the left
-     edge and at -75% off the right, so one transition carries it clean across
-     the face with both ends parked out of sight. */
+  /* Painted 2.6× the card's width so the profile has room to sit fully off-face at
+     either end of its travel (see --gc-shine-from/-to for the range). */
   background-size: 260% 100%;
-  background-position: 175% 0;
-  transition: background-position var(--gc-shine-sweep) cubic-bezier(0.33, 0.06, 0.2, 1);
+  background-position: var(--gc-shine-from) 0;
+  /* Slow at both ends, quicker through the middle. The band gathers in the leading
+     corner, slides across the face, then catches on the trailing corner — the way a
+     highlight behaves on something turning in the light.
+
+     This is easeInOutCubic, and the exact steepness matters. Its peak speed is 2.86x
+     linear, which keeps the three phases distinct without the slide becoming a blur.
+     Steeper curves overshoot fast: 0.75/0.25 peaks at 4x and 0.85/0.15 at 6.66x,
+     where the middle stops reading as a slide at all. Flatter than about 0.55/0.45
+     (2.2x) and it flattens into one even glide with no phases to watch. */
+  transition: background-position var(--gc-shine-sweep) cubic-bezier(0.65, 0, 0.35, 1);
   /* Screen lightens the art under the band; the transparent flanks leave the rest
      of the card untouched. .gc's `isolation: isolate` keeps it off the table. */
   mix-blend-mode: screen;
@@ -498,7 +527,7 @@ ac-card[mini] .gc-front::after {
   ac-card:not([mini]):hover
     .gc-flip:is([data-rarity="uncommon"], [data-rarity="rare"], [data-rarity="legendary"])
     .gc-front::after {
-    background-position: -75% 0;
+    background-position: var(--gc-shine-to) 0;
   }
 }
 
