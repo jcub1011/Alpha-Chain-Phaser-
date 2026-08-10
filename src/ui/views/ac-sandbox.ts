@@ -11,8 +11,9 @@
 import { html, nothing, type PropertyValues, type TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { BenchScenario } from "../../game/bench";
-import { CARD_LIBRARY } from "../../game/cards/library";
-import { GameMode } from "../../game/types";
+import { CARD_CATALOGUE } from "../../game/cards/library";
+import { setCardDisplayMode } from "../app/cardMode";
+import { CardId, GameMode } from "../../game/types";
 import type { Dictionary } from "../../game/dictionary";
 import type { ScoreStep } from "../../game/types";
 import { familyAccentVar, fmtScore, playerAccentVar } from "../app/util";
@@ -20,7 +21,8 @@ import { AcElement } from "../app/AcElement";
 import "../components/ac-engine-bay";
 import "../components/ac-card";
 
-const CARD_COUNT = Object.keys(CARD_LIBRARY).length;
+// Mode-independent: resolution never filters, so every mode holds every id.
+const CARD_COUNT = Object.keys(CardId).length;
 
 @customElement("ac-sandbox")
 export class AcSandbox extends AcElement {
@@ -40,6 +42,9 @@ export class AcSandbox extends AcElement {
     if (changed.has("dict") && this.dict && !this.bench) {
       this.bench = new BenchScenario(this.dict);
     }
+    // The palette and the bays render <ac-card>, so the faces must follow the bench's mode
+    // selector. No-ops when unchanged.
+    if (this.bench) setCardDisplayMode(this.bench.gameMode);
   }
 
   // ── Actions ────────────────────────────────────────────────────────────────
@@ -383,7 +388,7 @@ export class AcSandbox extends AcElement {
           </button>
         </div>
         <div class="palette-grid ${this.paletteLarge ? "" : "is-small"}">
-          ${Object.values(CARD_LIBRARY).map(
+          ${Object.values(CARD_CATALOGUE).map(
             (c) => html`
               <div class="palette-item">
                 <ac-card .cardId=${c.id} ?mini=${!this.paletteLarge}></ac-card>

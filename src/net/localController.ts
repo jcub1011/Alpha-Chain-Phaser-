@@ -92,6 +92,10 @@ export class LocalController implements GameController {
       clockRemaining: s.clockRemaining,
       clockTotal: s.clockTotal,
       baseClockSeconds: baseShotClockSeconds(s.settings),
+      // Whose card values the bot evaluates with. Taken from the match rather than the raw
+      // setting, for the same reason baseClockSeconds is: the two must agree, or a bot would
+      // rank candidates on curves the scorer will not use.
+      mode: this.match.effectiveMode,
       era: s.era,
       slots,
       history: s.history,
@@ -186,7 +190,7 @@ export class LocalController implements GameController {
     // Picker: the Offer IS the candidate set, so a bot ranks it through its own bay and commits.
     // No dictionary walk, and no difficulty-tiered gathering — every player, human or bot, faces
     // exactly the same five words, which is what makes the mode's skill purely evaluation.
-    if (s.settings.gameMode === GameMode.Picker) {
+    if (this.match.effectiveMode === GameMode.Picker) {
       const pick = bestScoredCandidate(s.offer, { bay, scoreOpts, bannedLetter: s.bannedLetter });
       if (pick) {
         log.debug(`bot ${playerId} picks "${pick}"`);

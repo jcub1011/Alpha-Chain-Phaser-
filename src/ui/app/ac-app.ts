@@ -28,6 +28,7 @@ import "../views/ac-intermission";
 import "../views/ac-tutorial";
 import "../views/ac-game-over";
 import "../views/ac-sandbox";
+import { setCardDisplayMode } from "./cardMode";
 
 /** Largest sane per-frame step — protects the shot clock after a tab was hidden. */
 const MAX_DT = 0.05;
@@ -82,6 +83,11 @@ export class AcApp extends AcElement {
       if (this.screen === "lobby") this.screen = "netlobby";
       if (!this.net) this.setupNet();
     }
+    // Keep every card face on the mode the match is actually playing. Done here rather than at the
+    // two controller-construction sites because a networked match learns its mode from a server
+    // push AFTER construction, and a guest's lobby mode can change before the match starts. The
+    // setter no-ops when unchanged, so running it on every update costs nothing.
+    if (this.controller) setCardDisplayMode(this.controller.match.effectiveMode);
   }
 
   /** Create the networked controller once the KnockBox plugin is attached. The peer

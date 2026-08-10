@@ -10,7 +10,7 @@
 
 import type { Emitter } from "../game/emitter";
 import type { MatchController, MatchEvents } from "../game/match";
-import type { MatchState, PlayerState, SubmitResult } from "../game/types";
+import type { GameMode, MatchState, PlayerState, SubmitResult } from "../game/types";
 
 /** The subset of MatchController the presentation layer reads + mutates. The
  *  real MatchController satisfies this structurally; the guest mirror implements
@@ -25,6 +25,10 @@ export interface MatchLike {
   /** Personal banned letters in force for a player this era (Toll Booth / Roulette
    *  Wheel), each tagged with the card that rolled it. */
   personalBansFor(playerId: string): { letter: string; cardName: string }[];
+  /** The mode whose CARD VALUES this match uses. The single mode accessor for the presentation
+   *  layer — never read `state.settings.gameMode` to resolve a card, because a Picker match that
+   *  fell back for want of a word pool scores on Classic's values. */
+  readonly effectiveMode: GameMode;
   /** Whether the player's own input should be masked while typing (Blindfold). */
   hidesInput(playerId: string): boolean;
   /** Commit a player's bay split. The arrays hold per-card uids (BayCard.uid),

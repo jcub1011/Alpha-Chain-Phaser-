@@ -101,6 +101,7 @@ export class AcHud extends AcElement {
     if (!word) return bay;
     const s = this.controller.match.state;
     const fired = scoreWord(word, me.bay, {
+      mode: this.controller.match.effectiveMode,
       prevWordLength: 0,
       clockRemaining: s.clockRemaining,
       clockTotal: s.clockTotal,

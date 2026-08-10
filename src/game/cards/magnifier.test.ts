@@ -1,10 +1,19 @@
 import { describe, expect, it } from "vitest";
 import { scoreWord } from "../scoring";
 import { CardRarity, type BayCard } from "../types";
-import { CARD_LIBRARY } from "./library";
+import { cardLibrary } from "./library";
+import { GameMode } from "../types";
 
 const bay = (...ids: string[]): BayCard[] => ids.map((id) => ({ id }));
-const opts = { prevWordLength: 0, clockRemaining: 10, clockTotal: 20, taxed: false };
+const opts = {
+  // Classic explicitly: this file's expected numbers ARE Classic's, and naming the mode is
+  // what keeps them a lock on Classic rather than on whatever the default happens to be.
+  mode: GameMode.Classic,
+  prevWordLength: 0,
+  clockRemaining: 10,
+  clockTotal: 20,
+  taxed: false,
+};
 
 describe("Magnifying Glass — neighbor amplification", () => {
   it("magnifies the card immediately to its right (+10 → +15)", () => {
@@ -75,7 +84,7 @@ describe("Magnifying Glass — neighbor amplification", () => {
  */
 describe("Magnifying Glass — the deliberate ceiling", () => {
   it("caps at 5 copies of a Rare, the two settings that set the ceiling", () => {
-    const glass = CARD_LIBRARY.MagnifyingGlass;
+    const glass = cardLibrary(GameMode.Classic).MagnifyingGlass;
     expect(glass.maxInstances).toBe(5);
     expect(glass.rarity).toBe(CardRarity.Rare);
   });

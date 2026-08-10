@@ -15,7 +15,7 @@ import {
   type Submission,
 } from "../types";
 import {
-  CARD_LIBRARY,
+  CARD_CATALOGUE,
   dealableCardIds,
   dealPoolCapacity,
   getCard,
@@ -25,7 +25,15 @@ import {
 import { DEFAULT_RARITY_DEAL_WEIGHT } from "../settings";
 
 const bay = (...ids: string[]): BayCard[] => ids.map((id) => ({ id }));
-const opts = { prevWordLength: 0, clockRemaining: 10, clockTotal: 20, taxed: false };
+const opts = {
+  // Classic explicitly: this file's expected numbers ARE Classic's, and naming the mode is
+  // what keeps them a lock on Classic rather than on whatever the default happens to be.
+  mode: GameMode.Classic,
+  prevWordLength: 0,
+  clockRemaining: 10,
+  clockTotal: 20,
+  taxed: false,
+};
 const score = (word: string, ids: string[], over: Partial<ScoreOptions> = {}): number =>
   scoreWord(word, bay(...ids), { ...opts, ...over }).finalScore;
 /** Minimal history rows (only `.word` is read by Scavenger). */
@@ -326,7 +334,7 @@ describe("Crescendo — clean-streak multiplier", () => {
 // ── Rarity coverage: every card is tiered, and the agreed distribution holds ──
 
 describe("card rarity assignments", () => {
-  const cards = Object.values(CARD_LIBRARY);
+  const cards = Object.values(CARD_CATALOGUE);
   const validTiers = new Set<CardRarityT>(Object.values(CardRarity));
 
   it("assigns every card a valid rarity tier", () => {
@@ -383,7 +391,7 @@ describe("dealableCardIds", () => {
       ...dealableCardIds(GameMode.Classic),
       ...dealableCardIds(GameMode.Picker),
     ]);
-    expect(union.size).toBe(Object.keys(CARD_LIBRARY).length);
+    expect(union.size).toBe(Object.keys(CARD_CATALOGUE).length);
   });
 
   it("withholds exactly The Blindfold and Insurance from Picker", () => {
@@ -407,14 +415,18 @@ describe("dealableCardIds", () => {
   });
 
   it("still RESOLVES a withheld card, so an existing bay and the gallery keep rendering", () => {
-    // Undealable is not deleted: getCard stays mode-blind, or a score replay of a Classic match
-    // (or the sandbox gallery) would render blanks.
-    expect(getCard("Blindfold")?.name).toBe("Blindfold");
-    expect(getCard("Sieve")?.name).toBe("Sieve");
+    // Undealable is not deleted. `getCard` is mode-PARAMETERIZED but never mode-FILTERED, so each
+    // card resolves in the mode it is withheld from — otherwise a score replay of a Classic match,
+    // or the sandbox gallery, would render blanks.
+    expect(getCard("Blindfold", GameMode.Picker)?.name).toBe("Blindfold");
+    expect(getCard("Sieve", GameMode.Classic)?.name).toBe("Sieve");
+    // And in their own modes too, so the assertion above is about filtering, not existence.
+    expect(getCard("Blindfold", GameMode.Classic)?.name).toBe("Blindfold");
+    expect(getCard("Sieve", GameMode.Picker)?.name).toBe("Sieve");
   });
 
   it("preserves declaration order, which the dealer's weighted walk indexes into", () => {
-    const all = Object.keys(CARD_LIBRARY);
+    const all = Object.keys(CARD_CATALOGUE);
     for (const mode of [GameMode.Classic, GameMode.Picker]) {
       const ids: string[] = [...dealableCardIds(mode)];
       expect(ids).toEqual(all.filter((id) => ids.includes(id)));
@@ -455,7 +467,7 @@ describe("rarityDealShare", () => {
 
 describe("dealPoolCapacity", () => {
   const ALL_TIERS = { common: 1, uncommon: 1, rare: 1, legendary: 1 };
-  const capOf = (id: string) => CARD_LIBRARY[id as keyof typeof CARD_LIBRARY].maxInstances ?? 3;
+  const capOf = (id: string) => CARD_CATALOGUE[id as keyof typeof CARD_CATALOGUE].maxInstances ?? 3;
 
   it("sums every copy of every card in the mode's pool when no tier is disabled", () => {
     // Derived from the mode's own id list, not the whole catalogue — the two diverged once cards

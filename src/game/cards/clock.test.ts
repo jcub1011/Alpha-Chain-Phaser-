@@ -1,27 +1,40 @@
 import { describe, expect, it } from "vitest";
 import { armedClockSeconds, scoreWord } from "../scoring";
 import type { BayCard } from "../types";
+import { GameMode } from "../types";
 
 const bay = (...ids: string[]): BayCard[] => ids.map((id) => ({ id }));
-const opts = { prevWordLength: 0, clockRemaining: 10, clockTotal: 20, taxed: false };
+const opts = {
+  // Classic explicitly: this file's expected numbers ARE Classic's, and naming the mode is
+  // what keeps them a lock on Classic rather than on whatever the default happens to be.
+  mode: GameMode.Classic,
+  prevWordLength: 0,
+  clockRemaining: 10,
+  clockTotal: 20,
+  taxed: false,
+};
 
 describe("armedClockSeconds — layered clock", () => {
   it("sums fractional deltas (Overclock −20% + Heat Sink +30%)", () => {
-    expect(armedClockSeconds(20, bay("TheVault", "HeatSink"))).toBe(22); // +10%
+    expect(armedClockSeconds(20, bay("TheVault", "HeatSink"), GameMode.Classic)).toBe(22); // +10%
   });
 
   it("magnifies a clock delta (Redline −30% behind a glass → −45%)", () => {
-    expect(armedClockSeconds(20, bay("MagnifyingGlass", "Redline"))).toBe(11); // 20 × 0.55
+    expect(armedClockSeconds(20, bay("MagnifyingGlass", "Redline"), GameMode.Classic)).toBe(11); // 20 × 0.55
   });
 
   it("never falls below the 3s floor", () => {
-    expect(armedClockSeconds(4, bay("Redline", "Redline", "Redline", "Redline", "Redline"))).toBe(
-      3,
-    );
+    expect(
+      armedClockSeconds(
+        4,
+        bay("Redline", "Redline", "Redline", "Redline", "Redline"),
+        GameMode.Classic,
+      ),
+    ).toBe(3);
   });
 
   it("Slow Burn lengthens the clock 30%", () => {
-    expect(armedClockSeconds(20, bay("SlowBurn"))).toBe(26);
+    expect(armedClockSeconds(20, bay("SlowBurn"), GameMode.Classic)).toBe(26);
   });
 });
 

@@ -10,7 +10,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { getCard } from "../game/cards/library";
+import { cardIdentity } from "../game/cards/library";
 import { orderPreservingRng } from "../game/rng";
 import { DEFAULT_SETTINGS } from "../game/settings";
 import { CardRarity, GameMode } from "../game/types";
@@ -634,7 +634,7 @@ describe("authority — rarity-weighted dealing through the server", () => {
     });
     const ids = dealtIds(c2);
     expect(ids.length).toBeGreaterThan(0);
-    for (const id of ids) expect(getCard(id)?.rarity).toBe(CardRarity.Rare);
+    for (const id of ids) expect(cardIdentity(id)?.rarity).toBe(CardRarity.Rare);
     // Dealt once, server-side: both mirrors carry byte-identical bays, uids included.
     expect(c1.match.state.players[0].bay).toEqual(c2.match.state.players[0].bay);
   });
@@ -648,7 +648,7 @@ describe("authority — rarity-weighted dealing through the server", () => {
     });
     const ids = dealtIds(c2);
     expect(ids.length).toBeGreaterThan(0);
-    for (const id of ids) expect(getCard(id)?.rarity).toBe(CardRarity.Legendary);
+    for (const id of ids) expect(cardIdentity(id)?.rarity).toBe(CardRarity.Legendary);
   });
 
   it("skips optimize on every client when the owner disabled every tier", () => {

@@ -5,7 +5,7 @@
  * Pure logic — the "thinking" delay before it submits is added by the driver.
  */
 
-import { getCard } from "./cards/library";
+import { cardIdentity } from "./cards/library";
 import { bubblePreferences, isInertPreference } from "./picker/preference";
 import { scoreWord, type ScoreOptions } from "./scoring";
 import type { Dictionary } from "./dictionary";
@@ -214,8 +214,8 @@ export function planBotBay(
   slots: number,
   scoreOpts: Omit<ScoreOptions, "taxed">,
 ): { engine: string[]; discard: string[] } {
-  const isPref = (c: BayCard): boolean => isInertPreference(getCard(c.id));
-  const rankOf = (id: string) => OP_RANK[getCard(id)?.op ?? CardOp.Fx] ?? 1;
+  const isPref = (c: BayCard): boolean => isInertPreference(cardIdentity(c.id));
+  const rankOf = (id: string) => OP_RANK[cardIdentity(id)?.op ?? CardOp.Fx] ?? 1;
   // Stable sort by op-rank (preserve original order within a rank).
   const kept = bay
     .map((card, index) => ({ card, index }))

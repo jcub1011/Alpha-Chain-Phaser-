@@ -3,7 +3,7 @@ import { MatchController, type PlayerSeed } from "./match";
 import { DEFAULT_SETTINGS, rarityDealWeights, totalCardsDealtPerPlayer } from "./settings";
 import { GameMode } from "./types";
 import type { AlphaChainSettings, CardRarity } from "./types";
-import { dealableCardIds, dealPoolCapacity, getCard } from "./cards/library";
+import { cardIdentity, dealableCardIds, dealPoolCapacity } from "./cards/library";
 import { DEFAULT_MAX_INSTANCES } from "./cards/card";
 
 /** Mirror the dealer's rarity-weighted pick (match.ts:dealCards) so tests can
@@ -14,8 +14,8 @@ const weightedPick = (
   roll: number,
   tierWeight: Record<CardRarity, number> = rarityDealWeights(DEFAULT_SETTINGS),
 ): string => {
-  const pool = ids.filter((id) => tierWeight[getCard(id)!.rarity] > 0);
-  const weights = pool.map((id) => tierWeight[getCard(id)!.rarity]);
+  const pool = ids.filter((id) => tierWeight[cardIdentity(id)!.rarity] > 0);
+  const weights = pool.map((id) => tierWeight[cardIdentity(id)!.rarity]);
   const total = weights.reduce((sum, w) => sum + w, 0);
   let r = roll * total;
   for (let k = 0; k < pool.length; k++) {
@@ -530,7 +530,7 @@ describe("per-card deal caps", () => {
     return m;
   };
 
-  const capOf = (id: string) => getCard(id)?.maxInstances ?? DEFAULT_MAX_INSTANCES;
+  const capOf = (id: string) => cardIdentity(id)?.maxInstances ?? DEFAULT_MAX_INSTANCES;
   const countIn = (bay: { id: string }[], id: string) => bay.filter((b) => b.id === id).length;
 
   it("declares the configured deviating caps; everything else defaults", () => {
@@ -542,7 +542,7 @@ describe("per-card deal caps", () => {
     // The one card capped ABOVE the default, so five compounding glasses stay reachable.
     expect(capOf("MagnifyingGlass")).toBe(5);
     // No override → falls back to the shared default.
-    expect(getCard("TheAnchor")?.maxInstances).toBeUndefined();
+    expect(cardIdentity("TheAnchor")?.maxInstances).toBeUndefined();
     expect(capOf("TheAnchor")).toBe(DEFAULT_MAX_INSTANCES);
   });
 
@@ -648,7 +648,7 @@ describe("rarity-weighted dealing", () => {
     const counts: Record<string, number> = { common: 0, uncommon: 0, rare: 0, legendary: 0 };
     const N = 150;
     for (let i = 0; i < N; i++) {
-      const rarity = getCard(weightedPick(CLASSIC_IDS, (i + 0.5) / N))!.rarity;
+      const rarity = cardIdentity(weightedPick(CLASSIC_IDS, (i + 0.5) / N))!.rarity;
       counts[rarity]++;
     }
     expect(counts.common).toBeGreaterThan(counts.uncommon);
@@ -711,7 +711,7 @@ describe("host-configured rarity weights", () => {
   };
 
   const raritiesOf = (m: MatchController) =>
-    m.state.players.flatMap((p) => p.bay.map((b) => getCard(b.id)!.rarity));
+    m.state.players.flatMap((p) => p.bay.map((b) => cardIdentity(b.id)!.rarity));
 
   it('deals only the tiers with weight ("Rares Only")', () => {
     const dealt = raritiesOf(driveWithWeights(ONLY_RARE));
@@ -751,13 +751,13 @@ describe("host-configured rarity weights", () => {
     // exactly its cap and nothing exceeds it (Toll Booth 1, Magnifying Glass 5, rest 3).
     const m = driveWithWeights({ ...ONLY_RARE, modifiersDealtPerEra: 1000 });
     const bay = m.state.players[0].bay;
-    const rares = CLASSIC_IDS.filter((id) => getCard(id)!.rarity === "rare");
+    const rares = CLASSIC_IDS.filter((id) => cardIdentity(id)!.rarity === "rare");
     expect(bay.length).toBe(
       dealPoolCapacity(rarityDealWeights({ ...DEFAULT_SETTINGS, ...ONLY_RARE }), GameMode.Classic),
     );
     for (const id of rares) {
       expect(bay.filter((b) => b.id === id).length).toBe(
-        getCard(id)!.maxInstances ?? DEFAULT_MAX_INSTANCES,
+        cardIdentity(id)!.maxInstances ?? DEFAULT_MAX_INSTANCES,
       );
     }
   });

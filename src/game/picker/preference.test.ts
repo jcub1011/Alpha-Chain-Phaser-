@@ -11,13 +11,14 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { getCard } from "../cards/library";
+import { cardIdentity } from "../cards/library";
 import { Dictionary } from "../dictionary";
 import { scoreWord } from "../scoring";
 import { CardOp, type BayCard } from "../types";
 import { buildPoolIndex, generateOffer, type OfferRequest } from "./offer";
 import { bubblePreferences, buildOfferShaping, isInertPreference, NO_SHAPING } from "./preference";
 import { dictionaryWordPool } from "./wordPool";
+import { GameMode } from "../types";
 
 const REDUCED = readFileSync(
   path.resolve(__dirname, "../../../public/assets/words-common.txt"),
@@ -42,7 +43,7 @@ function seeded(seed: number): () => number {
 }
 
 const bay = (...ids: string[]): BayCard[] => ids.map((id, i) => ({ id, uid: `u${i}` }));
-const cardsOf = (...ids: string[]) => ids.map((id) => getCard(id));
+const cardsOf = (...ids: string[]) => ids.map((id) => cardIdentity(id));
 
 /** Shaping built from a bay of card ids, with no bans in force unless given. */
 const shapingOf = (ids: string[], bannedLetters: string[] = []) =>
@@ -72,7 +73,7 @@ describe("the family's shape", () => {
   const SEVEN = ["Sieve", "Winnower", "WideNet", "TunnelVision", "Prospector", "Tide", "Sentinel"];
 
   it("marks all seven as Preference Cards", () => {
-    for (const id of SEVEN) expect(getCard(id)?.preference, id).toBeDefined();
+    for (const id of SEVEN) expect(cardIdentity(id)?.preference, id).toBeDefined();
   });
 
   it("treats six as scoring-inert and Tunnel Vision as a real multiplier", () => {
@@ -82,15 +83,16 @@ describe("the family's shape", () => {
      * strictly left → right. So it is placed and counted like any other multiplier, and pays for
      * itself with −2 Offer Cards instead. */
     for (const id of SEVEN.filter((x) => x !== "TunnelVision")) {
-      expect(isInertPreference(getCard(id)), id).toBe(true);
+      expect(isInertPreference(cardIdentity(id)), id).toBe(true);
     }
-    expect(isInertPreference(getCard("TunnelVision"))).toBe(false);
-    expect(getCard("TunnelVision")?.op).toBe(CardOp.Multiplicative);
+    expect(isInertPreference(cardIdentity("TunnelVision"))).toBe(false);
+    expect(cardIdentity("TunnelVision")?.op).toBe(CardOp.Multiplicative);
   });
 
   it("scores nothing for the six inert ones", () => {
     for (const id of SEVEN.filter((x) => x !== "TunnelVision")) {
       const r = scoreWord("planets", bay(id), {
+        mode: GameMode.Picker,
         prevWordLength: 0,
         clockRemaining: 10,
         clockTotal: 20,
@@ -102,6 +104,7 @@ describe("the family's shape", () => {
 
   it("still scores ×1.4 for Tunnel Vision", () => {
     const r = scoreWord("planets", bay("TunnelVision"), {
+      mode: GameMode.Picker,
       prevWordLength: 0,
       clockRemaining: 10,
       clockTotal: 20,
@@ -112,7 +115,15 @@ describe("the family's shape", () => {
 });
 
 describe("scoring invisibility", () => {
-  const opts = { prevWordLength: 0, clockRemaining: 10, clockTotal: 20, taxed: false };
+  // Picker: Preference Cards only ever occupy a bay in Picker, so that is the mode whose values
+  // these non-inflation regressions must hold under.
+  const opts = {
+    mode: GameMode.Picker,
+    prevWordLength: 0,
+    clockRemaining: 10,
+    clockTotal: 20,
+    taxed: false,
+  };
   const score = (ids: string[], slots?: number): number =>
     scoreWord("planets", bay(...ids), { ...opts, ...(slots ? { slots } : {}) }).finalScore;
 
@@ -156,7 +167,7 @@ describe("scoring invisibility", () => {
 });
 
 describe("bubbling", () => {
-  const isPref = (id: string) => isInertPreference(getCard(id));
+  const isPref = (id: string) => isInertPreference(cardIdentity(id));
 
   it("moves Preference Cards to the front, keeping scoring order intact", () => {
     const order = ["TheAnchor", "Sieve", "BoosterPack", "Tide", "Dividend"];

@@ -10,7 +10,7 @@
  */
 
 import type { ScoreStep, Submission } from "../../game/types";
-import { getCard } from "../../game/cards/library";
+import { cardIdentity } from "../../game/cards/library";
 import { familyAccentColor, fmtScore } from "../app/util";
 import { prefersReducedMotion } from "../../theme";
 import { fx } from "../fx/fx";
@@ -141,7 +141,8 @@ export async function runEngineReplay(sub: Submission, opts: EngineReplayOpts): 
   for (let i = 0; i < steps.length; i++) {
     if (signal.aborted) return;
     const step = steps[i];
-    const def = getCard(step.cardId);
+    // Only `family` is read, and family is mode-invariant, so this needs no game mode.
+    const def = cardIdentity(step.cardId);
     const color = def ? `var(--ac-accent-${def.family})` : "var(--ac-accent-neutral)";
     const colorNum = familyAccentColor(def?.family ?? "neutral");
 

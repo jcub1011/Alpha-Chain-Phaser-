@@ -12,7 +12,14 @@ import { skip, type EvalContext, type ModifierCard } from "./cards/card";
 import { isInertPreference } from "./picker/preference";
 import type { EngineEffects, RoomServices } from "./cards/roomServices";
 import { BASE_TIMEOUT_PENALTY, isVowel, MAX_WORD_SCORE, MIN_SHOT_CLOCK_SECONDS } from "./settings";
-import type { BayCard, PlayerState, ScoreBreakdown, ScoreStep, Submission } from "./types";
+import type {
+  BayCard,
+  GameMode,
+  PlayerState,
+  ScoreBreakdown,
+  ScoreStep,
+  Submission,
+} from "./types";
 
 /** The per-word facts shared by every card, before bay-position context. */
 export type WordAnalysis = Pick<
@@ -84,6 +91,17 @@ export interface ScoreOptions {
   clockTotal: number;
   /** True if the word is subject to the Zero-Point Tax (banned letter, not exempt). */
   taxed: boolean;
+  /**
+   * Which mode's card values this evaluation scores with.
+   *
+   * REQUIRED, so no caller can silently score Picker with Classic's numbers — see `getCard`. Pass
+   * `MatchController.effectiveMode`, never the raw `settings.gameMode`: a Picker match that fell
+   * back for want of a word pool arms Classic's clock, so it must score on Classic's curves too.
+   *
+   * Reaches the bots for free through `opts.scoreOpts` (bots.ts), which is why bots.ts needs no
+   * mode of its own.
+   */
+  mode: GameMode;
   /** Base shot-clock seconds for the match (defaults to clockTotal). */
   baseClockSeconds?: number;
   /** Current era, 1-based. Defaults to 1. */
@@ -114,7 +132,7 @@ export function makeBayEvaluator(
   opts: ScoreOptions,
 ): BayEvaluator {
   const base = analyzeWord(word, opts.prevWordLength, opts.clockRemaining, opts.clockTotal);
-  const resolved = bay.map((slot) => getCard(slot.id));
+  const resolved = bay.map((slot) => getCard(slot.id, opts.mode));
   const reg = buildMagnifier(resolved);
 
   /* Preference Cards are invisible to BAY-SIZE scoring: they must not count toward bay length or
@@ -328,9 +346,16 @@ export function fireBayHook(
  *      on its left), then flat seconds.
  *   4. A cap (Hyper-Drive's 5s) lowers a longer clock but never raises a shorter one.
  *   5. Floored at the 3s minimum.
+ *
+ * `mode` resolves the bay's cards, so a per-mode `clock` cost applies here. This is the one engine
+ * path that resolves cards outside `ScoreOptions`, which is why it takes the mode directly.
  */
-export function armedClockSeconds(baseSeconds: number, bay: readonly BayCard[]): number {
-  const resolved = bay.map((slot) => getCard(slot.id));
+export function armedClockSeconds(
+  baseSeconds: number,
+  bay: readonly BayCard[],
+  mode: GameMode,
+): number {
+  const resolved = bay.map((slot) => getCard(slot.id, mode));
   const reg = buildMagnifier(resolved);
   // Clock capabilities ignore the word, so a minimal empty-word context suffices.
   const ctx: EvalContext = {

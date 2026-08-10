@@ -9,7 +9,7 @@
  * Phase flow:  Setup → Countdown → Round×eraInterval → Intermission → … → GameOver
  */
 
-import { dealableCardIds, getCard } from "./cards/library";
+import { cardIdentity, dealableCardIds, getCard } from "./cards/library";
 import { DEFAULT_MAX_INSTANCES } from "./cards/card";
 import { BanLetterService, EngineEffects, RoomServices } from "./cards/roomServices";
 import { createLogger } from "../log";
@@ -240,7 +240,7 @@ export class MatchController {
     );
     this.effects = new EngineEffects(this.services, {
       activePlayers: () => this.turnOrderedActive(),
-      armedClockOf: (p) => armedClockSeconds(this.baseClockSeconds, p.bay),
+      armedClockOf: (p) => armedClockSeconds(this.baseClockSeconds, p.bay, this.effectiveMode),
     });
     this.installLogging();
   }
@@ -304,6 +304,7 @@ export class MatchController {
   /** Build the shared bay evaluator + hook context for `player` scoring `word`. */
   private bayEval(player: PlayerState, word: string, taxed: boolean): BayEvaluator {
     return makeBayEvaluator(word, player.bay, {
+      mode: this.effectiveMode,
       prevWordLength: this.prevWordLength,
       clockRemaining: this.state.clockRemaining,
       clockTotal: this.state.clockTotal,
@@ -324,7 +325,7 @@ export class MatchController {
   hidesInput(playerId: string): boolean {
     const p = this.state.players.find((x) => x.id === playerId);
     if (!p) return false;
-    return p.bay.some((b) => getCard(b.id)?.hidesInput?.() ?? false);
+    return p.bay.some((b) => getCard(b.id, this.effectiveMode)?.hidesInput?.() ?? false);
   }
 
   // ── Accessors ──────────────────────────────────────────────────────────────
@@ -359,6 +360,25 @@ export class MatchController {
     return this.isPicker
       ? this.state.settings.pickerShotClockSeconds
       : this.state.settings.shotClockSeconds;
+  }
+
+  /**
+   * The mode whose CARD VALUES this match scores with — pass it to `getCard` / `ScoreOptions.mode`
+   * / `armedClockSeconds` rather than reading `settings.gameMode` for anything a card's numbers
+   * depend on.
+   *
+   * Keyed on `isPicker`, NOT the raw setting — the same reasoning as `baseClockSeconds`, and for
+   * the same underlying reason: Picker's card values exist to compensate for Picker's clock
+   * economy, so they must follow the clock they compensate. A match that asked for Picker but fell
+   * back for want of a word pool types its words and levies a real timeout penalty through
+   * `timeoutCurrent`, so handing it Picker's re-costed cards would pair Classic's timeout drain
+   * with Picker's compensating buff — strictly worse than either mode.
+   *
+   * Deliberately NOT used by `dealCards`, which keys on the replicated `settings.gameMode` so the
+   * deal depends only on replicated state; see the comment there.
+   */
+  get effectiveMode(): GameMode {
+    return this.isPicker ? GameMode.Picker : GameMode.Classic;
   }
 
   /** The pre-game tutorial pages for the mode this match will ACTUALLY play.
@@ -601,7 +621,7 @@ export class MatchController {
     // letter makes the generator free the letter, which rewrites state.requiredLetter — and
     // turnArmed publishes that letter, so generating afterwards would ship one the Offer ignores.
     if (this.isPicker) this.generateOfferForTurn(p);
-    let armed = armedClockSeconds(this.baseClockSeconds, p.bay);
+    let armed = armedClockSeconds(this.baseClockSeconds, p.bay, this.effectiveMode);
     // A time-penalty card (Blind Sniper) queued a shave onto this player's next clock.
     const penalty = this.services.timePenalty.consumeFor(p.id);
     if (penalty > 0) armed = Math.max(MIN_SHOT_CLOCK_SECONDS, armed - penalty);
@@ -672,7 +692,7 @@ export class MatchController {
    *  the player controls, and the order in which filters are given up when they conflict. */
   private offerShapingFor(p: PlayerState): OfferShaping {
     return buildOfferShaping(
-      p.bay.map((b) => getCard(b.id)),
+      p.bay.map((b) => cardIdentity(b.id)),
       this.preferenceContextFor(p),
     );
   }
@@ -733,7 +753,7 @@ export class MatchController {
   personalBansFor(playerId: string): { letter: string; cardName: string }[] {
     return this.services.cardBan.entriesFor(playerId).map((b) => ({
       letter: b.letter,
-      cardName: getCard(b.cardId)?.name ?? "",
+      cardName: cardIdentity(b.cardId)?.name ?? "",
     }));
   }
 
@@ -803,6 +823,7 @@ export class MatchController {
     // 8. Score, then the two owner-side tax rules (IRS Agent flat override +
     //    bounty suppression, then Tax Write-Off's first-letter salvage on top).
     const scoreOpts = {
+      mode: this.effectiveMode,
       prevWordLength: this.prevWordLength,
       clockRemaining: s.clockRemaining,
       clockTotal: s.clockTotal,
@@ -921,7 +942,7 @@ export class MatchController {
     if (playerId !== this.current.id) return false;
     const p = this.current;
     const cost = p.bay.reduce(
-      (max, b) => Math.max(max, getCard(b.id)?.preference?.redraw?.clockCostFraction ?? 0),
+      (max, b) => Math.max(max, cardIdentity(b.id)?.preference?.redraw?.clockCostFraction ?? 0),
       0,
     );
     if (cost <= 0) return false; // no Winnower in the bay
@@ -948,7 +969,7 @@ export class MatchController {
     if (playerId !== this.current.id) return false;
     const p = this.current;
     const hasWinnower = p.bay.some(
-      (b) => (getCard(b.id)?.preference?.redraw?.clockCostFraction ?? 0) > 0,
+      (b) => (cardIdentity(b.id)?.preference?.redraw?.clockCostFraction ?? 0) > 0,
     );
     return hasWinnower && this.services.winnowerGuard.isAvailable(p.id);
   }
@@ -1022,6 +1043,9 @@ export class MatchController {
     // plus each glass-cannon card's drain, and any Insurance refund) the engine
     // theater replays card-by-card. finalScore is the net signed delta.
     const breakdown = scoreTimeout(p.bay, {
+      // Classic by construction — `timeoutCurrent` returns early on isPicker, so this path is
+      // unreachable in Picker — but named rather than assumed, so it is not the odd one out.
+      mode: this.effectiveMode,
       prevWordLength: this.prevWordLength,
       clockRemaining: s.clockRemaining,
       clockTotal: s.clockTotal,
@@ -1367,7 +1391,7 @@ export class MatchController {
       // An empty pool stops dealing early: every card capped for this player, or every
       // tier zeroed (the host's "deal nothing" configuration).
       const pool = modeIds.filter((id) => {
-        const card = getCard(id);
+        const card = cardIdentity(id);
         if (!card || tierWeight[card.rarity] <= 0) return false;
         const max = card.maxInstances ?? DEFAULT_MAX_INSTANCES;
         const owned = player.bay.filter((b) => b.id === id).length;
@@ -1382,7 +1406,7 @@ export class MatchController {
       // weight >= 1, so totalWeight > 0 here and the last-slot fallback
       // covers only floating-point drift, where the accumulated weights never quite
       // drop `r` below zero.
-      const weights = pool.map((id) => tierWeight[getCard(id)!.rarity]);
+      const weights = pool.map((id) => tierWeight[cardIdentity(id)!.rarity]);
       const totalWeight = weights.reduce((sum, w) => sum + w, 0);
       let r = this.rng() * totalWeight;
       let id = pool[pool.length - 1];
@@ -1444,7 +1468,7 @@ export class MatchController {
     // middle of their scoring chain — see bubblePreferences for why (a hand-placed one would
     // silently swallow a Magnifying Glass). Applied to the ENGINE only: order in the discard bin is
     // meaningless, and reordering it would just make the bin jump around under the player's cursor.
-    const next: BayCard[] = bubblePreferences(engine, (b) => isInertPreference(getCard(b.id)));
+    const next: BayCard[] = bubblePreferences(engine, (b) => isInertPreference(cardIdentity(b.id)));
     for (const uid of discardUids) {
       const b = take(uid, true);
       if (b) next.push(b);
@@ -1464,7 +1488,7 @@ export class MatchController {
    * over go to Preference Cards, which are re-bubbled to the left of the result.
    */
   private trimToCapacity(bay: readonly BayCard[], slots: number): BayCard[] {
-    const isPref = (b: BayCard): boolean => isInertPreference(getCard(b.id));
+    const isPref = (b: BayCard): boolean => isInertPreference(cardIdentity(b.id));
     const scoring = bay.filter((b) => !isPref(b)).slice(0, slots);
     const preference = bay.filter(isPref).slice(0, Math.max(0, slots - scoring.length));
     return [...preference, ...scoring];
@@ -1550,8 +1574,8 @@ export class MatchController {
     // Bubble here too: the sandbox bypasses setPlayerBay entirely, and a Testing Bay that let you
     // place a Preference Card mid-chain would be testing an arrangement the real game forbids.
     p.bay = bubblePreferences(
-      orderedIds.filter((id) => getCard(id)).map((id) => ({ id, uid: this.nextBayUid() })),
-      (b) => isInertPreference(getCard(b.id)),
+      orderedIds.filter((id) => cardIdentity(id)).map((id) => ({ id, uid: this.nextBayUid() })),
+      (b) => isInertPreference(cardIdentity(b.id)),
     );
     this.armPlayerForEra(p);
   }

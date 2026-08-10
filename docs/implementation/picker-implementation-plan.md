@@ -547,6 +547,32 @@ trigger is purely a property of the word's shape.
 **This milestone should not begin before M1 yields real play data.** The GDD defers these curves to
 playtest, and guessing them is the one change in this plan that could regress Classic.
 
+### 7.1 Status — the mechanism has landed; the numbers have not
+
+The per-mode card layer is built, so M5 is now a **numbers-only edit** and remains playtest-gated.
+
+- A card declares its numbers once in a `tune` bag and renders its chip, prose, clock cost and folds
+  from them (`tuned({ tune, perMode, build })`, `cards/card.ts`). **The base block IS Classic's
+  values**, and `perMode` is keyed on `Exclude<GameMode, "classic">`, so `perMode: { classic: … }` is
+  a compile error — a Picker retune is structurally incapable of moving Classic.
+- All six cards named above are parameterized, plus **Winnower** (whose 30% was written twice: in its
+  prose and in the `preference.redraw` fraction the engine charges).
+- `getCard(id, mode)` now requires a mode; `cardIdentity(id)` serves the mode-invariant fields
+  (`name`, `family`, `op`, `rarity`, `maxInstances`, `modes`, `preference`), which is what keeps every
+  dealer and lobby number mode-agnostic. `MatchController.effectiveMode` (on `MatchLike`) is the one
+  accessor to pass — keyed on `isPicker`, like `baseClockSeconds`, so a Picker match that fell back
+  for want of a word pool scores on Classic's curves. `dealCards` still keys on the replicated
+  `settings.gameMode`.
+- **Retuning a card is now: edit one `perMode.picker` block.** `cards/classic-lock.test.ts` fails if
+  any Classic number or string moves; `cards/library.modes.test.ts` fails if a patch changes nothing
+  (dead tuning), if a mode-invariant field diverges, or if a knob no rendered field reads is declared.
+
+**Shipped with it, as a copy fix rather than a balance change:** The Vault, Redline and Speedracer
+advertised "Time out and lose N points" in Picker, where `pickerTimeoutCurrent` never calls
+`scoreTimeout` and the drain therefore could not fire. Their Picker patch is `timeoutLoss: 0`, which
+retires the clause and the (already unreachable) fold from the same number. No card's gameplay
+numbers moved in either mode.
+
 ---
 
 ## 8. Pre-existing issue found (not in scope)

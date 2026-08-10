@@ -1,9 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { scoreWord } from "../scoring";
 import type { BayCard } from "../types";
+import { GameMode } from "../types";
 
 const bay = (...ids: string[]): BayCard[] => ids.map((id) => ({ id }));
-const opts = { prevWordLength: 0, clockRemaining: 10, clockTotal: 20, taxed: false };
+const opts = {
+  // Classic explicitly: this file's expected numbers ARE Classic's, and naming the mode is
+  // what keeps them a lock on Classic rather than on whatever the default happens to be.
+  mode: GameMode.Classic,
+  prevWordLength: 0,
+  clockRemaining: 10,
+  clockTotal: 20,
+  taxed: false,
+};
 
 describe("Forgery — perceived length doubling", () => {
   it("doubles the perceived length for a length-scoring card after it", () => {

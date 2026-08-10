@@ -492,3 +492,37 @@ describe("picker — Preference Cards through the engine", () => {
     expect(p.bay.some((b) => b.id === "TheAnchor" || b.id === "Dividend")).toBe(true);
   });
 });
+
+describe("effectiveMode — which mode's card values a match scores with", () => {
+  it("is Picker for a real Picker match", () => {
+    expect(makePicker().effectiveMode).toBe(GameMode.Picker);
+  });
+
+  it("is Classic for a Picker match built without a word pool", () => {
+    /* The fallback: such a match types its words and levies a real timeout penalty through
+     * timeoutCurrent, so it must score on Classic's curves — pairing Classic's timeout drain with
+     * Picker's compensating buff would be strictly worse than either mode. Same reasoning as
+     * baseClockSeconds, which keys on the same accessor. */
+    const dict = new Dictionary(REDUCED);
+    const m = new MatchController(
+      seeds,
+      { ...DEFAULT_SETTINGS, gameMode: GameMode.Picker, enableTutorials: false },
+      { isWord: (w) => dict.has(w), rng: () => 0.5 }, // no wordPool
+    );
+    expect(m.effectiveMode).toBe(GameMode.Classic);
+    // The REPLICATED setting is deliberately left alone: `dealCards` keys on it so the deal depends
+    // only on replicated state, and rewriting a host's chosen setting would desync the pool a guest
+    // mirror expects.
+    expect(m.state.settings.gameMode).toBe(GameMode.Picker);
+  });
+
+  it("is Classic for a Classic match", () => {
+    const dict = new Dictionary(REDUCED);
+    const m = new MatchController(
+      seeds,
+      { ...DEFAULT_SETTINGS, gameMode: GameMode.Classic, enableTutorials: false },
+      { isWord: (w) => dict.has(w), rng: () => 0.5, wordPool: dictionaryWordPool(dict) },
+    );
+    expect(m.effectiveMode).toBe(GameMode.Classic);
+  });
+});

@@ -65,7 +65,12 @@ export interface PreferenceSpec {
  * like any other — whose COST is the −2 Offer Cards. Every other clause of the family still applies
  * to it; only the invisibility and the bubbling do not.
  */
-export function isInertPreference(card: ModifierCard | undefined): boolean {
+export function isInertPreference(
+  // Takes the narrowest shape it actually reads rather than a whole ModifierCard, so a mode-blind
+  // `CardIdentity` satisfies it. Every caller here is asking a question about what a card IS, not
+  // what its numbers are, and none of them should have to name a game mode to ask it.
+  card: Pick<ModifierCard, "op" | "preference"> | undefined,
+): boolean {
   return !!card?.preference && card.op === CardOp.Fx;
 }
 
@@ -126,7 +131,9 @@ export const NO_SHAPING: OfferShaping = {
  * Multiple `prefer`s are intersected: two soft biases both apply while the pool allows.
  */
 export function buildOfferShaping(
-  cards: readonly (ModifierCard | undefined)[],
+  // Narrowed for the same reason as `isInertPreference`: a `PreferenceSpec` is mode-invariant, so
+  // shaping resolves from a mode-blind `CardIdentity` and this never needs a GameMode.
+  cards: readonly (Pick<ModifierCard, "id" | "preference"> | undefined)[],
   ctx: PreferenceContext,
 ): OfferShaping {
   const filters: OfferFilter[] = [];

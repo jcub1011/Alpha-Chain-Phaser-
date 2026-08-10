@@ -15,7 +15,7 @@ import { html, nothing, type PropertyValues, type TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type { GameController } from "../../net/controller";
 import { availableBanLetters, legalBanLetters } from "../../game/settings";
-import { getCard } from "../../game/cards/library";
+import { cardIdentity } from "../../game/cards/library";
 import { bubblePreferences, isInertPreference } from "../../game/picker/preference";
 import { createLogger } from "../../log";
 import { AcElement } from "../app/AcElement";
@@ -95,7 +95,7 @@ export class AcIntermission extends AcElement {
      * nudge can swap a scoring card left past a Preference Card). Normalizing at the one choke
      * point beats patching six call sites. */
     this.engine = bubblePreferences(this.engine, (uid) =>
-      isInertPreference(getCard(this.cardIdByUid.get(uid) ?? "")),
+      isInertPreference(cardIdentity(this.cardIdByUid.get(uid) ?? "")),
     );
     this.controller.match.setPlayerBay(this.controller.humanId, this.engine, this.discard);
   }

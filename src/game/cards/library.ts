@@ -13,19 +13,32 @@
  *
  * Cards are added in build phases; the glass-cannon clocks (A2), tax/economy
  * (A3/A4) and aggression/shield (A5) cards plug in without touching the
- * evaluator. DEALABLE_CARD_IDS only widens as each card's tests pass.
+ * evaluator. The per-mode deal pools only widen as each card's tests pass.
+ *
+ * PER-MODE VALUES. An entry is either a plain CardDef (identical in every mode) or a `tuned({...})`
+ * one that declares its numbers ONCE and renders its chip, prose, clock cost and folds from them.
+ * THE BASE `tune` BLOCK IS CLASSIC'S VALUES, and `perMode` cannot name Classic, so a Picker retune
+ * is structurally incapable of moving Classic. `classic-lock.test.ts` holds every Classic number and
+ * string to a committed fingerprint; `library.modes.test.ts` pins what may and may not differ
+ * between modes. Read a card through `getCard(id, mode)`, or `cardIdentity(id)` when the answer
+ * cannot depend on the mode.
  */
 
 import {
   add,
   clampScore,
   DEFAULT_MAX_INSTANCES,
+  fmtPct,
   fx,
   isVowel,
   mul,
   RARE_START,
   skip,
+  tuned,
   type ModifierCard,
+  type TunedCardDef,
+  type TuneValue,
+  type TuningBag,
 } from "./card";
 import { CardFamily, CardId, CardOp, CardRarity, GameMode } from "../types";
 import type { PlayerState } from "../types";
@@ -67,11 +80,24 @@ const TILE_VALUES: Record<string, number> = {
 const tileValue = (word: string): number =>
   [...word].reduce((sum, ch) => sum + (TILE_VALUES[ch] ?? 0), 0);
 
-/** A card minus its `id` — the id is assigned from the catalogue key when
- *  CARD_LIBRARY is built, so the key and id can never desync. */
+/** A card minus its `id` — the id is assigned from the catalogue key when the per-mode
+ *  libraries are built, so the key and id can never desync. */
 type CardDef = Omit<ModifierCard, "id">;
 
-const CARD_DEFS: Record<CardId, CardDef> = {
+/**
+ * A catalogue entry: either a plain definition (identical in every mode) or a tuned one that
+ * declares its numbers once and renders itself per mode from them.
+ *
+ * Both shapes are allowed ON PURPOSE. Only the cards whose values are actually mode-sensitive are
+ * converted; the rest keep their source text byte-identical. A mechanical rewrite of all 54 cards
+ * in the one file that must not change behaviour would be the largest regression risk in this work,
+ * for no benefit on the cards nobody is retuning.
+ */
+type CardEntry = CardDef | TunedCardDef<TuningBag>;
+
+const isTuned = (entry: CardEntry): entry is TunedCardDef<TuningBag> => "build" in entry;
+
+const CARD_DEFS: Record<CardId, CardEntry> = {
   // ── §3.1 Core Additives (place left so multipliers act on a bigger base) ──
   TheAnchor: {
     name: "Decard",
@@ -301,42 +327,73 @@ const CARD_DEFS: Record<CardId, CardDef> = {
   },
 
   // ── §3.3 Glass cannon (multipliers paid in your own shot clock) ──
-  TheVault: {
-    name: "Overclock",
-    rarity: CardRarity.Rare,
-    color: "#9fb3d6",
-    family: CardFamily.Clock,
-    op: CardOp.Multiplicative,
-    magnitudeText: "×1.5",
-    description: "×1.5 always; permanently −20% shot clock. Time out and lose 12 points.",
-    clock: { pctDelta: -0.2 },
-    fold: (v, c) => mul(v, 1.5 * c.magnification()),
-    timeoutFold: (v, c) => add(v, -12 * c.magnification()),
-  },
+  /* The glass cannons are tuned cards: the GDD flags every clock-scaling multiplier for per-mode
+   * re-costing (§4.4), because a Picker commit is far faster than typing and their timeout drains
+   * never fire there at all. Writing the numbers once is what lets that be a numbers-only edit. */
+  TheVault: tuned({
+    tune: { factor: 1.5, clockPct: -0.2, timeoutLoss: 12 },
+    // Picker has no timeout penalty at all: `pickerTimeoutCurrent` never calls `scoreTimeout`, so
+    // BASE_TIMEOUT_PENALTY and every timeoutFold are unreachable there. The drain could not fire,
+    // yet the card face still advertised it. Zeroing the knob retires the clause AND the fold from
+    // the same number, so the two can never disagree again. NOT a balance change: the fold it
+    // disables was already unreachable.
+    perMode: { [GameMode.Picker]: { timeoutLoss: 0 } },
+    build: (t) => ({
+      name: "Overclock",
+      rarity: CardRarity.Rare,
+      color: "#9fb3d6",
+      family: CardFamily.Clock,
+      op: CardOp.Multiplicative,
+      magnitudeText: `×${t.factor}`,
+      description:
+        `×${t.factor} always; permanently ${fmtPct(t.clockPct)} shot clock.` +
+        (t.timeoutLoss ? ` Time out and lose ${t.timeoutLoss} points.` : ""),
+      clock: { pctDelta: t.clockPct },
+      fold: (v, c) => mul(v, t.factor * c.magnification()),
+      // `timeoutLoss: 0` means inert, and the description above drops its clause from the same
+      // number — so a mode without a timeout penalty cannot end up advertising one.
+      timeoutFold: (v, c) => (t.timeoutLoss ? add(v, -t.timeoutLoss * c.magnification()) : skip(v)),
+    }),
+  }),
 
-  Redline: {
-    name: "Redline",
-    rarity: CardRarity.Rare,
-    color: "#ff4d4d",
-    family: CardFamily.Clock,
-    op: CardOp.Multiplicative,
-    magnitudeText: "×2",
-    description: "×2 always; permanently −30% shot clock. Time out and lose 24 points.",
-    clock: { pctDelta: -0.3 },
-    fold: (v, c) => mul(v, 2 * c.magnification()),
-    timeoutFold: (v, c) => add(v, -24 * c.magnification()),
-  },
+  Redline: tuned({
+    tune: { factor: 2, clockPct: -0.3, timeoutLoss: 24 },
+    // Picker has no timeout penalty at all: `pickerTimeoutCurrent` never calls `scoreTimeout`, so
+    // BASE_TIMEOUT_PENALTY and every timeoutFold are unreachable there. The drain could not fire,
+    // yet the card face still advertised it. Zeroing the knob retires the clause AND the fold from
+    // the same number, so the two can never disagree again. NOT a balance change: the fold it
+    // disables was already unreachable.
+    perMode: { [GameMode.Picker]: { timeoutLoss: 0 } },
+    build: (t) => ({
+      name: "Redline",
+      rarity: CardRarity.Rare,
+      color: "#ff4d4d",
+      family: CardFamily.Clock,
+      op: CardOp.Multiplicative,
+      magnitudeText: `×${t.factor}`,
+      description:
+        `×${t.factor} always; permanently ${fmtPct(t.clockPct)} shot clock.` +
+        (t.timeoutLoss ? ` Time out and lose ${t.timeoutLoss} points.` : ""),
+      clock: { pctDelta: t.clockPct },
+      fold: (v, c) => mul(v, t.factor * c.magnification()),
+      timeoutFold: (v, c) => (t.timeoutLoss ? add(v, -t.timeoutLoss * c.magnification()) : skip(v)),
+    }),
+  }),
 
-  PanicButton: {
-    name: "Reflex",
-    rarity: CardRarity.Uncommon,
-    color: "#ff2e6e",
-    family: CardFamily.Clock,
-    op: CardOp.Multiplicative,
-    magnitudeText: "≤×2",
-    description: "+×0.05 for every second left in your shot clock, capped at ×2.",
-    fold: (v, c) => mul(v, Math.min(2, 1 + c.clockRemaining * 0.05) * c.magnification()),
-  },
+  PanicButton: tuned({
+    tune: { perSecond: 0.05, cap: 2 },
+    build: (t) => ({
+      name: "Reflex",
+      rarity: CardRarity.Uncommon,
+      color: "#ff2e6e",
+      family: CardFamily.Clock,
+      op: CardOp.Multiplicative,
+      magnitudeText: `≤×${t.cap}`,
+      description: `+×${t.perSecond} for every second left in your shot clock, capped at ×${t.cap}.`,
+      fold: (v, c) =>
+        mul(v, Math.min(t.cap, 1 + c.clockRemaining * t.perSecond) * c.magnification()),
+    }),
+  }),
 
   SlowBurn: {
     name: "Slow Burn",
@@ -352,18 +409,34 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     illegalWord: (c) => c.resolveWordLength() < 6,
   },
 
-  Speedracer: {
-    name: "Speedracer",
-    rarity: CardRarity.Uncommon,
-    maxInstances: 2,
-    color: "#ffd23f",
-    family: CardFamily.Clock,
-    op: CardOp.Multiplicative,
-    magnitudeText: "×(1+Remain /Total)",
-    description: "×(1 + remaining clock time ÷ total clock time). Time out and lose 10 points.",
-    fold: (v, c) => mul(v, (1 + c.clockRemaining / c.clockTotal) * c.magnification()),
-    timeoutFold: (v, c) => add(v, -10 * c.magnification()),
-  },
+  Speedracer: tuned({
+    /* `ratioWeight` is a weight on the remaining/total ratio, and 1 is the identity — the GDD asks
+     * to "retune the curves, not the caps" (§4.4), and this is the knob that curve needs. At 1 the
+     * expression differs from the original while the value does not, which is exactly what the
+     * Classic lock verifies. A weight other than 1 must also reword the description below. */
+    tune: { ratioWeight: 1, timeoutLoss: 10 },
+    // Picker has no timeout penalty at all: `pickerTimeoutCurrent` never calls `scoreTimeout`, so
+    // BASE_TIMEOUT_PENALTY and every timeoutFold are unreachable there. The drain could not fire,
+    // yet the card face still advertised it. Zeroing the knob retires the clause AND the fold from
+    // the same number, so the two can never disagree again. NOT a balance change: the fold it
+    // disables was already unreachable.
+    perMode: { [GameMode.Picker]: { timeoutLoss: 0 } },
+    build: (t) => ({
+      name: "Speedracer",
+      rarity: CardRarity.Uncommon,
+      maxInstances: 2,
+      color: "#ffd23f",
+      family: CardFamily.Clock,
+      op: CardOp.Multiplicative,
+      magnitudeText: "×(1+Remain /Total)",
+      description:
+        "×(1 + remaining clock time ÷ total clock time)." +
+        (t.timeoutLoss ? ` Time out and lose ${t.timeoutLoss} points.` : ""),
+      fold: (v, c) =>
+        mul(v, (1 + t.ratioWeight * (c.clockRemaining / c.clockTotal)) * c.magnification()),
+      timeoutFold: (v, c) => (t.timeoutLoss ? add(v, -t.timeoutLoss * c.magnification()) : skip(v)),
+    }),
+  }),
 
   Blindfold: {
     name: "Blindfold",
@@ -577,27 +650,32 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     },
   },
 
-  ChronoSyphon: {
-    name: "Chrono Syphon",
-    rarity: CardRarity.Uncommon,
-    color: "#5ad0c4",
-    family: CardFamily.Economy,
-    op: CardOp.Fx,
-    magnitudeText: "FX",
-    description: "+2 per whole second left on an opponent's shot clock when they submit.",
-    fold: (v) => fx(v),
-    onOpponentWordResolved: (c) => {
-      const res = c.resolution;
-      if (!res || res.remainingSeconds <= 0) return;
-      const owner = c.player;
-      if (!owner || owner.id === res.submitterId) return;
-      const amount = clampScore(res.remainingSeconds * 2 * c.magnification());
-      if (amount > 0) {
-        owner.score += amount;
-        c.effects?.bankSiphon(owner.id, amount, "Chrono Syphon");
-      }
-    },
-  },
+  /* Tuned: the GDD calls this "the most affected card in the catalogue" in Picker (§4.4), since a
+   * fast commit leaves far more seconds on an opponent's clock than typing a word does. */
+  ChronoSyphon: tuned({
+    tune: { perSecond: 2 },
+    build: (t) => ({
+      name: "Chrono Syphon",
+      rarity: CardRarity.Uncommon,
+      color: "#5ad0c4",
+      family: CardFamily.Economy,
+      op: CardOp.Fx,
+      magnitudeText: "FX",
+      description: `+${t.perSecond} per whole second left on an opponent's shot clock when they submit.`,
+      fold: (v) => fx(v),
+      onOpponentWordResolved: (c) => {
+        const res = c.resolution;
+        if (!res || res.remainingSeconds <= 0) return;
+        const owner = c.player;
+        if (!owner || owner.id === res.submitterId) return;
+        const amount = clampScore(res.remainingSeconds * t.perSecond * c.magnification());
+        if (amount > 0) {
+          owner.score += amount;
+          c.effects?.bankSiphon(owner.id, amount, "Chrono Syphon");
+        }
+      },
+    }),
+  }),
 
   BaitAndSwitch: {
     name: "Bait & Switch",
@@ -691,33 +769,43 @@ const CARD_DEFS: Record<CardId, CardDef> = {
   },
 
   // Aggression / Control — deny tempo (now sharper because timeouts cost points).
-  TheSniper: {
-    name: "Blind Sniper",
-    rarity: CardRarity.Rare,
-    color: "#ff5252",
-    family: CardFamily.Utility,
-    op: CardOp.Fx,
-    magnitudeText: "FX",
-    description:
-      "Shave 20% off the shot clock of the leader. This applies to you if you are in the lead.",
-    fold: (v) => fx(v),
-    roomServices: ["timePenalty"],
-    onTurnEnded: (c) => {
-      const owner = c.player;
-      const fx2 = c.effects;
-      if (!owner || !fx2) return;
-      // The overall leader among ALL active players — including the owner, so a
-      // leading Blind Sniper shaves its own clock (a built-in anti-snowball cost).
-      let top: PlayerState | null = null;
-      for (const p of fx2.orderedActivePlayers()) {
-        if (!top || p.score > top.score) top = p;
-      }
-      if (top) {
-        const shave = Math.max(1, Math.round(fx2.armedClockOf(top) * 0.2 * c.magnification()));
-        fx2.timeShave(top, shave, "Blind Sniper");
-      }
-    },
-  },
+  /* Tuned: §4.4 expects no change here, but names it as the one aggression card whose value moves
+   * in Picker (clock pressure scales with how long an Offer takes to read). Parameterized so a
+   * playtest answer is a one-number edit rather than a hunt through prose and hook. */
+  TheSniper: tuned({
+    tune: { shavePct: 0.2 },
+    build: (t) => ({
+      name: "Blind Sniper",
+      rarity: CardRarity.Rare,
+      color: "#ff5252",
+      family: CardFamily.Utility,
+      op: CardOp.Fx,
+      magnitudeText: "FX",
+      // A plain percent, not fmtPct: the shave's sign is carried by the word "Shave", so a signed
+      // "+20%" would read as the opposite of what the card does.
+      description: `Shave ${Math.round(t.shavePct * 100)}% off the shot clock of the leader. This applies to you if you are in the lead.`,
+      fold: (v) => fx(v),
+      roomServices: ["timePenalty"],
+      onTurnEnded: (c) => {
+        const owner = c.player;
+        const fx2 = c.effects;
+        if (!owner || !fx2) return;
+        // The overall leader among ALL active players — including the owner, so a
+        // leading Blind Sniper shaves its own clock (a built-in anti-snowball cost).
+        let top: PlayerState | null = null;
+        for (const p of fx2.orderedActivePlayers()) {
+          if (!top || p.score > top.score) top = p;
+        }
+        if (top) {
+          const shave = Math.max(
+            1,
+            Math.round(fx2.armedClockOf(top) * t.shavePct * c.magnification()),
+          );
+          fx2.timeShave(top, shave, "Blind Sniper");
+        }
+      },
+    }),
+  }),
 
   // Defensive / Combo engine.
   Insurance: {
@@ -749,8 +837,11 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     description: "×1.15 for each other multiplier card in your bay (capped at ×2.3).",
     fold: (v, c) => {
       const ids = c.bayCardIds ?? [];
+      // `cardIdentity`, not `getCard`: `op` is mode-invariant, so counting the other multipliers
+      // needs no mode — which also spares this fold from having to name the mode it is itself
+      // being evaluated in.
       const others = ids.filter(
-        (id, i) => i !== c.cardIndex && getCard(id)?.op === CardOp.Multiplicative,
+        (id, i) => i !== c.cardIndex && cardIdentity(id)?.op === CardOp.Multiplicative,
       ).length;
       if (others === 0) return skip(v);
       const factor = Math.min(2.3, round1(1 + 0.15 * others));
@@ -837,22 +928,28 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     preference: { filter: () => (w) => w.length >= 6 },
   },
 
-  Winnower: {
-    name: "Winnower",
-    rarity: CardRarity.Rare,
-    maxInstances: 1,
-    modes: [GameMode.Picker],
-    color: "#c9a6ff",
-    family: CardFamily.Utility,
-    op: CardOp.Fx,
-    magnitudeText: "redraw",
-    description: "Once per turn, redraw your whole Offer for 30% of your shot clock.",
-    fold: (v) => fx(v),
-    roomServices: ["winnowerGuard"],
-    // The price is a FIXED fraction, so it grows harsher as your engine grows and each Offer
-    // takes longer to read — the card gets worse exactly as your bay gets better.
-    preference: { redraw: { clockCostFraction: 0.3 } },
-  },
+  /* Tuned not for per-mode values — it is Picker-only, so it has no Classic form to protect — but
+   * because its 30% was written twice, in the prose AND in the redraw spec the engine charges.
+   * Those are precisely the two that must never disagree. */
+  Winnower: tuned({
+    tune: { clockCostFraction: 0.3 },
+    build: (t) => ({
+      name: "Winnower",
+      rarity: CardRarity.Rare,
+      maxInstances: 1,
+      modes: [GameMode.Picker],
+      color: "#c9a6ff",
+      family: CardFamily.Utility,
+      op: CardOp.Fx,
+      magnitudeText: "redraw",
+      description: `Once per turn, redraw your whole Offer for ${Math.round(t.clockCostFraction * 100)}% of your shot clock.`,
+      fold: (v) => fx(v),
+      roomServices: ["winnowerGuard"],
+      // The price is a FIXED fraction, so it grows harsher as your engine grows and each Offer
+      // takes longer to read — the card gets worse exactly as your bay gets better.
+      preference: { redraw: { clockCostFraction: t.clockCostFraction } },
+    }),
+  }),
 
   WideNet: {
     name: "Wide Net",
@@ -943,14 +1040,124 @@ const CARD_DEFS: Record<CardId, CardDef> = {
   },
 };
 
-/** The runtime catalogue. Each card's `id` is assigned from its CARD_DEFS key,
- *  so the key and id are the same value by construction (no desync possible). */
-export const CARD_LIBRARY: Record<CardId, ModifierCard> = Object.fromEntries(
-  Object.entries(CARD_DEFS).map(([id, def]) => [id, { id, ...def }]),
-) as Record<CardId, ModifierCard>;
+/* ── Resolution: the per-mode libraries ────────────────────────────────────────────────────────
+ * Built once at module load, so resolving a card in the scoring hot path stays a lookup and each
+ * mode's cards have stable object identity.
+ *
+ * CLASSIC NEVER MERGES. For the baseline mode the tune handed to `build` is the card's own base
+ * object, untouched — so a Picker patch cannot participate in Classic's resolution even at
+ * runtime, not merely by type. An untuned entry is resolved ONCE and shared by every mode, so
+ * those cards are mode-invariant by construction (library.modes.test.ts asserts it with ===).
+ *
+ * Spread and freeze only: no structuredClone, no Date, no fetch, no DOM, so the authority bundle
+ * stays a single import-free ESM file. Each card's `id` is assigned from its CARD_DEFS key, so the
+ * key and id are the same value by construction (no desync possible). */
 
-export const getCard = (id: string): ModifierCard | undefined =>
-  (CARD_LIBRARY as Record<string, ModifierCard>)[id];
+/** Merge a tuned card's base numbers with `mode`'s patch. Returns the BASE OBJECT ITSELF for the
+ *  baseline mode, and for any mode with no patch — see the block comment above. */
+function resolveTune(entry: TunedCardDef<TuningBag>, mode: GameMode): TuningBag {
+  if (mode === GameMode.Classic) return entry.tune;
+  const patch = entry.perMode?.[mode as Exclude<GameMode, typeof GameMode.Classic>];
+  if (!patch) return entry.tune;
+  // Copied key by key rather than spread: a `Partial<T>` spread widens every value to
+  // `TuneValue | undefined`, and an explicitly-undefined key would then erase a base value
+  // instead of leaving it alone. Skipping undefined makes "unlisted knob keeps its baseline"
+  // true however the patch was written.
+  const merged: Record<string, TuneValue> = { ...entry.tune };
+  for (const [knob, value] of Object.entries(patch)) {
+    if (value !== undefined) merged[knob] = value;
+  }
+  return Object.freeze(merged);
+}
+
+const LIBRARY_BY_MODE: Record<GameMode, Record<CardId, ModifierCard>> = {
+  [GameMode.Picker]: {} as Record<CardId, ModifierCard>,
+  [GameMode.Classic]: {} as Record<CardId, ModifierCard>,
+};
+
+for (const [key, entry] of Object.entries(CARD_DEFS) as [CardId, CardEntry][]) {
+  if (!isTuned(entry)) {
+    const card = Object.freeze({ id: key, ...entry });
+    for (const mode of Object.values(GameMode)) LIBRARY_BY_MODE[mode][key] = card;
+    continue;
+  }
+  for (const mode of Object.values(GameMode)) {
+    LIBRARY_BY_MODE[mode][key] = Object.freeze({
+      id: key,
+      ...entry.build(resolveTune(entry, mode)),
+    });
+  }
+}
+
+/**
+ * The mode-INVARIANT half of a card: what the card IS, as opposed to what it DOES.
+ *
+ * Spelled as an explicit Pick, not an Omit, so adding a tunable field to ModifierCard can never
+ * silently join this type. Every tunable field — magnitudeText, description, clock, fold,
+ * timeoutFold and every capability/lifecycle hook — is ABSENT here, which means a caller holding a
+ * CardIdentity cannot read a mode-sensitive value even by accident. Most former `getCard` callers
+ * want only this, and are better off unable to see the rest.
+ *
+ * Widening this is the tripwire for per-mode rarity: `rarity`, `maxInstances` and `modes` being
+ * non-tunable is what keeps every dealer and lobby number mode-agnostic, and
+ * `library.modes.test.ts` asserts these fields never differ between modes.
+ */
+export type CardIdentity = Pick<
+  ModifierCard,
+  | "id"
+  | "name"
+  | "family"
+  | "op"
+  | "rarity"
+  | "color"
+  | "maxInstances"
+  | "modes"
+  | "preference"
+  | "roomServices"
+>;
+
+/** Catalogue metadata, mode-blind by construction. Replaces the old `CARD_LIBRARY`.
+ *
+ *  This is the Classic-resolved table exposed through a type that cannot see a tuned field — no
+ *  copy is made, so the narrowing costs nothing. Safe because every field in `CardIdentity` is
+ *  non-tunable, which the mode-parity test pins. */
+export const CARD_CATALOGUE: Readonly<Record<CardId, CardIdentity>> =
+  LIBRARY_BY_MODE[GameMode.Classic];
+
+/** A card's mode-invariant metadata. Prefer this over `getCard` wherever a mode is irrelevant —
+ *  it is both shorter at the call site and unable to return a number that depends on the mode. */
+export const cardIdentity = (id: string): CardIdentity | undefined =>
+  (CARD_CATALOGUE as Record<string, CardIdentity>)[id];
+
+/**
+ * The fully resolved card as it behaves and reads in `mode`.
+ *
+ * `mode` is REQUIRED. An omitted mode would silently serve Classic's numbers during a Picker
+ * match, which is the exact failure this whole mechanism exists to remove — so every call site is
+ * a compile error until it names one. Callers that need no mode should use `cardIdentity`.
+ *
+ * This resolves ANY id in ANY mode and deliberately does NOT filter by `modes`: a card already in
+ * a bay, in a score replay, or in the sandbox gallery must still resolve whatever mode is running,
+ * and resolves to its base values there. Dealability remains `dealableCardIds`'s job.
+ */
+export const getCard = (id: string, mode: GameMode): ModifierCard | undefined =>
+  (LIBRARY_BY_MODE[mode] as Record<string, ModifierCard>)[id];
+
+/** The whole resolved library for `mode`. For the lock tests and the sandbox gallery. */
+export const cardLibrary = (mode: GameMode): Readonly<Record<CardId, ModifierCard>> =>
+  LIBRARY_BY_MODE[mode];
+
+/**
+ * The tuned entries, unresolved. FOR THE LOCK TESTS ONLY — nothing in the game reads this.
+ *
+ * It exists so a test can rebuild a card with one knob perturbed and prove every declared number
+ * is load-bearing. That is the one check which catches a stray literal left sitting beside a `t.`
+ * read, where the prose would move on a retune but the fold would not.
+ */
+export const tunedCardEntries = (): ReadonlyArray<readonly [CardId, TunedCardDef<TuningBag>]> =>
+  (Object.entries(CARD_DEFS) as [CardId, CardEntry][]).filter(
+    (pair): pair is [CardId, TunedCardDef<TuningBag>] => isTuned(pair[1]),
+  );
 
 /* ── The deal pool, per mode ───────────────────────────────────────────────────────────────────
  * There is deliberately NO mode-blind exported id list. A card whose effect is meaningless in a
@@ -958,8 +1165,13 @@ export const getCard = (id: string): ModifierCard | undefined =>
  * warning, and the way to guarantee that is to make every caller name a mode — if the dealer and
  * the readout could disagree, the warning would simply be wrong.
  *
- * `getCard` stays mode-blind on purpose: a card already in a bay, in a score replay, or in the
- * sandbox gallery must still resolve whatever mode is running. */
+ * This is a DEALABILITY filter and is entirely separate from per-mode resolution: `getCard(id,
+ * mode)` is mode-parameterized but never mode-filtered, so a card already in a bay, in a score
+ * replay, or in the sandbox gallery still resolves whatever mode is running.
+ *
+ * Everything below reads `CARD_CATALOGUE`, whose fields (`modes`, `rarity`, `maxInstances`) are
+ * non-tunable — which is what keeps every dealer and lobby number mode-agnostic even though cards
+ * now resolve per mode. */
 
 /** Both pools, resolved once. `.filter` preserves CARD_DEFS declaration order, which is
  *  load-bearing: the dealer's weighted walk and its float-drift last-slot fallback both index into
@@ -969,8 +1181,8 @@ const DEALABLE_BY_MODE: Record<GameMode, CardId[]> = {
   [GameMode.Classic]: [],
 };
 for (const mode of Object.values(GameMode)) {
-  DEALABLE_BY_MODE[mode] = (Object.keys(CARD_LIBRARY) as CardId[]).filter((id) => {
-    const modes = CARD_LIBRARY[id].modes;
+  DEALABLE_BY_MODE[mode] = (Object.keys(CARD_CATALOGUE) as CardId[]).filter((id) => {
+    const modes = CARD_CATALOGUE[id].modes;
     return modes === undefined || modes.includes(mode);
   });
 }
@@ -980,7 +1192,7 @@ const RARITY_COUNTS_BY_MODE: Record<GameMode, Record<CardRarity, number>> = {
   [GameMode.Classic]: emptyTierCounts(),
 };
 for (const mode of Object.values(GameMode)) {
-  for (const id of DEALABLE_BY_MODE[mode]) RARITY_COUNTS_BY_MODE[mode][CARD_LIBRARY[id].rarity]++;
+  for (const id of DEALABLE_BY_MODE[mode]) RARITY_COUNTS_BY_MODE[mode][CARD_CATALOGUE[id].rarity]++;
 }
 
 function emptyTierCounts(): Record<CardRarity, number> {
@@ -1034,7 +1246,7 @@ export function rarityDealShare(
  */
 export function dealPoolCapacity(weights: Record<CardRarity, number>, mode: GameMode): number {
   return dealableCardIds(mode).reduce((sum, id) => {
-    const card = CARD_LIBRARY[id];
+    const card = CARD_CATALOGUE[id];
     if (weights[card.rarity] <= 0) return sum;
     return sum + (card.maxInstances ?? DEFAULT_MAX_INSTANCES);
   }, 0);
