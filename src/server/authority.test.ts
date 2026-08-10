@@ -46,6 +46,10 @@ const FAST: Partial<AlphaChainSettings> = {
 class ServerHub {
   peers: FakePeer[] = [];
   ownerId: string | null = null;
+  /** Every kb.setLobbyOpen(open) the authority made, in order (the join gate). */
+  lobbyOpenCalls: boolean[] = [];
+  /** How many authoritative frames the server has published (for fan-out assertions). */
+  broadcasts = 0;
   private readonly authority: ReturnType<typeof createAuthority>;
 
   constructor(
@@ -56,7 +60,7 @@ class ServerHub {
       now: () => this.clock.t,
       log: { info() {}, warn() {}, error() {}, debug() {} },
       words: words instanceof Set ? makeWords(words) : words,
-      setLobbyOpen: () => {},
+      setLobbyOpen: (open) => this.lobbyOpenCalls.push(open),
       setOwner: (id) => this.assignOwner(id),
       rng: orderPreservingRng, // deterministic turn order (p1 opens)
     };
@@ -87,15 +91,17 @@ class ServerHub {
   }
 
   private broadcast(payload: unknown): void {
+    this.broadcasts++;
     this.peers.forEach((p) => p.deliver("server", payload));
   }
   private sendToOne(id: string, payload: unknown): void {
     this.peers.find((p) => p.playerId === id)?.deliver("server", payload);
   }
 
-  /** Route a client frame. In server mode only `_kb` frames to "host" reach the authority. */
-  route(payload: unknown, to: string, from: string): void {
-    if (to !== "host") return; // no client-to-client chatter in this game's server mode
+  /** Route a client frame into the authority. Everything a client can send goes to
+   *  "host" (which the relay diverts to the module) — this game has no client-to-client
+   *  chatter in server mode, which is why NetPeer exposes only sendToHost. */
+  route(payload: unknown, from: string): void {
     const env = payload as { _kb?: string; action?: unknown };
     if (env?._kb === "intent") {
       const patch = this.authority.applyIntent(from, env.action as never);
@@ -110,6 +116,14 @@ class ServerHub {
     this.clock.t += dtMs;
     const patch = this.authority.tick(dtMs);
     if (patch) this.broadcast({ _kb: "delta", patch });
+  }
+
+  /** A player joins: run the roster hook, then re-broadcast state (the platform always
+   *  re-broadcasts after a roster change, whatever the hook returns). The peer registered
+   *  itself with the hub in its constructor. */
+  playerJoined(peer: FakePeer): void {
+    this.authority.onPlayerJoined({ id: peer.playerId, displayName: peer.displayName });
+    this.broadcast({ _kb: "state", state: this.authority.snapshot() });
   }
 
   /** A player leaves: run the roster hook, drop them, re-broadcast state, notify peers. */
@@ -166,16 +180,7 @@ class FakePeer implements NetPeer {
     this.emit("message", { from, payload });
   }
   sendToHost(p: unknown): void {
-    this.hub.route(p, "host", this.playerId);
-  }
-  sendToAll(p: unknown): void {
-    this.hub.route(p, "all", this.playerId);
-  }
-  sendTo(id: string, p: unknown): void {
-    this.hub.route(p, id, this.playerId);
-  }
-  setLobbyOpen(): void {
-    /* no-op locally */
+    this.hub.route(p, this.playerId);
   }
   logPlay(metadata: Record<string, unknown>): void {
     this.logCalls.push(metadata);
@@ -387,6 +392,30 @@ describe("authority — roster, owner succession & session lifetime", () => {
     expect(gone?.score).toBe(0); // untouched — no timeout expiration penalty
   });
 
+  it("announces the handed-on turn, so the successor can actually play it", () => {
+    const { hub, c2 } = start();
+    // The roster resync carries NO replay events, so the turnArmed dropPlayer emitted is
+    // gone: without NetMatch's turn heal the successor's word box stays disabled
+    // (ac-word-entry only goes live on turnArmed) and they lose the turn to a timeout.
+    const armed: number[] = [];
+    c2.match.events.on("turnArmed", ({ playerIndex }) => armed.push(playerIndex));
+
+    hub.playerLeft("p1");
+
+    expect(armed).toEqual([c2.match.state.currentPlayerIndex]); // announced exactly once, for p2
+    // ...and the turn is genuinely theirs to take (the round opened on a free letter).
+    c2.submitWord("cat");
+    expect(c2.match.state.history.map((h) => h.word)).toEqual(["cat"]);
+  });
+
+  it("does not re-announce the turn on a resync that changed nothing", () => {
+    const { p2, c2 } = start();
+    const armed: number[] = [];
+    c2.match.events.on("turnArmed", ({ playerIndex }) => armed.push(playerIndex));
+    p2.fireResumed(); // → {_kb:"sync"} → a full, event-less snapshot of the same turn
+    expect(armed).toEqual([]); // same player still up — nothing to re-arm
+  });
+
   it("keeps the session alive when the owner leaves and migrates ownership", () => {
     const { hub, p2, c2 } = start();
     let ended = 0;
@@ -439,6 +468,69 @@ describe("authority — startMatch guarding", () => {
     c1.startMatch(cfg);
     expect(c1.match.state.phase).toBe("Countdown"); // new match starting
     expect(c1.match.state.history.length).toBe(0); // fresh state
+  });
+
+  it("publishes nothing for a startMatch it refuses", () => {
+    const { hub, c1, c2 } = session();
+    const cfg = { ...DEFAULT_SETTINGS, ...FAST };
+    c1.startMatch(cfg); // the owner's real start
+    hub.advance(1000);
+
+    // A refused start must not broadcast: it changed nothing, and answering every frame
+    // with the whole serialized MatchState lets any client amplify a tiny intent into
+    // unbounded fan-out just by looping it.
+    const before = hub.broadcasts;
+    c2.startMatch(cfg); // a non-owner tries to start
+    c2.startMatch(cfg); // ...repeatedly
+    c1.startMatch(cfg); // and the owner re-starts mid-match (also refused)
+    expect(hub.broadcasts).toBe(before);
+    expect(c1.match.state.phase).toBe("Round"); // the live match is untouched
+  });
+
+  it("leaves the lobby settings alone when it refuses a start it cannot seat", () => {
+    const clock = { t: 0 };
+    const hub = new ServerHub(clock);
+    const p1 = new FakePeer(hub, "p1", "One", [{ id: "p1", displayName: "One" }]);
+    const c1 = new ServerController(p1, () => clock.t);
+    hub.init();
+    p1.fireReady();
+
+    c1.setLobbySettings({ ...DEFAULT_SETTINGS, ...FAST, eraCount: 3 });
+    // A lone owner sitting out seats nobody, so the start is refused — and must not adopt
+    // the settings it came with on the way out.
+    c1.startMatch({ ...DEFAULT_SETTINGS, ...FAST, hostPlays: false, eraCount: 7 });
+    expect(c1.match.state.phase).toBe("Setup"); // no match started
+    expect(hub.lobbyOpenCalls).toEqual([true]); // the join gate never closed
+
+    // Someone joining forces a full snapshot, which re-sources the lobby's working
+    // settings — the only way a client can observe what the refused start left behind.
+    const p2 = new FakePeer(hub, "p2", "Two", []);
+    hub.playerJoined(p2);
+    expect(c1.lobbySettings?.eraCount).toBe(3); // the working copy survived intact
+  });
+});
+
+describe("authority — the lobby join gate", () => {
+  it("closes the lobby for the match and re-opens it for the rematch", () => {
+    const { hub, c1, c2 } = session();
+    const cfg = { ...DEFAULT_SETTINGS, ...FAST, eraInterval: 1, eraCount: 1 };
+    expect(hub.lobbyOpenCalls).toEqual([true]); // init opens the pre-match lobby
+
+    c1.startMatch(cfg);
+    expect(hub.lobbyOpenCalls).toEqual([true, false]); // closed for play
+
+    hub.advance(1000);
+    const ctl = byId(c1, c2);
+    ctl[c1.match.current.id].submitWord("cat");
+    ctl[c1.match.current.id].submitWord("tiger"); // wraps era 1 → game-over settle
+    hub.advance(10000);
+    expect(c1.match.state.phase).toBe("GameOver");
+    // Re-opened, so the rematch lobby takes joins like the pre-match one — the session
+    // outlives its creator, so a closed-forever lobby would strand it.
+    expect(hub.lobbyOpenCalls).toEqual([true, false, true]);
+
+    c1.startMatch(cfg);
+    expect(hub.lobbyOpenCalls).toEqual([true, false, true, false]); // and closes again
   });
 });
 
@@ -777,5 +869,49 @@ describe("authority — start guarding", () => {
     expect(c1.match.state.phase).toBe("Setup"); // never started
     expect(() => hub.advance(1000)).not.toThrow(); // no player-less controller ticking
     expect(c1.match.state.phase).toBe("Setup");
+  });
+});
+
+describe("authority — the sandbox has no ambient clock", () => {
+  it("runs a whole match with the Date global deleted (kb.now is the only clock)", () => {
+    // The Jint sandbox DELETES Date, so any bundled code that reaches for it throws a
+    // ReferenceError in production and nowhere else. The rules layer only stays clean by
+    // construction — MatchController's `deps.now ?? Date.now` is safe purely because `??`
+    // short-circuits on the `now: () => kb.now()` the authority injects — so pin the
+    // constraint itself rather than that one call site.
+    const RealDate = globalThis.Date;
+    let phase = "";
+    let words: string[] = [];
+    let thrown: unknown = null;
+    try {
+      Reflect.deleteProperty(globalThis, "Date");
+      // Nothing that could itself touch Date may run inside this window — no expect(),
+      // no test-runner bookkeeping — or a failure reads as our own violation.
+      const clock = { t: 1_700_000_000_000 };
+      const hub = new ServerHub(clock);
+      const p1 = new FakePeer(hub, "p1", "One", roster);
+      const p2 = new FakePeer(hub, "p2", "Two", roster);
+      const c1 = new ServerController(p1, () => clock.t);
+      const c2 = new ServerController(p2, () => clock.t);
+      hub.init();
+      p1.fireReady();
+      p2.fireReady();
+      c1.startMatch({ ...DEFAULT_SETTINGS, ...FAST, eraInterval: 1, eraCount: 1 });
+      hub.advance(1000); // countdown → Round (turn arm, clock anchors, serialization)
+      const ctl = byId(c1, c2);
+      ctl[c1.match.current.id].submitWord("cat"); // scoring + submission replay
+      ctl[c1.match.current.id].submitWord("tiger"); // wraps era 1 → game-over settle
+      hub.advance(10000); // era end → dealer → gameOver (endedAt stamp via kb.now)
+      phase = c1.match.state.phase;
+      words = c1.match.state.history.map((h) => h.word);
+    } catch (err) {
+      thrown = err;
+    } finally {
+      (globalThis as { Date?: unknown }).Date = RealDate;
+    }
+
+    expect(thrown).toBeNull(); // no ReferenceError: nothing reached for the ambient clock
+    expect(phase).toBe("GameOver"); // and the match genuinely ran start-to-finish
+    expect(words).toEqual(["cat", "tiger"]);
   });
 });

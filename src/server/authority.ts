@@ -14,15 +14,15 @@
  *     `authorityWords`, never bundled here).
  *
  * The client (src/net/serverController.ts) renders every state from the same
- * NetMatch mirror the host-auth guests used, so the wire payload is the old
- * SnapshotMsg body (state + replayed events + clock anchor), minus the
- * host-mode-only framing.
+ * NetMatch mirror the host-auth guests used, so the wire payload is unchanged in
+ * substance: state + the events to replay + an absolute clock anchor
+ * (ServerStatePayload in src/net/messages.ts).
  */
 
 import { MatchController, type MatchEvents, type PlayerSeed } from "../game/match";
 import { DEFAULT_SETTINGS, sanitizeSettings, SUBMIT_GRACE_SECONDS } from "../game/settings";
 import { emptyMatchState, type AlphaChainSettings, type MatchState } from "../game/types";
-import type { Intent, ServerStatePayload, WireEvent } from "../net/messages";
+import type { ClockAnchor, Intent, ServerStatePayload, WireEvent } from "../net/messages";
 import { serializeState } from "../net/serialize";
 import { createLogger, setLogSink, type KbLog } from "./serverLog";
 
@@ -103,7 +103,7 @@ export function createAuthority(kb: Kb) {
   /** Absolute-expiry clock anchor for the running timer, as the old buildSnapshot did
    *  but sourced from kb.now(). Clients take (expiresAt − sentAt), so the server/client
    *  wall-clock offset cancels (see NetMatch.applySnapshot). */
-  function buildClock(sentAt: number): ServerStatePayload["clock"] {
+  function buildClock(sentAt: number): ClockAnchor {
     if (!host) {
       return { sentAt, clockExpiresAt: null, subTimerExpiresAt: null, countdownExpiresAt: null };
     }
@@ -159,12 +159,15 @@ export function createAuthority(kb: Kb) {
     return host?.state.phase === "Intermission" && host.state.intermissionPhase === "optimize";
   }
 
-  /** Owner-only: construct and start the MatchController from the given settings. */
-  function beginMatch(fromId: string, requested: AlphaChainSettings): void {
-    if (fromId !== ownerId) return; // only the owner starts
+  /** Owner-only: construct and start the MatchController from the given settings.
+   *  Returns whether a match actually started, so the caller only broadcasts on a real
+   *  change — a refused start must publish nothing, or any client could spam startMatch
+   *  and make the server fan out the whole serialized MatchState per frame. */
+  function beginMatch(fromId: string, requested: AlphaChainSettings): boolean {
+    if (fromId !== ownerId) return false; // only the owner starts
     // First start (no match yet) and rematch (previous match finished) proceed; a stray
     // startMatch mid-game must not wipe the running MatchController.
-    if (liveMatch()) return;
+    if (liveMatch()) return false;
     // `requested` is wire data: the guards above settle WHO and WHEN, this settles WHAT.
     // A stale client omits whatever settings it predates, and a missing key reads as
     // `undefined`, which survives arithmetic and comparison silently — dealCards' weights
@@ -173,16 +176,18 @@ export function createAuthority(kb: Kb) {
     // settings become the lobby's working copy AND the running match's rules. (After the
     // migration this is the home of the check the guest-side controller used to do.)
     const chosen = sanitizeSettings(requested);
-    settings = chosen;
     const seeds: PlayerSeed[] = roster
       .filter((p) => chosen.hostPlays || p.id !== ownerId)
       .map((p) => ({ id: p.id, name: p.displayName, isBot: false }));
     // No eligible players (e.g. a solo owner sitting out with hostPlays=false): a player-less
-    // MatchController arms no turn and throws on every tick, hanging the lobby. Refuse to start.
+    // MatchController arms no turn and throws on every tick, hanging the lobby. Refuse to
+    // start — before adopting `chosen`, so a refused start leaves the lobby's working
+    // settings exactly as they were.
     if (seeds.length === 0) {
       log.warn("startMatch ignored: no eligible players to seed the match");
-      return;
+      return false;
     }
+    settings = chosen;
     log.info(`starting match (${seeds.length} players)`);
     host = new MatchController(seeds, chosen, {
       isWord: (w) => kb.words.has(DICTIONARY, w),
@@ -193,8 +198,14 @@ export function createAuthority(kb: Kb) {
     for (const type of REPLAYED_EVENTS) {
       host.events.on(type, (payload) => pending.push({ type, payload } as WireEvent));
     }
+    // Re-open the lobby when the match ends so the rematch lobby accepts joins, the way
+    // the pre-match one does — the session now outlives its creator, so a closed-forever
+    // lobby would strand it. A player who joins during GameOver lands in `roster` and is
+    // seeded by the next beginMatch, which closes the gate again below.
+    host.events.on("gameOver", () => kb.setLobbyOpen(true));
     kb.setLobbyOpen(false); // close the lobby once the match starts
     host.start();
+    return true;
   }
 
   return {
@@ -209,8 +220,8 @@ export function createAuthority(kb: Kb) {
     applyIntent(fromId: string, action: Intent): ServerStatePayload | null {
       try {
         if (action.kind === "startMatch") {
-          beginMatch(fromId, action.settings);
-          return host ? drainPatch(true) : null;
+          // Only a start that actually happened is worth a broadcast (see beginMatch).
+          return beginMatch(fromId, action.settings) ? drainPatch(true) : null;
         }
         if (action.kind === "setSettings") {
           // Owner-only, and only while NOT in a live match — i.e. the pre-match lobby AND the

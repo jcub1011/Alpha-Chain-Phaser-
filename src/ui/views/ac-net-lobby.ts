@@ -23,6 +23,9 @@ export class AcNetLobby extends AcElement {
   @property({ attribute: false }) settings: AlphaChainSettings = { ...DEFAULT_SETTINGS };
   @state() private draft: AlphaChainSettings = { ...DEFAULT_SETTINGS };
   private unsub?: () => void;
+  /** Whether we held the lobby powers at the last lobby change, so the settings push
+   *  below can fire on the EDGE of becoming owner. */
+  private wasOwner = false;
 
   override connectedCallback(): void {
     super.connectedCallback();
@@ -32,6 +35,20 @@ export class AcNetLobby extends AcElement {
     this.unsub = this.controller?.onLobbyChange(() => {
       const ls = this.controller?.lobbySettings;
       if (this.readOnly && ls) this.draft = { ...ls };
+      // Publish our settings the moment we LEARN we're the owner. Both other push sites
+      // (willUpdate on `settings`, firstUpdated) run a frame after mount, while isOwner is
+      // still false — ownership only arrives with the peer's `ready` frame — so without
+      // this the authority keeps serving its stock defaults to everyone else until the
+      // owner happens to nudge a stepper.
+      //
+      // Edge-triggered, never level-triggered: a push loops back as an authoritative
+      // snapshot, whose applyServerState calls notifyLobby → this callback again, so
+      // pushing on every lobby change would feed itself forever. A promoted owner pushing
+      // is a content no-op anyway — as a non-owner their draft was already mirroring
+      // lobbySettings, so it just re-asserts the same values.
+      const owner = !this.readOnly;
+      if (owner && !this.wasOwner) this.pushSettings();
+      this.wasOwner = owner;
       this.requestUpdate();
     });
   }
@@ -42,23 +59,31 @@ export class AcNetLobby extends AcElement {
 
   override willUpdate(changed: PropertyValues): void {
     // The persisted settings arrive as a property after first paint; sync the draft.
-    // Skip on a guest once the host's settings have arrived, so we don't clobber the
-    // host's choices with the guest's own local defaults.
-    if (
-      changed.has("settings") &&
-      this.settings &&
-      !(this.readOnly && this.controller?.lobbySettings)
-    ) {
+    //
+    // This deliberately does NOT skip for a would-be non-owner. It used to, to avoid
+    // clobbering the host's published settings with a guest's own local ones — keyed on
+    // `lobbySettings` being undefined until the host broadcast. Under server authority
+    // that sentinel is gone: lobbySettings reads off the state mirror, which reports
+    // DEFAULT_SETTINGS from the first frame, so the skip fired for EVERYONE (ownership
+    // isn't known until `ready`) and the owner's own lobby opened on stock defaults —
+    // then started the match with them. A non-owner is re-mirrored from the authority by
+    // the lobby-change callback above, which runs on `ready` and on every snapshot after,
+    // so seeding here costs them at most one frame of their own values.
+    if (changed.has("settings") && this.settings) {
       this.draft = { ...this.settings };
-      // Host: publish the initial / restored settings so guests see them immediately.
+      // Owner: publish the initial / restored settings so other players see them
+      // immediately. A no-op until ownership is known — see the callback's edge push.
       this.pushSettings();
     }
   }
 
   override firstUpdated(): void {
-    // Belt-and-suspenders: ensure the host publishes its settings even if the draft
-    // was seeded before the controller property was wired up.
+    // Belt-and-suspenders: ensure the owner publishes its settings even if the draft
+    // was seeded before the controller property was wired up. Only fires when ownership
+    // is already known at mount (a remount into an existing lobby); the ownership edge
+    // in connectedCallback covers the usual case, where `ready` lands later.
     this.pushSettings();
+    this.wasOwner = !this.readOnly; // seed the edge tracker from the mount state
   }
 
   /** Owner only: publish the working settings so other players' read-only lobby mirrors

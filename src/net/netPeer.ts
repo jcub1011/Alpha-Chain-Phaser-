@@ -1,12 +1,18 @@
 /*
  * NetPeer — the transport surface shared by the real KnockBoxPlugin, the local-tab
- * KnockBoxLocalPeer, and the test FakePeer. Both the legacy host-authoritative
- * controller and the server-authoritative ServerController talk only to this
+ * KnockBoxLocalPeer, and the test FakePeer. ServerController talks only to this
  * interface, never to the addon directly.
  *
  * The `authority`/`ownerId`/`isOwner` trio arrived with plugin v0.2.0's
  * server-authoritative support: in server mode every client is `isHost: false`,
  * so lobby powers (start, settings, kick) gate on `isOwner`, not `isHost`.
+ *
+ * Deliberately narrower than the plugin: `sendToHost` is the only send. The plugin also
+ * offers sendToAll/sendTo and setLobbyOpen, but under server authority this game has no
+ * client-to-client chatter (the authority is the only publisher of state — the local peer
+ * warns and drops a client-sent `delta`/`state`) and the join gate belongs to
+ * `kb.setLobbyOpen` inside the authority module. Leaving them off the interface keeps
+ * that a compile error rather than a subtle divergence from the real relay.
  */
 
 import type { KnockBoxLogger } from "../log";
@@ -26,10 +32,8 @@ export interface NetPeer {
     on(event: string, fn: (...args: unknown[]) => void): unknown;
     off(event: string, fn: (...args: unknown[]) => void): unknown;
   };
+  /** Send a frame to the game's authority (the relay diverts `to:"host"` to the module). */
   sendToHost(payload: unknown): void;
-  sendToAll(payload: unknown): void;
-  sendTo(playerId: string, payload: unknown): void;
-  setLobbyOpen?(open: boolean): void;
   /** Records a Play Log entry on the player's KnockBox home page. Present on the real
    *  WebSocket plugin only; absent on the local-tab peer (calls are a no-op there). */
   logPlay?(metadata: Record<string, unknown>): void;

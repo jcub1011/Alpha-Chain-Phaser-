@@ -76,11 +76,6 @@ export class ServerController implements GameController {
   get lobbySettings(): AlphaChainSettings | undefined {
     return this.mirror.state.settings;
   }
-  /** Whether a match has begun (vs. still in the lobby). */
-  get inMatch(): boolean {
-    return this.mirror.state.players.length > 0;
-  }
-
   /** Subscribe to lobby/roster/owner/settings changes for the waiting UI. */
   onLobbyChange(cb: () => void): () => void {
     this.lobbyCbs.push(cb);
