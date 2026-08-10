@@ -6,3 +6,4 @@ dev.log
 .playwright-mcp/
 *.png
 /.vs
+dist-game/
