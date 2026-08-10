@@ -37,7 +37,9 @@ async function boot(): Promise<void> {
   // touches the wire, keeping networked load fast.
   const isSandbox = new URLSearchParams(location.search).has("sandbox");
   const needsDict = launchMode === "solo" || isSandbox;
-  log.info(`booting (launch=${launchMode}, lexicon=${needsDict ? "loading" : "skipped (server-side)"})`);
+  log.info(
+    `booting (launch=${launchMode}, lexicon=${needsDict ? "loading" : "skipped (server-side)"})`,
+  );
 
   // 1. Card icon sprite (always) + the lexicon (only when the client needs it), in parallel.
   const spritePromise = fetch("assets/cards.svg");
