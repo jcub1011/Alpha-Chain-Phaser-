@@ -6,7 +6,10 @@
 import { describe, expect, it } from "vitest";
 import { MatchController, type PlayerSeed } from "./match";
 import { DEFAULT_SETTINGS } from "./settings";
+import { GameMode } from "./types";
 import type { AlphaChainSettings } from "./types";
+import { Dictionary } from "./dictionary";
+import { dictionaryWordPool } from "./picker/wordPool";
 
 const WORDS = new Set(["cat", "tap", "pat"]);
 const one: PlayerSeed[] = [{ id: "p1", name: "P1", isBot: false }];
@@ -122,5 +125,61 @@ describe("Intermission tutorials (engine → cards → optimize → tax → snip
     expect(m.state.phase).toBe("Intermission");
     expect(m.state.intermissionPhase).toBe("optimize");
     expect(m.state.currentTutorial).toBeNull();
+  });
+});
+
+describe("pre-game tutorials are chosen by the mode actually being played", () => {
+  /** A real Picker match: the word pool is what makes `isPicker` true. */
+  const picker = (overrides: Partial<AlphaChainSettings> = {}) => {
+    const dict = new Dictionary(["cat", "tap", "pat", "candle", "carrot", "camera"]);
+    return new MatchController(
+      one,
+      {
+        ...DEFAULT_SETTINGS,
+        gameMode: GameMode.Picker,
+        preRoundCountdownSeconds: 1,
+        eraInterval: 1,
+        eraCount: 3,
+        enableTutorials: true,
+        ...overrides,
+      },
+      { isWord: (w) => dict.has(w), rng: () => 0.5, wordPool: dictionaryWordPool(dict) },
+    );
+  };
+
+  it("teaches the Offer and Picker's expiry rule in Picker", () => {
+    const m = picker();
+    m.start();
+    expect(m.state.currentTutorial).toBe("offer");
+    m.skipTutorial();
+    // Picker's expiry commits your pick and costs nothing, which is the opposite of Classic's —
+    // so it gets its own page rather than reusing the penalty one.
+    expect(m.state.currentTutorial).toBe("pickerTimeout");
+    m.skipTutorial();
+    expect(m.state.phase).toBe("Countdown");
+    expect(m.state.shownTutorials).toEqual(["offer", "pickerTimeout"]);
+  });
+
+  it("never shows a Classic page in Picker, or a Picker page in Classic", () => {
+    const p = picker();
+    p.start();
+    while (p.state.phase === "Tutorial") p.skipTutorial();
+    expect(p.state.shownTutorials).not.toContain("shiritori");
+    expect(p.state.shownTutorials).not.toContain("timeout");
+
+    const c = make({ enableTutorials: true, gameMode: GameMode.Classic });
+    c.start();
+    while (c.state.phase === "Tutorial") c.skipTutorial();
+    expect(c.state.shownTutorials).toEqual(["shiritori", "timeout"]);
+  });
+
+  it("falls back to Classic's pages when Picker was asked for without a word pool", () => {
+    /* Such a match presents typed entry (see MatchController.isPicker), so teaching the player to
+     * tap Offer Cards that will never appear would be worse than either mode's tutorial. This is
+     * also what keeps every pre-existing tutorial suite meaningful — they all spread
+     * DEFAULT_SETTINGS, which now selects Picker, and inject no pool. */
+    const m = make({ enableTutorials: true, gameMode: GameMode.Picker });
+    m.start();
+    expect(m.state.currentTutorial).toBe("shiritori");
   });
 });

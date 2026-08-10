@@ -446,3 +446,28 @@
   font-style: normal;
   font-size: 12px;
 }
+
+/* Picker's Offer, in the Testing Bay: a plain row of tappable candidates. Deliberately not
+ * <ac-offer-grid> — the bench has no GameController, and the point here is inspecting what the
+ * generator produced (and what a Preference Card did to it), not rehearsing the real UI. */
+.sandbox-offer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.sandbox-offer-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.sandbox-offer-row .chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  font-family: var(--font-mono);
+  font-weight: 700;
+}
+.sandbox-offer-row .chip small {
+  opacity: 0.6;
+  font-size: 0.65rem;
+}

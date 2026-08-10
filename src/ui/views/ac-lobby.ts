@@ -317,9 +317,17 @@ export class AcLobby extends AcElement {
         <button class="ac-btn lobby-start" @click=${this.start}>START MATCH</button>
         <button class="lobby-bay" @click=${this.openBay}>Testing Bay</button>
 
+        <!-- Mode-specific, because the two modes ask for genuinely different things: Picker asks
+             you to judge words, Classic asks you to think of them. The succession rule and the
+             joke are common to both. -->
         <p class="lobby-rules">
-          Every word must start with the last letter of the previous word. It sounds simple but
-          don't worry, I've massively overcomplicated it.
+          ${d.gameMode === GameMode.Picker
+            ? html`Every word must start with the last letter of the previous word — but you pick
+              yours from a handful on offer, so it's your engine doing the work, not your spelling.
+              It sounds simple but don't worry, I've massively overcomplicated it.`
+            : html`Every word must start with the last letter of the previous word, and you type it
+              yourself against the clock. It sounds simple but don't worry, I've massively
+              overcomplicated it.`}
         </p>
       </div>
     `;

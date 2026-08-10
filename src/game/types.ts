@@ -195,9 +195,22 @@ export type RarityWeightKey = Extract<keyof AlphaChainSettings, `rarityWeight${s
 export type IntermissionPhase = "deal" | "optimize" | "sniperBan" | "tutorial" | null;
 
 /** A scripted tutorial overlay shown once at its cue point. Pages are grouped at
- *  three cue points: pre-game (shiritori → timeout), the era-1 optimize cue
- *  (engine → cards), and the era-1 ban cue (tax/sniper). */
-export type TutorialKind = "shiritori" | "timeout" | "engine" | "cards" | "tax" | "sniper";
+ *  three cue points: pre-game, the era-1 optimize cue (engine → cards), and the
+ *  era-1 ban cue (tax/sniper).
+ *
+ *  The PRE-GAME pair is chosen by mode: Classic teaches typed entry and the timeout
+ *  penalty (shiritori → timeout), Picker teaches the Offer and its very different
+ *  expiry rule (offer → pickerTimeout). Both `timeout` pages exist because a Picker
+ *  expiry commits your pick and costs nothing, which is the opposite of Classic's. */
+export type TutorialKind =
+  | "shiritori"
+  | "timeout"
+  | "offer"
+  | "pickerTimeout"
+  | "engine"
+  | "cards"
+  | "tax"
+  | "sniper";
 
 export type BotDifficulty = "easy" | "medium" | "hard";
 

@@ -65,6 +65,8 @@ const log = createLogger("match");
 const TUTORIAL_DWELL: Record<TutorialKind, number> = {
   shiritori: 14,
   timeout: 12,
+  offer: 14,
+  pickerTimeout: 12,
   engine: 14,
   cards: 13,
   tax: 13,
@@ -74,7 +76,14 @@ const TUTORIAL_DWELL: Record<TutorialKind, number> = {
 /** Tutorial pages shown in sequence at each cue point (in order). Pre-game pages run
  *  during the top-level Tutorial phase; the optimize/ban groups run as intermission
  *  sub-phases before the era-1 optimize and sniper ban respectively. */
-const PREGAME_TUTORIALS: readonly TutorialKind[] = ["shiritori", "timeout"];
+/* Pre-game pages, per mode. This list is the ONE tutorial map that is not exhaustive over
+ * TutorialKind, so nothing here is a compile error — and getting it wrong is invisible: a
+ * first-run player in the DEFAULT mode would simply be taught the wrong game. Classic's pair is
+ * left byte-identical. */
+const PREGAME_TUTORIALS: Record<GameMode, readonly TutorialKind[]> = {
+  [GameMode.Classic]: ["shiritori", "timeout"],
+  [GameMode.Picker]: ["offer", "pickerTimeout"],
+};
 const OPTIMIZE_TUTORIALS: readonly TutorialKind[] = ["engine", "cards"];
 const BAN_TUTORIALS: readonly TutorialKind[] = ["tax", "sniper"];
 
@@ -100,6 +109,15 @@ export interface MatchDeps {
    *  authority can pass kb.now() — the sandbox has no ambient `Date`. Defaults to
    *  Date.now for the browser (solo/host paths). */
   now?: () => number;
+  /** Picker: a SEPARATE stream for Offer generation, defaulting to `rng`.
+   *
+   *  Offer generation makes a rejection-dependent number of draws, so sharing one stream with
+   *  `dealCards` means an Offer shifts which cards a later era deals. Harmless in production
+   *  (kb.rng is absent, so it is Math.random) but it matters wherever the main rng is deliberately
+   *  degenerate: the Testing Bay pins turn order with `orderPreservingRng`, a CONSTANT, which
+   *  would otherwise make every Offer a run of alphabetically-extreme words and misrepresent the
+   *  mode it exists to test. */
+  offerRng?: () => number;
   /** Picker: the pool the Offer is drawn from (`kb.words` server-side, the client `Dictionary`
    *  solo). Optional so Classic-only callers and the existing tests need no change; a Picker
    *  match constructed without one logs once and falls back to Classic rather than throwing,
@@ -165,6 +183,8 @@ export class MatchController {
    *  facts (letter ranges, per-letter totals), so it is built once per match and reused — Classic
    *  builds neither. */
   private readonly wordPool?: WordPool;
+  /** The stream Offer generation draws from; `rng` unless a caller separated them. */
+  private readonly offerRng: () => number;
   private poolIndex?: PoolIndex;
   private warnedMissingPool = false;
   /** Host-side leeway (s) the turn lingers at clockRemaining 0 before timing out,
@@ -195,6 +215,7 @@ export class MatchController {
     this.now = deps.now ?? Date.now;
     this.submitGraceSeconds = deps.submitGraceSeconds ?? 0;
     this.wordPool = deps.wordPool;
+    this.offerRng = deps.offerRng ?? this.rng;
     const players: PlayerState[] = seeds.map((s, i) => ({
       id: s.id,
       name: s.name,
@@ -340,6 +361,20 @@ export class MatchController {
       : this.state.settings.shotClockSeconds;
   }
 
+  /** The pre-game tutorial pages for the mode this match will ACTUALLY play.
+   *
+   *  Keyed on `isPicker`, not the raw setting — the same reasoning as `baseClockSeconds`. A match
+   *  that asked for Picker but fell back to Classic for want of a word pool will present typed
+   *  entry, so teaching the player to tap Offer Cards that will never appear is worse than either
+   *  mode's tutorial.
+   *
+   *  Note this differs from `dealCards`, which deliberately keys on the replicated
+   *  `settings.gameMode`: the deal must depend only on replicated state, whereas the tutorial run
+   *  is host-authoritative and reaches guests as snapshots — they never evaluate this. */
+  private get pregameTutorials(): readonly TutorialKind[] {
+    return PREGAME_TUTORIALS[this.isPicker ? GameMode.Picker : GameMode.Classic];
+  }
+
   /** The Offer index, built on first use so Classic pays nothing. */
   private get offerIndex(): PoolIndex {
     return (this.poolIndex ??= buildPoolIndex(this.wordPool!));
@@ -365,7 +400,7 @@ export class MatchController {
   start(): void {
     this.state.startedAt ??= this.now();
     // The pre-game tutorials (chain → timeout), if enabled, play before the first round.
-    const first = this.nextTutorialIn(PREGAME_TUTORIALS);
+    const first = this.nextTutorialIn(this.pregameTutorials);
     if (first) this.enterTutorialPhase(first);
     else this.beginFirstRoundOrSetup();
   }
@@ -471,7 +506,7 @@ export class MatchController {
   }
 
   private advanceTutorialPhase(): void {
-    const next = this.nextTutorialIn(PREGAME_TUTORIALS);
+    const next = this.nextTutorialIn(this.pregameTutorials);
     if (next) {
       this.enterTutorialPhase(next);
       return;
@@ -600,7 +635,7 @@ export class MatchController {
       usedWords: this.state.usedWords,
       count: this.offerCountFor(p, shaping.countDelta),
       shaping,
-      rng: this.rng,
+      rng: this.offerRng,
     });
     this.state.offer = result.words;
     for (const cardId of result.skippedFilters) {
@@ -1433,6 +1468,14 @@ export class MatchController {
     const scoring = bay.filter((b) => !isPref(b)).slice(0, slots);
     const preference = bay.filter(isPref).slice(0, Math.max(0, slots - scoring.length));
     return [...preference, ...scoring];
+  }
+
+  /** Testing Bay: re-arm the current turn in place, so a bay edit is reflected in a freshly drawn
+   *  Offer. Not reachable in a real match — the Offer is drawn once when a turn arms, and redrawing
+   *  it mid-turn is otherwise Winnower's paid-for privilege. */
+  benchRearmTurn(): void {
+    if (this.state.phase !== "Round") return;
+    this.armCurrentTurn();
   }
 
   /** Bots/non-submitters: trim oldest (left) cards to fit the expanded capacity. */
