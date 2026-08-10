@@ -31,27 +31,39 @@ async function boot(): Promise<void> {
   //    ticket out of location.hash the moment it starts, so detectLaunch() is only
   //    reliable before the Phaser game boots — capture it here and thread it down.
   const launchMode = detectLaunch();
-  log.info(`booting (launch=${launchMode})`);
-
-  // 1. Lexicon (the large download) + card icon sprite, in parallel.
-  const [wordsRes, spriteRes] = await Promise.all([
-    fetch("assets/words.txt"),
-    fetch("assets/cards.svg"),
-  ]);
-  if (!wordsRes.ok || !spriteRes.ok) {
-    // Fail fast: reading .text() off a non-OK response would feed the error-page HTML
-    // into the dictionary / sprite as silent garbage. Throw so boot().catch surfaces it.
-    throw new Error(`asset fetch failed (words=${wordsRes.status}, sprite=${spriteRes.status})`);
-  }
-  const [wordsText, spriteText] = await Promise.all([wordsRes.text(), spriteRes.text()]);
-
-  const dict = new Dictionary(
-    wordsText
-      .split(/\r?\n/)
-      .map((w) => w.trim().toLowerCase())
-      .filter((w) => w.length > 0),
+  // The ~4 MB lexicon is only needed on the CLIENT for offline play: solo-vs-bots and
+  // the dev Testing Bay. In server-authoritative networked play the server owns the
+  // dictionary (the word service), so the client skips the download entirely — it never
+  // touches the wire, keeping networked load fast.
+  const isSandbox = new URLSearchParams(location.search).has("sandbox");
+  const needsDict = launchMode === "solo" || isSandbox;
+  log.info(
+    `booting (launch=${launchMode}, lexicon=${needsDict ? "loading" : "skipped (server-side)"})`,
   );
-  log.info(`dictionary loaded (${dict.size} words)`);
+
+  // 1. Card icon sprite (always) + the lexicon (only when the client needs it), in parallel.
+  const spritePromise = fetch("assets/cards.svg");
+  const wordsPromise = needsDict ? fetch("assets/words.txt") : null;
+  const spriteRes = await spritePromise;
+  if (!spriteRes.ok) {
+    // Fail fast: reading .text() off a non-OK response would feed error-page HTML in as garbage.
+    throw new Error(`sprite fetch failed (${spriteRes.status})`);
+  }
+  const spriteText = await spriteRes.text();
+
+  let dict: Dictionary | undefined;
+  if (wordsPromise) {
+    const wordsRes = await wordsPromise;
+    if (!wordsRes.ok) throw new Error(`words fetch failed (${wordsRes.status})`);
+    const wordsText = await wordsRes.text();
+    dict = new Dictionary(
+      wordsText
+        .split(/\r?\n/)
+        .map((w) => w.trim().toLowerCase())
+        .filter((w) => w.length > 0),
+    );
+    log.info(`dictionary loaded (${dict.size} words)`);
+  }
 
   // 2. Inject the SVG <symbol> sprite once so <use href="#id"> resolves anywhere.
   const sprite = document.createElement("div");

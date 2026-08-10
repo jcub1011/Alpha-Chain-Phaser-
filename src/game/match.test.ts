@@ -221,6 +221,76 @@ describe("MatchController", () => {
   });
 });
 
+describe("MatchController — dropPlayer (mid-match departure)", () => {
+  let m: MatchController;
+  beforeEach(() => {
+    m = makeMatch({ preRoundCountdownSeconds: 3, eraInterval: 4, eraCount: 1 });
+    m.start();
+    m.tick(3); // burn the countdown → p1's turn armed
+  });
+
+  it("skips a departed player's live turn with no timeout penalty, keeping them scored", () => {
+    m.state.players[0].score = 7; // give the leaver a score to prove it is untouched
+    expect(m.current.id).toBe("p1"); // p1 is up (from beforeEach)
+    let timedOut = false;
+    m.events.on("timeout", () => (timedOut = true));
+
+    m.dropPlayer("p1"); // p1 disconnects on their own turn
+
+    expect(timedOut).toBe(false); // no timeout theater / penalty fired
+    expect(m.current.id).toBe("p2"); // turn advanced past the leaver immediately
+    const gone = m.state.players.find((p) => p.id === "p1");
+    expect(gone?.eliminated).toBe(true); // marked out so the order skips them...
+    expect(gone?.score).toBe(7); // ...but their score stays on the leaderboard, untouched
+  });
+
+  it("only marks a non-current departed player, leaving the live turn intact", () => {
+    expect(m.current.id).toBe("p1");
+    const clockBefore = m.state.clockRemaining;
+
+    m.dropPlayer("p2"); // the player who is NOT up leaves
+
+    expect(m.state.players.find((p) => p.id === "p2")?.eliminated).toBe(true);
+    expect(m.current.id).toBe("p1"); // p1's turn is untouched
+    expect(m.state.clockRemaining).toBe(clockBefore); // clock not re-armed
+  });
+
+  it("skips an eliminated player in the turn order on the next advance", () => {
+    const three: PlayerSeed[] = [
+      { id: "p1", name: "One", isBot: false },
+      { id: "p2", name: "Two", isBot: false },
+      { id: "p3", name: "Three", isBot: false },
+    ];
+    const m3 = new MatchController(
+      three,
+      { ...DEFAULT_SETTINGS, enableTutorials: false, preRoundCountdownSeconds: 3, eraInterval: 4 },
+      { isWord: (w) => WORDS.has(w), rng: () => 0.5 },
+    );
+    m3.start();
+    m3.tick(3); // → Round, free starting letter
+
+    // Drop whoever is up NEXT (not the current player), then let the current player
+    // submit — the advance must jump over the eliminated seat to the one after it.
+    const order = m3.state.players.map((p) => p.id);
+    const cur = m3.state.currentPlayerIndex;
+    const nextId = order[(cur + 1) % 3];
+    const afterId = order[(cur + 2) % 3];
+
+    m3.dropPlayer(nextId);
+    expect(m3.current.id).toBe(order[cur]); // dropping a non-current player didn't advance
+    m3.submitWord(order[cur], "cat"); // free letter, valid word
+    expect(m3.current.id).toBe(afterId); // skipped the eliminated seat
+  });
+
+  it("is idempotent and ignores an unknown id", () => {
+    m.dropPlayer("p1");
+    expect(m.current.id).toBe("p2");
+    expect(() => m.dropPlayer("p1")).not.toThrow(); // already eliminated → no-op
+    expect(() => m.dropPlayer("ghost")).not.toThrow(); // unknown id → no-op
+    expect(m.current.id).toBe("p2");
+  });
+});
+
 describe("shot-clock timeout penalty", () => {
   const armed = (overrides: Partial<AlphaChainSettings> = {}) => {
     const m = makeMatch({ preRoundCountdownSeconds: 3, eraInterval: 4, eraCount: 1, ...overrides });

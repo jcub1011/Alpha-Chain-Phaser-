@@ -341,6 +341,35 @@ export interface MatchState {
   endedAt?: number;
 }
 
+/** A blank pre-match MatchState carrying the given lobby settings. Shared by the guest
+ *  mirror (NetMatch) and the server authority so the two can never drift as fields are
+ *  added — every new MatchState field must be defaulted here in exactly one place. */
+export function emptyMatchState(settings: AlphaChainSettings): MatchState {
+  return {
+    phase: "Setup",
+    era: 1,
+    round: 0,
+    roundInEra: 0,
+    players: [],
+    currentPlayerIndex: 0,
+    requiredLetter: "",
+    bannedLetter: "",
+    bannedLetterHistory: [],
+    usedWords: new Set<string>(),
+    history: [],
+    clockRemaining: 0,
+    clockTotal: 0,
+    intermissionPhase: null,
+    currentTutorial: null,
+    subTimerRemaining: 0,
+    subTimerTotal: 0,
+    shownTutorials: [],
+    tutorialReady: [],
+    settings,
+    winnerId: null,
+  };
+}
+
 /** Result of attempting to validate + score a word. */
 export interface SubmitResult {
   accepted: boolean;

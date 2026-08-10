@@ -87,6 +87,10 @@ export interface MatchDeps {
   rng?: () => number;
   /** Host-side timeout grace (s); 0 = immediate (solo/tests). */
   submitGraceSeconds?: number;
+  /** Wall-clock (epoch ms) for startedAt/endedAt stamps. Injectable so the server
+   *  authority can pass kb.now() — the sandbox has no ambient `Date`. Defaults to
+   *  Date.now for the browser (solo/host paths). */
+  now?: () => number;
 }
 
 export interface MatchEvents {
@@ -109,6 +113,8 @@ export class MatchController {
   readonly events = new Emitter<MatchEvents>();
   private readonly rng: () => number;
   private readonly isWord: (w: string) => boolean;
+  /** Wall-clock (epoch ms) for match timestamps; injectable (kb.now() server-side). */
+  private readonly now: () => number;
 
   private countdownRemaining = 0;
   /** Era-end settle: while > 0 the phase is held in Round (clock frozen) so the
@@ -145,6 +151,7 @@ export class MatchController {
   constructor(seeds: PlayerSeed[], settings: AlphaChainSettings, deps: MatchDeps) {
     this.isWord = deps.isWord;
     this.rng = deps.rng ?? Math.random;
+    this.now = deps.now ?? Date.now;
     this.submitGraceSeconds = deps.submitGraceSeconds ?? 0;
     const players: PlayerState[] = seeds.map((s, i) => ({
       id: s.id,
@@ -298,7 +305,7 @@ export class MatchController {
 
   // ── Lifecycle ────────────────────────────────────────────────────────────────
   start(): void {
-    this.state.startedAt ??= Date.now();
+    this.state.startedAt ??= this.now();
     // The pre-game tutorials (chain → timeout), if enabled, play before the first round.
     const first = this.nextTutorialIn(PREGAME_TUTORIALS);
     if (first) this.enterTutorialPhase(first);
@@ -910,6 +917,28 @@ export class MatchController {
     return this.activePlayers.filter((p) => !p.isBot).every((p) => p.lockedIn);
   }
 
+  /** A player disconnected mid-match. Mark them eliminated so the turn order skips
+   *  them (they stay in `players` for the leaderboard / score history), and if it is
+   *  currently their live turn, skip it cleanly — advancing the turn with NO timeout
+   *  penalty — instead of letting their shot clock run down. */
+  dropPlayer(playerId: string): void {
+    const p = this.state.players.find((x) => x.id === playerId);
+    if (!p || p.eliminated) return;
+    p.eliminated = true;
+    if (
+      this.state.phase === "Round" &&
+      this.roundSettleRemaining <= 0 &&
+      this.current.id === playerId &&
+      this.activePlayers.length > 0 // someone remains to hand the turn to
+    ) {
+      // fromSubmission=false → a plain advance (advanceIndex skips the now-eliminated
+      // player), no scoreTimeout, no penalty, no timeout theater.
+      this.endTurn();
+    }
+    // A departed straggler mustn't strand the players who already locked in.
+    this.recheckOptimizeCompletion();
+  }
+
   /** Re-evaluate optimize completion without a new lock-in — used when a player leaves
    *  mid-optimize, so a now-eliminated straggler can't strand everyone who already locked in. */
   recheckOptimizeCompletion(): void {
@@ -1004,9 +1033,10 @@ export class MatchController {
       if (pool.length === 0) break;
       // Weighted pick: rarer cards carry a smaller deal weight, so by default (10/5/2/1)
       // a Legendary surfaces ~10× less often than a Common. Exactly ONE rng() call per
-      // card so host-authoritative dealing stays deterministic across host/guests (the
-      // replicated-state footgun: any divergence in rng draw count desyncs bays). Every
-      // pooled card has weight >= 1, so totalWeight > 0 here and the last-slot fallback
+      // card, so the deal is a pure function of the seed and the draw count: the authority
+      // deals once server-side and clients only mirror the result, so this is what keeps a
+      // replayed or resumed match reproducing the same bays. Every pooled card has
+      // weight >= 1, so totalWeight > 0 here and the last-slot fallback
       // covers only floating-point drift, where the accumulated weights never quite
       // drop `r` below zero.
       const weights = pool.map((id) => tierWeight[getCard(id)!.rarity]);
@@ -1156,7 +1186,7 @@ export class MatchController {
 
   // ── End ────────────────────────────────────────────────────────────────────
   private gameOver(): void {
-    this.state.endedAt = Date.now();
+    this.state.endedAt = this.now();
     const standings = [...this.state.players].sort(byScoreDesc);
     this.state.winnerId = standings[0]?.id ?? null;
     this.setPhase("GameOver");

@@ -108,8 +108,12 @@ export function loadSettings(): AlphaChainSettings {
  * arithmetic and comparisons silently (`undefined <= 0` is false, `x + undefined` is NaN).
  *
  * Used for BOTH untrusted sources: the persisted localStorage blob (via loadSettings) and the
- * host's lobby-settings broadcast, which is wire data from another client and may predate a
- * setting this build expects (see KnockBoxController's "lobby" message).
+ * settings a client sends over the wire — the owner's startMatch / setSettings intents, which
+ * may predate a setting this build expects. The server authority validates those before
+ * adopting them, since they become the running match's rules (see src/server/authority.ts).
+ *
+ * Note it REJECTS an out-of-range value back to the default rather than clamping it, so a
+ * caller can't smuggle an extreme through by relying on a clamp.
  */
 export function sanitizeSettings(raw: unknown): AlphaChainSettings {
   const stored = (raw ?? {}) as Record<string, unknown>;

@@ -11,7 +11,7 @@ import { COLORS, prefersReducedMotion } from "../../theme";
 import { createLogger } from "../../log";
 import type { LaunchMode } from "../../net/launch";
 import { knockboxPluginConfig } from "../../net/knockboxPlugin";
-import type { NetPeer } from "../../net/knockBoxController";
+import type { NetPeer } from "../../net/netPeer";
 import { FxScene } from "./FxScene";
 
 const log = createLogger("fx");

@@ -6,7 +6,8 @@
   "description": "Alpha Chain — a high-velocity word-chain + engine-builder game, ported to Phaser.",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && vite build && npm run build:authority",
+    "build:authority": "vite build --config vite.authority.config.ts",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
