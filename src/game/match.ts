@@ -32,6 +32,7 @@ import {
   legalBanLetters,
   MIN_SHOT_CLOCK_SECONDS,
   modifierSlotsForCardEra,
+  rarityDealWeights,
   isVowel,
 } from "./settings";
 import { byScoreDesc } from "./types";
@@ -873,6 +874,15 @@ export class MatchController {
   private beginOptimize(): void {
     // Fresh lock-in slate every optimize: nobody has committed their engine yet.
     for (const p of this.state.players) p.lockedIn = false;
+    // Nobody holds a card, so there is nothing to arrange or discard: skip the sub-phase
+    // instead of holding everyone on an empty bay for intermissionCardSelectSeconds. Reached
+    // when modifiersDealtPerEra is 0, and when the host's enabled rarity tiers are exhausted
+    // and dealCards had an empty pool (see dealPoolCapacity). Decided from replicated state
+    // (players[].bay) and consuming no rng, so host and guests agree and dealing can't desync.
+    if (this.state.players.every((p) => p.bay.length === 0)) {
+      this.completeOptimize();
+      return;
+    }
     this.armSubTimer(this.state.settings.intermissionCardSelectSeconds);
     this.setIntermissionPhase("optimize", null);
   }
@@ -1000,19 +1010,46 @@ export class MatchController {
 
   private dealCards(player: PlayerState, count: number): string[] {
     const dealt: string[] = [];
+    // Host-configurable per-tier weights, resolved once: pure, and the pool filter below
+    // must not vary mid-batch. Read from state.settings (the replicated field) — never
+    // from module state or loadSettings(), which are host-local and would diverge.
+    const tierWeight = rarityDealWeights(this.state.settings);
     for (let i = 0; i < count; i++) {
       // A card is dealable to this player only while they hold fewer than its
-      // maxInstances (default 3). Recompute each draw so a cap reached mid-batch
-      // (e.g. a card dealt twice this era) drops it from later draws too. If every
-      // dealable card is capped for this player the pool is empty and dealing stops
-      // early below.
+      // maxInstances (default 3), and only while its rarity tier carries weight — a
+      // tier the host zeroed leaves the pool outright rather than being merely
+      // unlikely, so "weight 0" reliably means "never dealt" (it also can't sneak in
+      // via the float-drift fallback below). Recompute each draw so a cap reached
+      // mid-batch (e.g. a card dealt twice this era) drops it from later draws too.
+      // An empty pool stops dealing early: every card capped for this player, or every
+      // tier zeroed (the host's "deal nothing" configuration).
       const pool = DEALABLE_CARD_IDS.filter((id) => {
-        const max = getCard(id)?.maxInstances ?? DEFAULT_MAX_INSTANCES;
+        const card = getCard(id);
+        if (!card || tierWeight[card.rarity] <= 0) return false;
+        const max = card.maxInstances ?? DEFAULT_MAX_INSTANCES;
         const owned = player.bay.filter((b) => b.id === id).length;
         return owned < max;
       });
       if (pool.length === 0) break;
-      const id = pool[Math.floor(this.rng() * pool.length)];
+      // Weighted pick: rarer cards carry a smaller deal weight, so by default (10/5/2/1)
+      // a Legendary surfaces ~10× less often than a Common. Exactly ONE rng() call per
+      // card, so the deal is a pure function of the seed and the draw count: the authority
+      // deals once server-side and clients only mirror the result, so this is what keeps a
+      // replayed or resumed match reproducing the same bays. Every pooled card has
+      // weight >= 1, so totalWeight > 0 here and the last-slot fallback
+      // covers only floating-point drift, where the accumulated weights never quite
+      // drop `r` below zero.
+      const weights = pool.map((id) => tierWeight[getCard(id)!.rarity]);
+      const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+      let r = this.rng() * totalWeight;
+      let id = pool[pool.length - 1];
+      for (let k = 0; k < pool.length; k++) {
+        r -= weights[k];
+        if (r < 0) {
+          id = pool[k];
+          break;
+        }
+      }
       dealt.push(id);
       player.bay.push({ id, uid: this.nextBayUid(), isNew: true });
     }

@@ -8,6 +8,7 @@ import { customElement, property, state } from "lit/decorators.js";
 import type { AlphaChainSettings, BotDifficulty } from "../../game/types";
 import { DEFAULT_SETTINGS, saveSettings } from "../../game/settings";
 import { AcElement } from "../app/AcElement";
+import { RARITY_WEIGHT_BOUNDS, renderRarityWeights } from "./rarity-weights";
 import { SETTING_HINTS } from "./settings-hints";
 
 const DIFFS: BotDifficulty[] = ["easy", "medium", "hard"];
@@ -69,9 +70,12 @@ export class AcLobby extends AcElement {
       <div class="set-row">
         ${this.setText(label, hint)}
         <div class="set-ctl">
-          <button class="set-btn" @click=${onMinus} aria-label="decrease">−</button>
-          <span class="set-value">${value}</span>
-          <button class="set-btn" @click=${onPlus} aria-label="increase">+</button>
+          <!-- Name the row in each button's label: the rarity group puts four near-identical
+               steppers in a row, and a bare "decrease"/"increase" leaves a screen-reader user
+               with eight indistinguishable buttons. -->
+          <button class="set-btn" @click=${onMinus} aria-label="decrease ${label}">−</button>
+          <span class="set-value" aria-live="polite">${value}</span>
+          <button class="set-btn" @click=${onPlus} aria-label="increase ${label}">+</button>
         </div>
       </div>
     `;
@@ -118,6 +122,15 @@ export class AcLobby extends AcElement {
       ],
       (v) => set(v === "on"),
       hint,
+    );
+  }
+
+  /** The "Rarity Weights" group — shared with the multiplayer lobby (see rarity-weights.ts). */
+  private rarityWeights(): TemplateResult {
+    return renderRarityWeights(
+      this.draft,
+      (key, delta) => this.step(key, delta, RARITY_WEIGHT_BOUNDS.min, RARITY_WEIGHT_BOUNDS.max),
+      this.stepper.bind(this),
     );
   }
 
@@ -203,6 +216,7 @@ export class AcLobby extends AcElement {
               () => this.step("modifiersDealtPerEra", 1, 0, 10),
               SETTING_HINTS.modifiersDealtPerEra,
             )}
+            ${this.rarityWeights()}
             ${this.stepper(
               "Starting Slots",
               String(d.modifierSlotsStart),

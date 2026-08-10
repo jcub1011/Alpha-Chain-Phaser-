@@ -7,7 +7,14 @@
 
 import { describe, expect, it } from "vitest";
 import { bayHidesInput, makeBayEvaluator, scoreWord, type ScoreOptions } from "../scoring";
-import type { BayCard, Submission } from "../types";
+import {
+  CardRarity,
+  type BayCard,
+  type CardRarity as CardRarityT,
+  type Submission,
+} from "../types";
+import { CARD_LIBRARY, dealPoolCapacity, RARITY_CARD_COUNTS, rarityDealShare } from "./library";
+import { DEFAULT_RARITY_DEAL_WEIGHT } from "../settings";
 
 const bay = (...ids: string[]): BayCard[] => ids.map((id) => ({ id }));
 const opts = { prevWordLength: 0, clockRemaining: 10, clockTotal: 20, taxed: false };
@@ -305,6 +312,88 @@ describe("Dividend — +2 per card in the bay", () => {
 describe("Crescendo — clean-streak multiplier", () => {
   it("skips with no streak service in scope (pure scoring)", () => {
     expect(scoreWord("cat", bay("Crescendo"), opts).steps[0].triggered).toBe(false);
+  });
+});
+
+// ── Rarity coverage: every card is tiered, and the agreed distribution holds ──
+
+describe("card rarity assignments", () => {
+  const cards = Object.values(CARD_LIBRARY);
+  const validTiers = new Set<CardRarityT>(Object.values(CardRarity));
+
+  it("assigns every card a valid rarity tier", () => {
+    for (const c of cards) {
+      expect(validTiers.has(c.rarity), `${c.id} has rarity ${c.rarity}`).toBe(true);
+    }
+  });
+
+  it("matches the agreed 18 / 15 / 11 / 3 distribution", () => {
+    const counts: Record<CardRarityT, number> = {
+      common: 0,
+      uncommon: 0,
+      rare: 0,
+      legendary: 0,
+    };
+    for (const c of cards) counts[c.rarity]++;
+    expect(counts).toEqual({ common: 18, uncommon: 15, rare: 11, legendary: 3 });
+  });
+
+  it("exposes those same counts as RARITY_CARD_COUNTS", () => {
+    expect(RARITY_CARD_COUNTS).toEqual({ common: 18, uncommon: 15, rare: 11, legendary: 3 });
+  });
+});
+
+// ── rarityDealShare: the lobby's per-tier "share of a draw" readout ───────────
+
+describe("rarityDealShare", () => {
+  it("splits a draw across tiers by count × weight, summing to 1", () => {
+    const share = rarityDealShare(DEFAULT_RARITY_DEAL_WEIGHT);
+    const sum = Object.values(share).reduce((a, b) => a + b, 0);
+    expect(sum).toBeCloseTo(1, 10);
+    // Σ = 18×10 + 15×5 + 11×2 + 3×1 = 280.
+    expect(share.common).toBeCloseTo(180 / 280, 10);
+    expect(share.uncommon).toBeCloseTo(75 / 280, 10);
+    expect(share.rare).toBeCloseTo(22 / 280, 10);
+    expect(share.legendary).toBeCloseTo(3 / 280, 10);
+  });
+
+  it("gives a zeroed tier exactly no share, and redistributes the rest", () => {
+    const share = rarityDealShare({ ...DEFAULT_RARITY_DEAL_WEIGHT, common: 0 });
+    expect(share.common).toBe(0);
+    expect(Object.values(share).reduce((a, b) => a + b, 0)).toBeCloseTo(1, 10);
+  });
+
+  it("returns zeros rather than NaN when every tier is zeroed", () => {
+    const share = rarityDealShare({ common: 0, uncommon: 0, rare: 0, legendary: 0 });
+    expect(share).toEqual({ common: 0, uncommon: 0, rare: 0, legendary: 0 });
+  });
+});
+
+// ── dealPoolCapacity: the hard per-player ceiling the lobby warns against ─────
+
+describe("dealPoolCapacity", () => {
+  const ALL_TIERS = { common: 1, uncommon: 1, rare: 1, legendary: 1 };
+  const capOf = (id: string) => CARD_LIBRARY[id as keyof typeof CARD_LIBRARY].maxInstances ?? 3;
+
+  it("sums every copy of every card when no tier is disabled", () => {
+    const expected = Object.keys(CARD_LIBRARY).reduce((sum, id) => sum + capOf(id), 0);
+    expect(dealPoolCapacity(ALL_TIERS)).toBe(expected);
+    // The weights are relative, so only the zero/non-zero split can move the ceiling.
+    expect(dealPoolCapacity(DEFAULT_RARITY_DEAL_WEIGHT)).toBe(expected);
+  });
+
+  it("counts only the enabled tiers", () => {
+    const legendaryOnly = dealPoolCapacity({ ...ALL_TIERS, common: 0, uncommon: 0, rare: 0 });
+    // Deca-Quint 1 + Forgery 3 (the default cap) + Roulette Wheel 1 — a whole match's worth
+    // of intermissions has 5 cards to draw from, against a default ask of 9.
+    expect(legendaryOnly).toBe(5);
+    expect(dealPoolCapacity(ALL_TIERS) - dealPoolCapacity({ ...ALL_TIERS, legendary: 0 })).toBe(
+      legendaryOnly,
+    );
+  });
+
+  it("is 0 when every tier is disabled", () => {
+    expect(dealPoolCapacity({ common: 0, uncommon: 0, rare: 0, legendary: 0 })).toBe(0);
   });
 });
 

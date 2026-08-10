@@ -146,18 +146,25 @@ ac-card[flipped] .gc-flip {
   flex-direction: column;
   gap: calc(var(--gc-h) * 0.05);
   padding: calc(var(--gc-h) * 0.05) calc(var(--gc-w) * 0.06);
-  border: 2.5px solid var(--gc-accent);
+  /* The border color is indirected through --gc-border so state rules ([triggered],
+     rarity tiers) can repaint the ring without restating the whole border shorthand. */
+  --gc-border: var(--gc-accent);
+  border: 2.5px solid var(--gc-border);
   border-radius: var(--r-md);
   overflow: hidden;
+  /* Scopes the rarity shine's `screen` blend (see .gc-front::after) to the card, so
+     it lightens the face and never the table behind it. */
   isolation: isolate;
   backface-visibility: hidden;
-  background:
+  /* A directional tint in the card's own color over an opaque panel fill. */
+  background-image:
     linear-gradient(
       157deg,
       color-mix(in srgb, var(--gc-card-color, var(--gc-accent)) 22%, transparent),
       color-mix(in srgb, var(--gc-card-color, var(--gc-accent)) 5%, transparent) 60%
     ),
-    var(--ac-panel-solid);
+    linear-gradient(var(--ac-panel-solid) 0 0);
+  background-repeat: no-repeat;
   box-shadow:
     var(--ac-drop-sm),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
@@ -319,7 +326,8 @@ ac-card[triggered] .gc {
   box-shadow:
     var(--ac-drop),
     0 0 30px color-mix(in srgb, var(--gc-accent) 80%, transparent);
-  border-color: color-mix(in srgb, var(--gc-accent) 100%, #fff 25%);
+  /* The border is a background layer now (see .gc), so brighten its paint. */
+  --gc-border: color-mix(in srgb, var(--gc-accent) 100%, #fff 25%);
 }
 
 /* Mini cards (opponent bays, sandbox, the engine-replay piles) keep the full
@@ -366,4 +374,170 @@ ac-card[mini] .gc-back {
    same description tooltip, since :hover never fires. */
 ac-card[mini][revealed] .gc-back {
   opacity: 1;
+}
+
+/* ── Rarity: a single specular band ──────────────────────────────────────────
+   One band of light crosses the card face on hover — no keyframes, no second
+   bar, no resting glint. The face is clean until you point at it.
+
+   Geometry lives in the --gc-shine-* knobs below, so the whole look retunes by
+   editing a handful of numbers. The band leans 15° off vertical: a linear-gradient
+   angle names its *axis* and the band runs perpendicular to it, hence 90deg + 15deg.
+
+   The profile is a hard-edged MAIN band with a small faded WISP trailing it across
+   a gap. The main band is one flat plateau cut dead at both edges — doubled stops
+   (`color a b`) hold it level right up to the cut, and that hard edge is what makes
+   it read as foil rather than as a wash. The wisp is the opposite: a low soft bump
+   that ramps up and back down, easing the eye into the main band so it doesn't just
+   pop. The gap between them is what keeps the wisp legible as a separate glint
+   instead of merging into a shoulder — close it and you're back to a smooth ramp.
+
+   The wisp trails on the low side of the gradient axis. The sweep runs
+   background-position 175% -> -75%, which moves the band left-to-right across the
+   face, so low-side means the wisp arrives first and the hard edge lands last.
+
+   Rarity rides on BRIGHTNESS and WIDTH, never on hue alone. The palette's green
+   (#3ad07a) and gold (#ffcf4d) are a classic confusion pair: simulated through
+   Viénot, their separation falls from 202 to 57 under protanopia, and the band
+   dilutes them further still by mixing toward white and screening at low alpha.
+   Luminance and size survive every type of color deficiency, so they carry the
+   signal and --gc-rarity only tints on top for those who can use it.
+
+   Common matches no tier rule and never shines; its tier reads from the back-face
+   .gc-rarity-label.
+
+   The knobs sit on .gc-flip, not on the ::after that reads them: a custom property
+   declared inside the pseudo-element's own rule would beat any inherited value, so
+   putting them here is what lets a surface or a single card override one. */
+.gc-flip:is([data-rarity="uncommon"], [data-rarity="rare"], [data-rarity="legendary"]) {
+  --gc-shine-angle: 15deg; /* lean off vertical */
+  --gc-shine-sweep: 800ms; /* time to cross the face */
+  --gc-shine-tint: 70%; /* share of rarity color vs white in the band */
+  /* Where the profile parks before and after the sweep. Kept as tight as it can be:
+     the old 175% -> -75% put the band a card-and-a-half off each side, so most of
+     the travel happened out of sight — and an eased curve spends its slow phases
+     exactly there, which reads as a pause followed by a whip rather than a glint
+     that gathers and slides.
+
+     These sit deliberately AT the floor, not comfortably past it. Solving the
+     gradient geometry for the point where the profile stops touching any card
+     corner gives 131 / -60 at the worst aspect ratio in use — so parking barely
+     outside that means the slow opening phase starts revealing light in the corner
+     almost immediately, instead of burning its first 200ms invisibly off-face. Park
+     further out and the build-up disappears; park closer and a sliver stays lit at
+     rest. (The 15deg lean is why a flat width estimate gets this wrong: the band's
+     top edge reaches further than its width alone suggests. The model assumes square
+     corners, and .gc's border-radius clips them, so the real margin is a little
+     larger than these numbers imply.) Widening the profile — --gc-shine-width,
+     --gc-shine-wisp, --gc-shine-gap — pushes the floor out too, so re-check the
+     resting corner after any such change. The trailing value is further out because
+     the wisp sits on that side. */
+  --gc-shine-from: 132%;
+  --gc-shine-to: -62%;
+}
+/* The tier ramp. Same specificity as the block above, so these must stay after it
+   to win on source order. Rare sits at the 0.4 the whole set used to share, with
+   the other two stepped either side of it. The widths hold a 1 : 1.5 : 2.25 ratio —
+   rescale all three together or the tiers stop reading as evenly spaced, and note
+   that --gc-shine-wisp and --gc-shine-gap derive from width, so they follow along. */
+.gc-flip[data-rarity="uncommon"] {
+  --gc-shine-intensity: 0.28;
+  --gc-shine-width: 8%;
+}
+.gc-flip[data-rarity="rare"] {
+  --gc-shine-intensity: 0.42;
+  --gc-shine-width: 12%;
+}
+.gc-flip[data-rarity="legendary"] {
+  --gc-shine-intensity: 0.6;
+  --gc-shine-width: 18%;
+}
+.gc-flip:is([data-rarity="uncommon"], [data-rarity="rare"], [data-rarity="legendary"])
+  .gc-front::after {
+  /* Real foil goes white-hot at the peak and shows its color in the weaker light,
+     so the main band keeps only half the tint while the wisp carries all of it.
+     Screen blending over a dark face washes out any color that starts near white,
+     which is why the tint has to run this high to read at all. */
+  --gc-shine-hot: color-mix(in srgb, var(--gc-rarity) calc(var(--gc-shine-tint) * 0.5), white);
+  --gc-shine-lit: color-mix(in srgb, var(--gc-rarity) var(--gc-shine-tint), white);
+  --gc-shine-main: color-mix(
+    in srgb,
+    var(--gc-shine-hot) calc(var(--gc-shine-intensity) * 100%),
+    transparent
+  );
+  --gc-shine-glint: color-mix(
+    in srgb,
+    var(--gc-shine-lit) calc(var(--gc-shine-intensity) * 30%),
+    transparent
+  );
+  /* Wisp size and its stand-off, both scaled off the main band's half-width so the
+     whole profile grows with the tier rather than drifting out of proportion. */
+  --gc-shine-wisp: calc(var(--gc-shine-width) * 0.45);
+  --gc-shine-gap: calc(var(--gc-shine-width) * 0.4);
+  --gc-shine-w0: calc(50% - var(--gc-shine-width) - var(--gc-shine-gap) - var(--gc-shine-wisp));
+  --gc-shine-w1: calc(
+    50% - var(--gc-shine-width) - var(--gc-shine-gap) - var(--gc-shine-wisp) * 0.5
+  );
+  --gc-shine-w2: calc(50% - var(--gc-shine-width) - var(--gc-shine-gap));
+
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background-image: linear-gradient(
+    calc(90deg + var(--gc-shine-angle)),
+    transparent 0 var(--gc-shine-w0),
+    var(--gc-shine-glint) var(--gc-shine-w1),
+    transparent var(--gc-shine-w2) calc(50% - var(--gc-shine-width)),
+    var(--gc-shine-main) calc(50% - var(--gc-shine-width)) calc(50% + var(--gc-shine-width)),
+    transparent calc(50% + var(--gc-shine-width)) 100%
+  );
+  background-repeat: no-repeat;
+  /* Painted 2.6× the card's width so the profile has room to sit fully off-face at
+     either end of its travel (see --gc-shine-from/-to for the range). */
+  background-size: 260% 100%;
+  background-position: var(--gc-shine-from) 0;
+  /* Slow at both ends, quicker through the middle. The band gathers in the leading
+     corner, slides across the face, then catches on the trailing corner — the way a
+     highlight behaves on something turning in the light.
+
+     This is easeInOutCubic, and the exact steepness matters. Its peak speed is 2.86x
+     linear, which keeps the three phases distinct without the slide becoming a blur.
+     Steeper curves overshoot fast: 0.75/0.25 peaks at 4x and 0.85/0.15 at 6.66x,
+     where the middle stops reading as a slide at all. Flatter than about 0.55/0.45
+     (2.2x) and it flattens into one even glide with no phases to watch. */
+  transition: background-position var(--gc-shine-sweep) cubic-bezier(0.65, 0, 0.35, 1);
+  /* Screen lightens the art under the band; the transparent flanks leave the rest
+     of the card untouched. .gc's `isolation: isolate` keeps it off the table. */
+  mix-blend-mode: screen;
+}
+
+/* Mini cards (opponent bays, replay piles, sandbox) are too small for the band to
+   read as anything but a flash, and they're never the focus. */
+ac-card[mini] .gc-front::after {
+  display: none;
+}
+
+/* Hover drives the band across; hover-out transitions it back the way it came.
+   Under reduced motion the global killswitch (tokens.css) would collapse the
+   transition and *snap* the band on, so skip the rule entirely instead — the band
+   simply stays parked off-card and the face never changes. */
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  ac-card:not([mini]):hover
+    .gc-flip:is([data-rarity="uncommon"], [data-rarity="rare"], [data-rarity="legendary"])
+    .gc-front::after {
+    background-position: var(--gc-shine-to) 0;
+  }
+}
+
+/* Back-face rarity label: a small uppercase tag above the rules text. */
+.gc-rarity-label {
+  align-self: flex-start;
+  font-family: var(--font-mono);
+  font-weight: 800;
+  font-size: calc(var(--gc-w) * 0.082);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gc-rarity, var(--ac-rarity-common));
 }

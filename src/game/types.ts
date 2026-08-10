@@ -32,6 +32,20 @@ export const CardOp = {
 } as const;
 export type CardOp = (typeof CardOp)[keyof typeof CardOp];
 
+/** A card's rarity tier. Drives how often the dealer offers it (rarer = less
+ *  likely by default, but the per-tier weights are host-configurable — see the
+ *  `rarityWeight*` settings and `rarityDealWeights`) and the hover shine on its
+ *  face. Distinct from {@link ModifierCard.maxInstances} (the per-player copy
+ *  cap), which stays hand-tuned — rarity is a layer on top of the limit system,
+ *  not a replacement. */
+export const CardRarity = {
+  Common: "common",
+  Uncommon: "uncommon",
+  Rare: "rare",
+  Legendary: "legendary",
+} as const;
+export type CardRarity = (typeof CardRarity)[keyof typeof CardRarity];
+
 /**
  * Single source of truth for the modifier-card ids. The string VALUES are
  * load-bearing and must stay byte-identical: they match the SVG symbol ids in
@@ -109,6 +123,23 @@ export interface AlphaChainSettings {
   eraCount: number; // eras per match
   survivalMode: boolean;
   modifiersDealtPerEra: number;
+  /**
+   * Common's dealer weight, and the group doc for all four `rarityWeight*` settings.
+   * RELATIVE, not percentages: a tier's share of a draw is its weight × how many cards it
+   * holds, over the sum across tiers. Defaults are 10 / 5 / 2 / 1 (see
+   * DEFAULT_RARITY_DEAL_WEIGHT), so a specific Common is 10× as likely as a specific
+   * Legendary. A weight of 0 drops the tier from the deal pool entirely — that is how a
+   * host runs "no Commons" or "Rares only". Zeroing ALL four means nothing is dealt, and
+   * even one enabled tier can run a match dry (see `dealPoolCapacity`). Read through
+   * `rarityDealWeights(settings)`; never index a `rarityWeight*` key by hand.
+   */
+  rarityWeightCommon: number;
+  /** Uncommon's relative dealer weight; 0 disables the tier. See `rarityWeightCommon`. */
+  rarityWeightUncommon: number;
+  /** Rare's relative dealer weight; 0 disables the tier. See `rarityWeightCommon`. */
+  rarityWeightRare: number;
+  /** Legendary's relative dealer weight; 0 disables the tier. See `rarityWeightCommon`. */
+  rarityWeightLegendary: number;
   /** Engine bay slots a player has at their first card deal (consistent across the
    *  dealEngineCardsFirstEra on/off modes). */
   modifierSlotsStart: number;
@@ -126,6 +157,11 @@ export interface AlphaChainSettings {
   botCount: number; // 1–5 (local single-player only)
   botDifficulty: BotDifficulty;
 }
+
+/** The per-tier deal-weight setting keys, derived from the settings interface so a renamed
+ *  key is a compile error everywhere it's used. Pair a key with its tier only through
+ *  `RARITY_WEIGHT_KEYS` (settings.ts) — that map is the one place the relation is written. */
+export type RarityWeightKey = Extract<keyof AlphaChainSettings, `rarityWeight${string}`>;
 
 /** Sub-phase of the Intermission (mirrors the Blazor IntermissionSubPhase). */
 export type IntermissionPhase = "deal" | "optimize" | "sniperBan" | "tutorial" | null;

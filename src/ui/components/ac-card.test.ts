@@ -50,4 +50,14 @@ describe("<ac-card>", () => {
     await el.updateComplete;
     expect(el.flipped).toBe(false);
   });
+
+  it("exposes the card's rarity via data-rarity (drives the foil shine) and the back label", async () => {
+    const card = getCard(sampleId)!;
+    const el = await mount({ cardId: sampleId });
+    const flip = el.querySelector<HTMLElement>(".gc-flip")!;
+    expect(flip.getAttribute("data-rarity")).toBe(card.rarity);
+    // No gem element — rarity reads purely from the foil shine + back label.
+    expect(el.querySelector(".gc-gem")).toBeNull();
+    expect(el.querySelector(".gc-rarity-label")?.textContent).toBe(card.rarity);
+  });
 });

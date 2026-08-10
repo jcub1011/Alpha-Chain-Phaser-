@@ -20,7 +20,7 @@
  */
 
 import { MatchController, type MatchEvents, type PlayerSeed } from "../game/match";
-import { DEFAULT_SETTINGS, SUBMIT_GRACE_SECONDS } from "../game/settings";
+import { DEFAULT_SETTINGS, sanitizeSettings, SUBMIT_GRACE_SECONDS } from "../game/settings";
 import { emptyMatchState, type AlphaChainSettings, type MatchState } from "../game/types";
 import type { Intent, ServerStatePayload, WireEvent } from "../net/messages";
 import { serializeState } from "../net/serialize";
@@ -160,11 +160,19 @@ export function createAuthority(kb: Kb) {
   }
 
   /** Owner-only: construct and start the MatchController from the given settings. */
-  function beginMatch(fromId: string, chosen: AlphaChainSettings): void {
+  function beginMatch(fromId: string, requested: AlphaChainSettings): void {
     if (fromId !== ownerId) return; // only the owner starts
     // First start (no match yet) and rematch (previous match finished) proceed; a stray
     // startMatch mid-game must not wipe the running MatchController.
     if (liveMatch()) return;
+    // `requested` is wire data: the guards above settle WHO and WHEN, this settles WHAT.
+    // A stale client omits whatever settings it predates, and a missing key reads as
+    // `undefined`, which survives arithmetic and comparison silently — dealCards' weights
+    // would go NaN, so `r < 0` never trips and every draw falls through to the last pooled
+    // card. Sanitized once, here, because this is the single point where a client's
+    // settings become the lobby's working copy AND the running match's rules. (After the
+    // migration this is the home of the check the guest-side controller used to do.)
+    const chosen = sanitizeSettings(requested);
     settings = chosen;
     const seeds: PlayerSeed[] = roster
       .filter((p) => chosen.hostPlays || p.id !== ownerId)
@@ -211,7 +219,10 @@ export function createAuthority(kb: Kb) {
           // snapshot (buildPayload re-sources the settings field when not live).
           if (fromId !== ownerId) return null;
           if (liveMatch()) return null;
-          settings = action.settings;
+          // Same trust boundary as beginMatch, and a genuinely separate entry point: a
+          // startMatch carries the lobby's own draft, not whatever setSettings last
+          // published, so neither site can lean on the other having validated.
+          settings = sanitizeSettings(action.settings);
           return drainPatch(true);
         }
         const h = host;

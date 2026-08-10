@@ -14,6 +14,7 @@ import { DEFAULT_SETTINGS, saveSettings } from "../../game/settings";
 import type { AlphaChainSettings } from "../../game/types";
 import type { ServerController } from "../../net/serverController";
 import { AcElement } from "../app/AcElement";
+import { RARITY_WEIGHT_BOUNDS, renderRarityWeights } from "./rarity-weights";
 import { SETTING_HINTS } from "./settings-hints";
 
 @customElement("ac-net-lobby")
@@ -121,9 +122,16 @@ export class AcNetLobby extends AcElement {
       <div class="set-row">
         ${this.setText(label, hint)}
         <div class="set-ctl">
-          <button class="set-btn" ?disabled=${ro} @click=${lo} aria-label="decrease">−</button>
-          <span class="set-value">${value}</span>
-          <button class="set-btn" ?disabled=${ro} @click=${hi} aria-label="increase">+</button>
+          <!-- Name the row in each button's label: the rarity group puts four near-identical
+               steppers in a row, and a bare "decrease"/"increase" leaves a screen-reader user
+               with eight indistinguishable buttons. -->
+          <button class="set-btn" ?disabled=${ro} @click=${lo} aria-label="decrease ${label}">
+            −
+          </button>
+          <span class="set-value" aria-live="polite">${value}</span>
+          <button class="set-btn" ?disabled=${ro} @click=${hi} aria-label="increase ${label}">
+            +
+          </button>
         </div>
       </div>
     `;
@@ -172,6 +180,16 @@ export class AcNetLobby extends AcElement {
       ],
       (v) => set(v === "on"),
       hint,
+    );
+  }
+
+  /** The "Rarity Weights" group — shared with the solo lobby (see rarity-weights.ts). Passing
+   *  this element's own `stepper` is what keeps the guest read-only disabling. */
+  private rarityWeights(): TemplateResult {
+    return renderRarityWeights(
+      this.draft,
+      (key, delta) => this.step(key, delta, RARITY_WEIGHT_BOUNDS.min, RARITY_WEIGHT_BOUNDS.max),
+      this.stepper.bind(this),
     );
   }
 
@@ -279,6 +297,7 @@ export class AcNetLobby extends AcElement {
               () => this.step("modifiersDealtPerEra", 1, 0, 10),
               SETTING_HINTS.modifiersDealtPerEra,
             )}
+            ${this.rarityWeights()}
             ${this.stepper(
               "Starting Slots",
               String(d.modifierSlotsStart),

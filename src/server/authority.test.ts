@@ -10,8 +10,10 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { getCard } from "../game/cards/library";
 import { orderPreservingRng } from "../game/rng";
 import { DEFAULT_SETTINGS } from "../game/settings";
+import { CardRarity } from "../game/types";
 import type { AlphaChainSettings } from "../game/types";
 import type { NetPeer } from "../net/netPeer";
 import { ServerController } from "../net/serverController";
@@ -306,6 +308,59 @@ describe("authority — lobby settings", () => {
   });
 });
 
+/*
+ * The authority is the ONLY thing standing between a client's settings blob and the rules the
+ * match runs on — clients render what it broadcasts, so nothing downstream re-validates. These
+ * pin that it settles WHAT, not just who and when. (Before the server migration this check lived
+ * on each guest, where a bad value only spoiled that client's lobby readout.)
+ */
+describe("authority — settings sanitization (the server-side trust boundary)", () => {
+  it("rejects an out-of-range value back to its default, keeping valid siblings", () => {
+    const { c1, c2 } = session();
+    c1.setLobbySettings({ ...DEFAULT_SETTINGS, shotClockSeconds: 9999, eraCount: 7 });
+    // Per-key, not wholesale: the bad value falls back and the good one still lands.
+    expect(c2.lobbySettings?.shotClockSeconds).toBe(DEFAULT_SETTINGS.shotClockSeconds);
+    expect(c2.lobbySettings?.eraCount).toBe(7);
+  });
+
+  it("rejects a NaN shot clock rather than broadcasting a clock that never expires", () => {
+    const { c1, c2 } = session();
+    c1.setLobbySettings({ ...DEFAULT_SETTINGS, shotClockSeconds: Number.NaN });
+    expect(c2.lobbySettings?.shotClockSeconds).toBe(DEFAULT_SETTINGS.shotClockSeconds);
+  });
+
+  it("backfills a key a stale client omits instead of publishing undefined", () => {
+    const { c1, c2 } = session();
+    // A client built before the rarity settings existed sends a blob without them. Left
+    // undefined these reach rarityDealWeights, and NaN weights make dealCards deal the same
+    // last-pooled card every draw.
+    const partial: Partial<AlphaChainSettings> = { ...DEFAULT_SETTINGS };
+    delete partial.rarityWeightCommon;
+    delete partial.rarityWeightLegendary;
+    c1.setLobbySettings(partial as AlphaChainSettings);
+    expect(c2.lobbySettings?.rarityWeightCommon).toBe(DEFAULT_SETTINGS.rarityWeightCommon);
+    expect(c2.lobbySettings?.rarityWeightLegendary).toBe(DEFAULT_SETTINGS.rarityWeightLegendary);
+  });
+
+  it("sanitizes the startMatch payload too, not just setSettings", () => {
+    // startMatch carries the owner lobby's own draft, NOT whatever setSettings last published,
+    // so it is an independent entry point that has to validate in its own right.
+    const { hub, c1, c2 } = session();
+    c1.startMatch({ ...DEFAULT_SETTINGS, ...FAST, eraCount: 999, modifierSlotsStart: 0 });
+    hub.advance(1000);
+    expect(c2.match.state.settings.eraCount).toBe(DEFAULT_SETTINGS.eraCount);
+    expect(c2.match.state.settings.modifierSlotsStart).toBe(DEFAULT_SETTINGS.modifierSlotsStart);
+    expect(c2.match.state.phase).toBe("Round"); // and the match still started
+  });
+
+  it("still rejects a non-owner's setSettings before sanitizing it", () => {
+    // Ordering guard: authorization runs first, so a rejected intent costs no validation.
+    const { c1, c2 } = session();
+    c2.setLobbySettings({ ...DEFAULT_SETTINGS, shotClockSeconds: 45 });
+    expect(c1.lobbySettings?.shotClockSeconds).toBe(DEFAULT_SETTINGS.shotClockSeconds);
+  });
+});
+
 describe("authority — roster, owner succession & session lifetime", () => {
   const start = () => {
     const s = session();
@@ -440,6 +495,77 @@ describe("authority — intermission optimize", () => {
     expect(c1.match.state.intermissionPhase).toBe("optimize");
     hub.playerLeft(c2.humanId); // the straggler leaves → recheck advances
     expect(c1.match.state.intermissionPhase).toBe("sniperBan");
+  });
+});
+
+/*
+ * Rarity dealing is a rules-layer feature (match.test.ts pins the weighting itself). What these
+ * cover is that it survives the client→server move: the owner's tier settings reach the SERVER's
+ * dealer, which runs once and hands every client the same bays.
+ */
+describe("authority — rarity-weighted dealing through the server", () => {
+  /** Play one era through to its intermission so the server's dealer has run. Mirrors the
+   *  `toOptimize` helper above, but takes the rarity settings under test. */
+  const toFirstDeal = (overrides: Partial<AlphaChainSettings>) => {
+    const s = session();
+    s.c1.startMatch({ ...DEFAULT_SETTINGS, ...FAST, eraInterval: 1, eraCount: 2, ...overrides });
+    s.hub.advance(1000); // → Round
+    const ctl = byId(s.c1, s.c2);
+    ctl[s.c1.match.current.id].submitWord("cat"); // → t
+    ctl[s.c1.match.current.id].submitWord("tiger"); // → r, wraps the round, ends the era
+    s.hub.advance(10000); // burn the era-end settle → intermission → deal
+    return s;
+  };
+
+  const dealtIds = (c: ServerController): string[] =>
+    c.match.state.players.flatMap((p) => p.bay.map((b) => b.id));
+
+  it("deals only from the tiers the owner enabled, identically on every client", () => {
+    const { c1, c2 } = toFirstDeal({
+      rarityWeightCommon: 0,
+      rarityWeightUncommon: 0,
+      rarityWeightRare: 5,
+      rarityWeightLegendary: 0,
+    });
+    const ids = dealtIds(c2);
+    expect(ids.length).toBeGreaterThan(0);
+    for (const id of ids) expect(getCard(id)?.rarity).toBe(CardRarity.Rare);
+    // Dealt once, server-side: both mirrors carry byte-identical bays, uids included.
+    expect(c1.match.state.players[0].bay).toEqual(c2.match.state.players[0].bay);
+  });
+
+  it("tracks the owner's choice of tier — Legendary-only deals a different tier entirely", () => {
+    const { c2 } = toFirstDeal({
+      rarityWeightCommon: 0,
+      rarityWeightUncommon: 0,
+      rarityWeightRare: 0,
+      rarityWeightLegendary: 1,
+    });
+    const ids = dealtIds(c2);
+    expect(ids.length).toBeGreaterThan(0);
+    for (const id of ids) expect(getCard(id)?.rarity).toBe(CardRarity.Legendary);
+  });
+
+  it("skips optimize on every client when the owner disabled every tier", () => {
+    // Nothing was dealt, so there is no bay to arrange: every client must fall through rather
+    // than park on an empty bay for the whole card-select timer.
+    const { c1, c2 } = toFirstDeal({
+      rarityWeightCommon: 0,
+      rarityWeightUncommon: 0,
+      rarityWeightRare: 0,
+      rarityWeightLegendary: 0,
+    });
+    expect(dealtIds(c1)).toEqual([]);
+    expect(c1.match.state.intermissionPhase).not.toBe("optimize");
+    expect(c2.match.state.intermissionPhase).not.toBe("optimize");
+  });
+
+  it("still deals when the owner sends an out-of-range weight (sanitized, not zeroed)", () => {
+    // The two halves of this merge composed: a rejected weight falls back to its default, so it
+    // must not read as "tier disabled" and silently starve the deal.
+    const { c2 } = toFirstDeal({ rarityWeightCommon: 9999 });
+    expect(c2.lobbySettings?.rarityWeightCommon).toBe(DEFAULT_SETTINGS.rarityWeightCommon);
+    expect(dealtIds(c2).length).toBeGreaterThan(0);
   });
 });
 

@@ -15,7 +15,14 @@
  */
 
 import { isVowel, MAX_WORD_SCORE } from "../settings";
-import type { CardFamily, CardOp, PlayerState, Submission, WordResolution } from "../types";
+import type {
+  CardFamily,
+  CardOp,
+  CardRarity,
+  PlayerState,
+  Submission,
+  WordResolution,
+} from "../types";
 import type { EffectMagnifier } from "./magnifier";
 import type { EngineEffects, RoomServices, RoomServiceKey } from "./roomServices";
 
@@ -98,6 +105,12 @@ export interface ModifierCard {
   name: string;
   family: CardFamily;
   op: CardOp;
+  /** Rarity tier — governs deal frequency and the card's gem/glow. The per-tier
+   *  weights are host-configurable (the `rarityWeight*` settings, resolved by
+   *  `rarityDealWeights`), so tune the rarity economy there rather than here.
+   *  Independent of {@link maxInstances}. Required so every card declares one
+   *  (compile-time safety, like {@link family}). */
+  rarity: CardRarity;
   /** Static chip shown on the card face, e.g. "+10", "×1.5", "FX". */
   magnitudeText: string;
   description: string;

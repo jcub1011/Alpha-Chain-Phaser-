@@ -125,6 +125,35 @@
   line-height: 1.4;
   color: var(--ac-ink-faint);
 }
+/* A run of related steppers (e.g. "Rarity Weights") as one self-contained block. The heading
+   below spans every column, which opens a row — without this wrapper the settings that follow
+   the group flow into that same row and read as part of it. Spanning the parent and re-running
+   its template keeps the group's own steppers in columns at the same widths. */
+.net-settings .set-group {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  column-gap: var(--sp-4);
+}
+/* Full-width group heading inside the settings grid (e.g. "Rarity Weights"), so a run of
+   related steppers reads as one block instead of loose rows. */
+.set-subhead {
+  grid-column: 1 / -1;
+  margin: 0.6rem 0 0.1rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ac-ink-faint);
+}
+/* Warning under a group whose settings combine into a no-op (all rarity weights 0). */
+.set-warn {
+  grid-column: 1 / -1;
+  margin: 0.2rem 0 0.4rem;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: var(--ac-rarity-legendary);
+}
 /* Read-only banner shown to guests above the host's settings. */
 .set-readonly-note {
   grid-column: 1 / -1;
