@@ -1,11 +1,11 @@
 /*
  * The seam between gameplay and transport. The Phaser/Lit scenes talk only to a
  * GameController; they never touch the MatchController or the network directly.
- * LocalController (solo vs bots) drives a real MatchController; KnockBoxController
- * drives it host-authoritatively over the KnockBox network. Both expose the same
- * surface — and the scenes read `controller.match`, which on a guest is a
- * read-only mirror, so `match` is typed as the structural `MatchLike` supertype
- * both the real MatchController and the mirror satisfy.
+ * LocalController (solo vs bots) drives a real MatchController; ServerController
+ * mirrors the one the server authority drives. Both expose the same surface — and
+ * the scenes read `controller.match`, which on a networked client is a read-only
+ * mirror, so `match` is typed as the structural `MatchLike` supertype both the real
+ * MatchController and the mirror satisfy.
  */
 
 import type { Emitter } from "../game/emitter";
@@ -52,6 +52,14 @@ export interface GameController {
   readonly events: Emitter<MatchEvents>;
   /** The local human player's id. */
   readonly humanId: string;
+  /** Whether this client holds the lobby powers — the shared-state actions the authority
+   *  accepts from one player only (skipping the tutorial dwell for everyone, starting the
+   *  match, editing settings). Always true in solo, where there is nobody to share with.
+   *
+   *  Declared here rather than sniffed off the concrete controller so gating it is a type
+   *  error to get wrong: a UI that probed for a property name instead silently fell open
+   *  to every player when the server migration renamed host → owner. */
+  readonly isOwner: boolean;
 
   /** Begin the match (Setup → Countdown). */
   start(): void;

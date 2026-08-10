@@ -87,10 +87,11 @@ export class AcTutorial extends AcElement {
     }
   }
 
-  /** Only the host (or a solo player) may skip the shared dwell for everyone. */
+  /** Only the lobby owner (or a solo player) may skip the shared dwell for everyone.
+   *  Mirrors the authority's own gate on the skipTutorial intent — showing SKIP to anyone
+   *  else offers a button the server will refuse. */
   private get canSkip(): boolean {
-    const c = this.controller as GameController & { isHost?: boolean };
-    return "isHost" in c ? !!c.isHost : true;
+    return this.controller.isOwner;
   }
 
   /** Whether this client has already marked the current page read. */

@@ -22,6 +22,8 @@ const log = createLogger("local");
 export class LocalController implements GameController {
   readonly match: MatchController;
   readonly humanId = "you";
+  /** Solo: the only player owns the game, so every owner-gated control is available. */
+  readonly isOwner = true;
   private readonly dict: Dictionary;
 
   /** Seconds until the current bot submits; null when it's not a bot's turn. */
