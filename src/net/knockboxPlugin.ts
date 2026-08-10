@@ -46,8 +46,10 @@ const LocalPlugin: unknown =
  * On the real platform the server runs authority.js and holds the dictionary, so the
  * client passes nothing extra. In local-tab mode there is no server, so the local peer
  * emulates it: it runs the real authority module (createAuthority + config) as a virtual
- * `from:"server"` actor and backs kb.words with the same word list, fetched from the
- * client-served copy at assets/words.txt. */
+ * `from:"server"` actor and backs kb.words with the same word lists, fetched from the
+ * client-served copies under assets/. Both keys GAME.json declares must appear here, or a
+ * Picker match drawing from `en-common` would find an empty pool locally but not on the
+ * real server. */
 export function knockboxPluginConfig(mode: LaunchMode): Record<string, unknown> | null {
   if (mode === "solo") return null;
   const plugin = mode === "local-tab" ? LocalPlugin : RealPlugin;
@@ -58,7 +60,10 @@ export function knockboxPluginConfig(mode: LaunchMode): Record<string, unknown> 
           mode: "tab",
           authority: createAuthority,
           authorityConfig,
-          words: { en: { url: "assets/words.txt", caseInsensitive: true } },
+          words: {
+            en: { url: "assets/words.txt", caseInsensitive: true },
+            "en-common": { url: "assets/words-common.txt", caseInsensitive: true },
+          },
         }
       : undefined;
   return { key: "KnockBox", plugin, start: true, mapping: "knockbox", data };

@@ -70,6 +70,13 @@ export interface GameController {
   /** Report the local human's in-progress word so a shot-clock timeout can auto-submit
    *  it (networked play streams it to the host; solo is a no-op — the UI handles it). */
   reportDraft(word: string): void;
+  /** Picker: report which Offer word the local human has selected, so a clock expiry commits it
+   *  rather than counting as a no-show. Unlike `reportDraft` this is NOT a solo no-op: selections
+   *  are discrete and rare, so the engine owns the expiry commit in both solo and networked play
+   *  and stays the single authority on what a no-show is. */
+  reportSelection(word: string): void;
+  /** Picker: commit the selected Offer word (second tap, or the GO button). */
+  commitSelection(word?: string): SubmitResult;
   /** Tear down timers/listeners. */
   destroy(): void;
 }

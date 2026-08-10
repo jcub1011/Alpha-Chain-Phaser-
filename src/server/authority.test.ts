@@ -24,19 +24,32 @@ type Listener = (...a: unknown[]) => void;
 /** The tiny dictionary the word service is stubbed with (mirrors the old suite). */
 const WORDS = new Set(["cat", "tiger", "rabbit", "torch", "rat", "art", "table"]);
 
-/** A kb.words stub over a Set — the five-method contract, ASCII lower-case. */
+/** A kb.words stub over a Set — the five-method contract, ASCII lower-case.
+ *
+ *  ORDERING MATTERS. The real service (WordPoolSet, and the local-tab emulation) exposes words as
+ *  length buckets ascending, ASCII-ordinal within a length — and Picker's Offer generator relies on
+ *  that, binary-searching `pickOfLength` for the contiguous index range of a first letter. A stub
+ *  that just iterated the Set in insertion order would silently hand back ranges spanning the wrong
+ *  letters, so the offers here would look plausible and be wrong. Sorted deliberately. */
 function makeWords(set: Set<string>): Kb["words"] {
-  const arr = (): string[] => [...set];
+  const ordered = [...set].sort((a, b) => a.length - b.length || (a < b ? -1 : a > b ? 1 : 0));
+  const ofLength = (len: number): string[] => ordered.filter((w) => w.length === len);
   return {
     has: (_k, w) => typeof w === "string" && set.has(w),
-    count: () => set.size,
-    pick: (_k, i) => arr()[i] ?? null,
-    countOfLength: (_k, len) => arr().filter((w) => w.length === len).length,
-    pickOfLength: (_k, len, i) => arr().filter((w) => w.length === len)[i] ?? null,
+    count: () => ordered.length,
+    pick: (_k, i) => ordered[i] ?? null,
+    countOfLength: (_k, len) => ofLength(len).length,
+    pickOfLength: (_k, len, i) => ofLength(len)[i] ?? null,
   };
 }
 
+/* Every case in this suite predates Picker and asserts Classic behaviour — typed submits, the
+ * draft auto-submit, the timeout penalty, `shotClockSeconds`. DEFAULT_SETTINGS now selects Picker,
+ * so the mode is pinned here explicitly rather than inherited: a Classic assertion that silently
+ * started running Picker would keep passing while testing nothing. Picker has its own describe
+ * block at the end of the file. */
 const FAST: Partial<AlphaChainSettings> = {
+  gameMode: "classic",
   enableTutorials: false,
   preRoundCountdownSeconds: 1,
   eraInterval: 9,
@@ -913,5 +926,71 @@ describe("authority — the sandbox has no ambient clock", () => {
     expect(thrown).toBeNull(); // no ReferenceError: nothing reached for the ambient clock
     expect(phase).toBe("GameOver"); // and the match genuinely ran start-to-finish
     expect(words).toEqual(["cat", "tiger"]);
+  });
+});
+
+/*
+ * Picker through the real authority. The select/commit intents are M2, so what is provable now is
+ * the property those intents will depend on: the Offer is generated ONLY server-side and reaches
+ * every client identically in the state snapshot — the same shape the rarity-dealing suite above
+ * uses to prove both mirrors carry byte-identical bays.
+ */
+describe("authority — Picker offers through the server", () => {
+  const PICKER: Partial<AlphaChainSettings> = {
+    gameMode: "picker",
+    enableTutorials: false,
+    preRoundCountdownSeconds: 1,
+    eraInterval: 9,
+    eraCount: 1,
+    offerCount: 3,
+    pickerShotClockSeconds: 40,
+  };
+
+  it("ships one identical Offer to every client", () => {
+    const { hub, c1, c2 } = session();
+    c1.startMatch({ ...DEFAULT_SETTINGS, ...PICKER });
+    hub.advance(1000); // countdown → Round, first turn armed
+
+    const offer = c1.match.state.offer;
+    expect(offer.length).toBe(3);
+    // Byte-identical on both mirrors: neither client generated anything itself.
+    expect(c2.match.state.offer).toEqual(offer);
+    // ...and every offered word is real, so a commit can never reject as "not-a-word".
+    for (const w of offer) expect(WORDS.has(w)).toBe(true);
+  });
+
+  it("arms the Picker clock rather than Classic's", () => {
+    const { hub, c1, c2 } = session();
+    c1.startMatch({ ...DEFAULT_SETTINGS, ...PICKER, shotClockSeconds: 10 });
+    hub.advance(1000);
+    expect(c1.match.state.clockTotal).toBe(40);
+    expect(c2.match.state.clockTotal).toBe(40);
+  });
+
+  it("redraws the Offer each turn and honours Succession on both mirrors", () => {
+    const { hub, c1, c2 } = session();
+    c1.startMatch({ ...DEFAULT_SETTINGS, ...PICKER });
+    hub.advance(1000);
+    const first = [...c1.match.state.offer];
+
+    // Commit through the plain submit path (the Picker intents land in M2), which still runs the
+    // same pipeline a commit will.
+    byId(c1, c2)[c1.match.current.id].submitWord(first[0]);
+    hub.advance(50);
+
+    expect(c1.match.state.offer).not.toEqual(first);
+    expect(c2.match.state.offer).toEqual(c1.match.state.offer);
+    const letter = c1.match.state.requiredLetter;
+    if (letter !== "") {
+      for (const w of c1.match.state.offer) expect(w[0]).toBe(letter);
+    }
+  });
+
+  it("leaves the Offer empty in Classic", () => {
+    const { hub, c1, c2 } = session();
+    c1.startMatch({ ...DEFAULT_SETTINGS, ...FAST });
+    hub.advance(1000);
+    expect(c1.match.state.offer).toEqual([]);
+    expect(c2.match.state.offer).toEqual([]);
   });
 });

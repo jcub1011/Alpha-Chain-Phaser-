@@ -136,6 +136,19 @@ export class ServerController implements GameController {
     this.dispatch({ kind: "draftWord", word });
   }
 
+  /* Picker over the network needs two new intents (a throttled select mirroring draftWord, and a
+   * commit mirroring submit) plus their authority cases. That is M2; M1 ships Picker solo-vs-bots
+   * only. Failing loudly rather than silently no-op'ing, so a Picker match reaching a networked
+   * client is a visible bug and not an unresponsive grid. */
+  reportSelection(_word: string): void {
+    log.warn("picker: reportSelection is not wired for networked play yet (M2)");
+  }
+
+  commitSelection(_word?: string): SubmitResult {
+    log.warn("picker: commitSelection is not wired for networked play yet (M2)");
+    return { accepted: false };
+  }
+
   destroy(): void {
     this.peer.events.off("ready", this.onReady as never);
     this.peer.events.off("message", this.onMessage as never);

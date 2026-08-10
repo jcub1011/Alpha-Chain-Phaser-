@@ -11,9 +11,10 @@
 import { html, nothing, type PropertyValues, type TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { DEFAULT_SETTINGS, saveSettings } from "../../game/settings";
-import type { AlphaChainSettings } from "../../game/types";
+import type { AlphaChainSettings, GameMode } from "../../game/types";
 import type { ServerController } from "../../net/serverController";
 import { AcElement } from "../app/AcElement";
+import { renderPickerSettings } from "./picker-settings";
 import { RARITY_WEIGHT_BOUNDS, renderRarityWeights } from "./rarity-weights";
 import { SETTING_HINTS } from "./settings-hints";
 
@@ -249,13 +250,35 @@ export class AcNetLobby extends AcElement {
                   Settings (read-only) — the owner controls these.
                 </p>`
               : nothing}
-            ${this.stepper(
-              "Shot Clock",
-              `${d.shotClockSeconds}s`,
-              () => this.step("shotClockSeconds", -5, 5, 60),
-              () => this.step("shotClockSeconds", 5, 5, 60),
-              SETTING_HINTS.shotClockSeconds,
+            <!-- Game Mode leads the list, matching <ac-lobby>: Picker is the default, so stored
+                 settings load with it selected and Classic must stay discoverable. -->
+            ${this.segmented<GameMode>(
+              "Game Mode",
+              d.gameMode,
+              [
+                { value: "picker", text: "picker" },
+                { value: "classic", text: "classic" },
+              ],
+              (v) => this.set("gameMode", v),
+              SETTING_HINTS.gameMode,
             )}
+            ${renderPickerSettings(
+              d,
+              this.step.bind(this),
+              this.set.bind(this),
+              this.stepper.bind(this),
+              this.segmented.bind(this),
+              this.toggle.bind(this),
+            )}
+            ${d.gameMode === "classic"
+              ? this.stepper(
+                  "Shot Clock",
+                  `${d.shotClockSeconds}s`,
+                  () => this.step("shotClockSeconds", -5, 5, 60),
+                  () => this.step("shotClockSeconds", 5, 5, 60),
+                  SETTING_HINTS.shotClockSeconds,
+                )
+              : nothing}
             ${this.toggle(
               "Tutorials",
               d.enableTutorials,

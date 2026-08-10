@@ -24,6 +24,7 @@ import { DEFAULT_SETTINGS, sanitizeSettings, SUBMIT_GRACE_SECONDS } from "../gam
 import { emptyMatchState, type AlphaChainSettings, type MatchState } from "../game/types";
 import type { ClockAnchor, Intent, ServerStatePayload, WireEvent } from "../net/messages";
 import { serializeState } from "../net/serialize";
+import { kbWordPool } from "../game/picker/wordPool";
 import { createLogger, setLogSink, type KbLog } from "./serverLog";
 
 const log = createLogger("authority");
@@ -55,8 +56,15 @@ export interface Kb {
   rng?: () => number;
 }
 
-/** The dictionary key Alpha Chain declares in GAME.json authorityWords. */
+/** The dictionary keys Alpha Chain declares in GAME.json authorityWords.
+ *
+ *  `en` is the full 386k list and is the ONLY validator, in both game modes. `en-common` is the
+ *  ~9k common-word list Picker can draw its Offer from — a strict subset of `en`
+ *  (tools/build-common-wordlist.mjs enforces the intersection), which is what lets validation stay
+ *  on the full list while the Offer comes from the smaller one. If that subset property ever
+ *  broke, offered words would start rejecting as "not-a-word". */
 const DICTIONARY = "en";
+const DICTIONARY_COMMON = "en-common";
 
 /** Match events replayed to clients for animation (everything but the per-frame clock,
  *  which clients interpolate from the snapshot's absolute-expiry anchor). Mirrors the
@@ -194,6 +202,13 @@ export function createAuthority(kb: Kb) {
       rng: kb.rng ?? Math.random,
       now: () => kb.now(),
       submitGraceSeconds: SUBMIT_GRACE_SECONDS,
+      // Picker's Offer pool. The dictionary never reaches the client in networked play — the
+      // index-only word service is enough to build a length-shaped, succession-constrained Offer
+      // host-side, and the Offer itself ships in the snapshot.
+      wordPool: kbWordPool(
+        kb.words,
+        chosen.offerDictionary === "reduced" ? DICTIONARY_COMMON : DICTIONARY,
+      ),
     });
     for (const type of REPLAYED_EVENTS) {
       host.events.on(type, (payload) => pending.push({ type, payload } as WireEvent));

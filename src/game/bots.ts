@@ -157,8 +157,22 @@ export function chooseBotWordScored(dict: Dictionary, opts: BotScoredPick): stri
     if (candidates.size >= opts.candidateCount) break;
   }
   if (candidates.size === 0) return chooseBotWord(dict, opts);
+  return bestScoredCandidate(candidates, opts, rng);
+}
 
-  // Score each candidate through the bot's own bay; highest finalScore wins.
+/**
+ * Rank an already-gathered candidate set through a bay and return the best word.
+ *
+ * Split out from `chooseBotWordScored` because Picker replaces only the GATHERING half — the
+ * Offer already is the candidate set, so a Picker bot needs this half verbatim and none of the
+ * dictionary walking above. Ties break randomly (reservoir) so bots don't play identically when
+ * several candidates score the same.
+ */
+export function bestScoredCandidate(
+  candidates: Iterable<string>,
+  opts: Pick<BotScoredPick, "bay" | "scoreOpts" | "bannedLetter">,
+  rng: () => number = Math.random,
+): string | null {
   let best: string | null = null;
   let bestScore = -Infinity;
   let tieSeen = 0;

@@ -109,6 +109,26 @@ export type CardId = (typeof CardId)[keyof typeof CardId];
 
 /** Host-configurable match settings (ported from AlphaChainSettings.cs). */
 export interface AlphaChainSettings {
+  /** Which play mode the match runs. Picker is the DEFAULT: it replaces typed word entry with
+   *  selection from a server-generated Offer, removing the recall and typing barriers that
+   *  exclude dyslexic and mobile players. Classic is the original typing race. */
+  gameMode: GameMode;
+  /** Picker: how many Offer Cards are presented each turn. Also a cognitive-load dial, not just
+   *  a strategic one — fewer cards is less to read under the clock. */
+  offerCount: number;
+  /** Picker: which lexicon the Offer is drawn from. Reduced trades variety for decodability
+   *  (a reader recognises CANDLE at a glance and must decode ZYGODACTYL letter by letter, and
+   *  whole-word recognition is exactly what dyslexia impairs). Word *validation* always uses the
+   *  full list regardless — this only chooses the Offer's source. */
+  offerDictionary: DictionaryTier;
+  /** Picker's shot clock. Distinct from `shotClockSeconds` because the right duration for
+   *  reading several words is not the right duration for typing one. */
+  pickerShotClockSeconds: number; // 5–60
+  /** Picker: highlight occurrences of an active Banned Letter inside Offer words. Off by
+   *  default — scanning several words for one letter under a clock is close to the hardest
+   *  single operation you can ask of a dyslexic reader, but competitive tables want the
+   *  surprise. Purely a rendering change: no rules, balance or network effect. */
+  highlightBannedLetters: boolean;
   banMode: BanMode;
   /** Whether a previously-banned letter may be chosen again (see BanRepeatRule). */
   banRepeatRule: BanRepeatRule;
@@ -172,6 +192,14 @@ export type IntermissionPhase = "deal" | "optimize" | "sniperBan" | "tutorial" |
 export type TutorialKind = "shiritori" | "timeout" | "engine" | "cards" | "tax" | "sniper";
 
 export type BotDifficulty = "easy" | "medium" | "hard";
+
+/** Play mode. "picker" — choose from a server-generated Offer; "classic" — type the word. */
+export type GameMode = "picker" | "classic";
+
+/** Which lexicon the Picker draws its Offer from. "full" is the shipped 386k list; "reduced" is
+ *  the ~9k common-English list (public/assets/words-common.txt), which is a strict subset of it
+ *  — see tools/build-common-wordlist.mjs for why that subset property is load-bearing. */
+export type DictionaryTier = "reduced" | "full";
 
 export type GamePhase = "Setup" | "Tutorial" | "Countdown" | "Round" | "Intermission" | "GameOver";
 
@@ -312,6 +340,16 @@ export interface MatchState {
   bannedLetterHistory: string[];
   /** Words used this whole match (lowercased), forbidden to repeat. */
   usedWords: Set<string>;
+  /** Picker: the current player's Offer — the candidate words they choose from. Empty in
+   *  Classic, and empty outside a Round.
+   *
+   *  Public by design: every player sees the active player's candidates, and turns are
+   *  sequential, so exactly one Offer is on screen at a time. That is what keeps the authority in
+   *  plain broadcast mode with no per-recipient projection. Regenerated once per turn by the
+   *  authoritative side only — a mirror must never generate its own (see match.ts beginEra on why
+   *  no RNG-derived logic may run on a client). A plain string[] is JSON-safe, so this needs no
+   *  serialize.ts handling, unlike `usedWords`. */
+  offer: string[];
   history: Submission[];
   /** Seconds remaining on the active shot clock. */
   clockRemaining: number;
@@ -356,6 +394,7 @@ export function emptyMatchState(settings: AlphaChainSettings): MatchState {
     bannedLetter: "",
     bannedLetterHistory: [],
     usedWords: new Set<string>(),
+    offer: [],
     history: [],
     clockRemaining: 0,
     clockTotal: 0,
@@ -373,6 +412,14 @@ export function emptyMatchState(settings: AlphaChainSettings): MatchState {
 /** Result of attempting to validate + score a word. */
 export interface SubmitResult {
   accepted: boolean;
-  reason?: "not-a-word" | "already-used" | "wrong-start-letter" | "too-short" | "prism-saved";
+  reason?:
+    | "not-a-word"
+    | "already-used"
+    | "wrong-start-letter"
+    | "too-short"
+    | "prism-saved"
+    /** Picker: the committed word was not in the current Offer. The trust boundary — a client
+     *  cannot commit a word it invented, even a perfectly legal one. */
+    | "not-offered";
   submission?: Submission;
 }

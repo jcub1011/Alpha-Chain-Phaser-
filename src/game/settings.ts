@@ -5,6 +5,8 @@ import type {
   BanMode,
   BanRepeatRule,
   BotDifficulty,
+  DictionaryTier,
+  GameMode,
   RarityWeightKey,
 } from "./types";
 
@@ -42,6 +44,15 @@ export const RARITY_WEIGHT_KEYS: Record<CardRarity, RarityWeightKey> = {
 
 /** Defaults ported from AlphaChainSettings.cs, plus single-player bot options. */
 export const DEFAULT_SETTINGS: AlphaChainSettings = {
+  // Picker is the default mode, not an alternate — it is what a new player meets first.
+  gameMode: "picker",
+  offerCount: 5,
+  offerDictionary: "reduced",
+  // A genuine playtest question, not a design decision: too generous and turns drag, which is
+  // fatal in a party game; too tight and Picker becomes a reading-speed race. 25s is the starting
+  // guess, deliberately a lone tunable constant.
+  pickerShotClockSeconds: 25,
+  highlightBannedLetters: false,
   banMode: "All",
   banRepeatRule: "NoConsecutive",
   dealEngineCardsFirstEra: false,
@@ -73,7 +84,7 @@ const STORAGE_KEY = "alphachain.settings";
 
 /** Bump when a setting's valid range/enum changes so stale persisted blobs (which
  *  may now hold out-of-range values) are discarded rather than silently loaded. */
-const SETTINGS_VERSION = 3;
+const SETTINGS_VERSION = 4;
 
 /**
  * Load persisted settings, merged over defaults with per-field validation.
@@ -153,6 +164,23 @@ export const isVowel = (c: string): boolean => VOWELS.has(c.toLowerCase());
 const BAN_MODES: readonly BanMode[] = ["All", "VowelsOnly", "ConsonantsOnly"];
 const BAN_REPEAT_RULES: readonly BanRepeatRule[] = ["AllowRepeat", "NoConsecutive", "NoRepeat"];
 const BOT_DIFFICULTIES: readonly BotDifficulty[] = ["easy", "medium", "hard"];
+const GAME_MODES: readonly GameMode[] = ["picker", "classic"];
+const DICTIONARY_TIERS: readonly DictionaryTier[] = ["reduced", "full"];
+
+/** Offer size bounds. The upper bound is a layout guarantee, not a taste call: GDD §2.1 requires
+ *  every Offer Card be visible without scrolling, and past 8 that stops holding on a phone. */
+export const MIN_OFFER_COUNT = 3;
+export const MAX_OFFER_COUNT = 8;
+
+/** The match's base shot clock for the active mode.
+ *
+ *  MUST be used everywhere the clock is read for MATHS rather than display. `baseClockSeconds`
+ *  feeds every clock-scaling card's fraction (Panic Button, Speedracer, The Vault, Redline,
+ *  Chrono Syphon), so a site that keeps reading `shotClockSeconds` while Picker arms
+ *  `pickerShotClockSeconds` mis-scores silently instead of failing. */
+export function baseShotClockSeconds(s: AlphaChainSettings): number {
+  return s.gameMode === "picker" ? s.pickerShotClockSeconds : s.shotClockSeconds;
+}
 
 /** A finite number within [min, max]. Rejects NaN/±Infinity (which are `typeof
  *  "number"`) and out-of-range values that the lobby's step-clamp never sees on load. */
@@ -165,6 +193,11 @@ const isBool = (v: unknown): boolean => typeof v === "boolean";
 /** Per-field validator for persisted settings. Ranges mirror the lobby limits; a
  *  value that fails keeps the default (see loadSettings). */
 const SETTINGS_VALIDATORS: { [K in keyof AlphaChainSettings]: (v: unknown) => boolean } = {
+  gameMode: (v) => GAME_MODES.includes(v as GameMode),
+  offerCount: inRange(MIN_OFFER_COUNT, MAX_OFFER_COUNT),
+  offerDictionary: (v) => DICTIONARY_TIERS.includes(v as DictionaryTier),
+  pickerShotClockSeconds: inRange(5, 60),
+  highlightBannedLetters: isBool,
   banMode: (v) => BAN_MODES.includes(v as BanMode),
   banRepeatRule: (v) => BAN_REPEAT_RULES.includes(v as BanRepeatRule),
   dealEngineCardsFirstEra: isBool,

@@ -40,7 +40,7 @@ class MemoryStorage {
 const KEY = "alphachain.settings";
 // Mirrors the (unexported) SETTINGS_VERSION; corruption cases set it so they test the
 // per-field validators rather than tripping the version gate. Keep in sync.
-const VERSION = 3;
+const VERSION = 4;
 
 function setGlobalStorage(s: Storage | undefined): void {
   (globalThis as unknown as { localStorage?: Storage }).localStorage = s as Storage;

@@ -6,6 +6,7 @@
  */
 
 import {
+  bestScoredCandidate,
   BOT_CANDIDATE_COUNT,
   BOT_THINK_SECONDS,
   chooseBotWordScored,
@@ -13,6 +14,8 @@ import {
 } from "../game/bots";
 import type { Dictionary } from "../game/dictionary";
 import { MatchController, type PlayerSeed } from "../game/match";
+import { dictionaryWordPool } from "../game/picker/wordPool";
+import { baseShotClockSeconds } from "../game/settings";
 import type { AlphaChainSettings, SubmitResult } from "../game/types";
 import { createLogger } from "../log";
 import type { GameController } from "./controller";
@@ -37,7 +40,10 @@ export class LocalController implements GameController {
    */
   private _paused = false;
 
-  constructor(settings: AlphaChainSettings, dict: Dictionary) {
+  /** `commonDict` is the Reduced lexicon when the client loaded one; it is only ever an Offer
+   *  source, never a validator (see the isWord note below). Undefined falls Picker back to the
+   *  full pool rather than failing. */
+  constructor(settings: AlphaChainSettings, dict: Dictionary, commonDict?: Dictionary) {
     this.dict = dict;
     const seeds: PlayerSeed[] = [{ id: this.humanId, name: "You", isBot: false }];
     const botNames = ["Vex", "Echo", "Nyx", "Rune", "Zephyr"];
@@ -45,7 +51,13 @@ export class LocalController implements GameController {
       seeds.push({ id: `bot${i + 1}`, name: botNames[i] ?? `Bot ${i + 1}`, isBot: true });
     }
     this.match = new MatchController(seeds, settings, {
+      // Validation is ALWAYS the full list, in both modes. words-common.txt is a strict subset of
+      // words.txt (tools/build-common-wordlist.mjs enforces it), so every offered word passes —
+      // and Classic's legal word set is left exactly as it was.
       isWord: (w) => this.dict.has(w),
+      wordPool: dictionaryWordPool(
+        settings.offerDictionary === "reduced" ? (commonDict ?? dict) : dict,
+      ),
     });
 
     this.match.events.on("turnArmed", ({ playerIndex }) => {
@@ -78,7 +90,7 @@ export class LocalController implements GameController {
       prevWordLength: this.match.lastWordLength,
       clockRemaining: s.clockRemaining,
       clockTotal: s.clockTotal,
-      baseClockSeconds: s.settings.shotClockSeconds,
+      baseClockSeconds: baseShotClockSeconds(s.settings),
       era: s.era,
       slots,
       history: s.history,
@@ -132,6 +144,18 @@ export class LocalController implements GameController {
     // (ac-word-entry), so the engine's draft auto-submit never needs to fire here.
   }
 
+  /** Unlike reportDraft, this DOES reach the engine in solo. Streaming a keystroke per character
+   *  locally would be pointless, but a selection changes a handful of times per turn — and routing
+   *  it through means the engine decides what a no-show is identically in solo and networked play,
+   *  instead of the UI owning a second copy of that rule. */
+  reportSelection(word: string): void {
+    this.match.setSelection(this.humanId, word);
+  }
+
+  commitSelection(word?: string): SubmitResult {
+    return this.match.commitSelection(this.humanId, word);
+  }
+
   destroy(): void {
     this.botCountdown = null;
     this.botPlayerId = null;
@@ -151,13 +175,31 @@ export class LocalController implements GameController {
     const s = this.match.state;
     if (s.phase !== "Round" || this.match.current.id !== playerId) return;
     const player = s.players.find((p) => p.id === playerId);
+    const scoreOpts = this.botScoreOpts(player?.slots ?? 0);
+    const bay = player?.bay ?? [];
+
+    // Picker: the Offer IS the candidate set, so a bot ranks it through its own bay and commits.
+    // No dictionary walk, and no difficulty-tiered gathering — every player, human or bot, faces
+    // exactly the same five words, which is what makes the mode's skill purely evaluation.
+    if (s.settings.gameMode === "picker") {
+      const pick = bestScoredCandidate(s.offer, { bay, scoreOpts, bannedLetter: s.bannedLetter });
+      if (pick) {
+        log.debug(`bot ${playerId} picks "${pick}"`);
+        this.match.commitSelection(playerId, pick);
+      } else {
+        // Empty Offer — let the clock run out; the engine's timeout resolves the turn.
+        log.warn(`bot ${playerId} had nothing to pick from`);
+      }
+      return;
+    }
+
     const word = chooseBotWordScored(this.dict, {
       requiredLetter: s.requiredLetter,
       usedWords: s.usedWords,
       bannedLetter: s.bannedLetter,
       difficulty: s.settings.botDifficulty,
-      bay: player?.bay ?? [],
-      scoreOpts: this.botScoreOpts(player?.slots ?? 0),
+      bay,
+      scoreOpts,
       candidateCount: BOT_CANDIDATE_COUNT[s.settings.botDifficulty],
     });
     if (word) {

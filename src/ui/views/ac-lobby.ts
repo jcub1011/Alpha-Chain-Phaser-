@@ -5,9 +5,10 @@
 
 import { html, nothing, type PropertyValues, type TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import type { AlphaChainSettings, BotDifficulty } from "../../game/types";
+import type { AlphaChainSettings, BotDifficulty, GameMode } from "../../game/types";
 import { DEFAULT_SETTINGS, saveSettings } from "../../game/settings";
 import { AcElement } from "../app/AcElement";
+import { renderPickerSettings } from "./picker-settings";
 import { RARITY_WEIGHT_BOUNDS, renderRarityWeights } from "./rarity-weights";
 import { SETTING_HINTS } from "./settings-hints";
 
@@ -145,6 +146,27 @@ export class AcLobby extends AcElement {
 
         <div class="ac-panel lobby-panel net-panel">
           <div class="net-settings">
+            <!-- Game Mode leads the list deliberately: Picker is the default, so stored settings
+                 load with it already selected, and Classic has to stay discoverable rather than
+                 buried. The mode-specific rows below follow it so the panel reads top-down. -->
+            ${this.segmented<GameMode>(
+              "Game Mode",
+              d.gameMode,
+              [
+                { value: "picker", text: "picker" },
+                { value: "classic", text: "classic" },
+              ],
+              (v) => this.set("gameMode", v),
+              SETTING_HINTS.gameMode,
+            )}
+            ${renderPickerSettings(
+              d,
+              this.step.bind(this),
+              this.set.bind(this),
+              this.stepper.bind(this),
+              this.segmented.bind(this),
+              this.toggle.bind(this),
+            )}
             ${this.stepper(
               "Opponents",
               String(d.botCount),
@@ -159,13 +181,15 @@ export class AcLobby extends AcElement {
               (v) => this.set("botDifficulty", v),
               SETTING_HINTS.botDifficulty,
             )}
-            ${this.stepper(
-              "Shot Clock",
-              `${d.shotClockSeconds}s`,
-              () => this.step("shotClockSeconds", -5, 5, 60),
-              () => this.step("shotClockSeconds", 5, 5, 60),
-              SETTING_HINTS.shotClockSeconds,
-            )}
+            ${d.gameMode === "classic"
+              ? this.stepper(
+                  "Shot Clock",
+                  `${d.shotClockSeconds}s`,
+                  () => this.step("shotClockSeconds", -5, 5, 60),
+                  () => this.step("shotClockSeconds", 5, 5, 60),
+                  SETTING_HINTS.shotClockSeconds,
+                )
+              : nothing}
             ${this.segmented<AlphaChainSettings["banMode"]>(
               "Letter Ban Mode",
               d.banMode,

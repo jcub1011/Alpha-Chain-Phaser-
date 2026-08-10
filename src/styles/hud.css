@@ -816,3 +816,155 @@ ac-leaderboard[strip] .lb-row {
     --gc-h: 148px;
   }
 }
+
+/* ── Offer grid (Picker) ───────────────────────────────────────────────────
+ * The layout rule is a design requirement, not a preference: every Offer Card must be visible
+ * without scrolling, because an option you have to go looking for is hidden information under a
+ * shot clock. `auto-fit` + `minmax` gives one row on desktop and wraps to two on a phone as the
+ * count grows, and the cells shrink rather than overflow. Modelled on `.ban-grid`, the existing
+ * one-tap choice grid. */
+.og-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: 0.5rem;
+  border: 2px solid var(--ac-border-strong);
+  border-radius: var(--r-md);
+  background: var(--ac-panel-solid);
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+}
+.og-wrap.is-live {
+  border-color: var(--ac-amber);
+  box-shadow: var(--ac-glow-amber);
+}
+.og-wrap.is-reject {
+  animation: ac-shakeX 0.4s;
+  border-color: var(--ac-danger);
+}
+.og-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  min-height: 1.1rem;
+}
+.og-letter {
+  color: var(--ac-amber);
+  font-size: 1.1em;
+}
+.og-feedback {
+  color: var(--ac-danger);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+.og-empty {
+  margin: 0;
+  padding: var(--sp-2);
+  text-align: center;
+  opacity: 0.6;
+}
+
+.og-grid {
+  display: grid;
+  /* ~7rem keeps a 12-letter word legible; cells share the row until they can't. */
+  grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+  gap: var(--sp-2);
+}
+/* Beyond the no-scroll ceiling (8 cards) horizontal scrolling is the documented fallback. */
+.og-grid.is-overflow {
+  grid-auto-flow: column;
+  grid-template-columns: none;
+  grid-auto-columns: minmax(7rem, 1fr);
+  overflow-x: auto;
+}
+
+.og-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  min-height: 3.4rem;
+  padding: 0.5rem 0.4rem;
+  border: 2px solid var(--ac-border);
+  border-radius: var(--r-sm);
+  background: var(--ac-panel);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background 0.15s,
+    transform 0.1s;
+}
+.og-card:hover:not(:disabled) {
+  border-color: var(--ac-cyan);
+}
+.og-card:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+/* Selection is a VISIBLE state distinct from submission — touch has no hover, so the first tap
+ * has to be unmistakable before the second one commits. */
+.og-card.is-selected {
+  border-color: var(--ac-amber);
+  background: var(--ac-panel-solid);
+  box-shadow: var(--ac-glow-amber);
+  transform: translateY(-2px);
+}
+.og-word {
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+.og-ban {
+  background: none;
+  color: var(--ac-danger);
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+}
+
+/* The shape annotations. These let a card be evaluated WITHOUT fully decoding the word, which is
+ * the mode's most important accessibility affordance — not decoration. */
+.og-tags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.25rem;
+  font-size: 0.66rem;
+  font-weight: 700;
+  opacity: 0.78;
+}
+.og-tag {
+  padding: 0 0.25rem;
+  border-radius: 0.2rem;
+  background: rgba(255, 255, 255, 0.08);
+}
+.og-tag--vowel {
+  color: var(--ac-cyan);
+}
+.og-tag--rare {
+  color: var(--ac-amber);
+}
+.og-go {
+  width: 100%;
+}
+
+@media (max-width: 30rem) {
+  .og-grid {
+    /* Two per row on a narrow phone rather than one tall column. */
+    grid-template-columns: repeat(auto-fit, minmax(5.5rem, 1fr));
+    gap: 0.4rem;
+  }
+  .og-word {
+    font-size: 0.92rem;
+  }
+  .og-card {
+    min-height: 3rem;
+    padding: 0.4rem 0.3rem;
+  }
+}

@@ -41,9 +41,14 @@ async function boot(): Promise<void> {
     `booting (launch=${launchMode}, lexicon=${needsDict ? "loading" : "skipped (server-side)"})`,
   );
 
-  // 1. Card icon sprite (always) + the lexicon (only when the client needs it), in parallel.
+  // 1. Card icon sprite (always) + the lexicons (only when the client needs them), in parallel.
+  //    BOTH tiers load together rather than the one the stored settings name: the fetch happens
+  //    here at boot, but the player can still switch Offer Dictionary in the lobby afterwards, so
+  //    picking a tier now would be wrong the moment they do. The Reduced list is ~70 KB against
+  //    Full's 4.4 MB, so carrying both costs nothing measurable and keeps the lobby switch free.
   const spritePromise = fetch("assets/cards.svg");
   const wordsPromise = needsDict ? fetch("assets/words.txt") : null;
+  const commonWordsPromise = needsDict ? fetch("assets/words-common.txt") : null;
   const spriteRes = await spritePromise;
   if (!spriteRes.ok) {
     // Fail fast: reading .text() off a non-OK response would feed error-page HTML in as garbage.
@@ -51,18 +56,25 @@ async function boot(): Promise<void> {
   }
   const spriteText = await spriteRes.text();
 
-  let dict: Dictionary | undefined;
-  if (wordsPromise) {
-    const wordsRes = await wordsPromise;
-    if (!wordsRes.ok) throw new Error(`words fetch failed (${wordsRes.status})`);
-    const wordsText = await wordsRes.text();
-    dict = new Dictionary(
-      wordsText
+  /** Parse a fetched word list into a Dictionary, failing fast on a non-OK response
+   *  (reading .text() off an error page would feed HTML in as garbage words). */
+  const readDict = async (res: Response, label: string): Promise<Dictionary> => {
+    if (!res.ok) throw new Error(`${label} fetch failed (${res.status})`);
+    const text = await res.text();
+    return new Dictionary(
+      text
         .split(/\r?\n/)
         .map((w) => w.trim().toLowerCase())
         .filter((w) => w.length > 0),
     );
-    log.info(`dictionary loaded (${dict.size} words)`);
+  };
+
+  let dict: Dictionary | undefined;
+  let commonDict: Dictionary | undefined;
+  if (wordsPromise && commonWordsPromise) {
+    dict = await readDict(await wordsPromise, "words");
+    commonDict = await readDict(await commonWordsPromise, "common words");
+    log.info(`dictionary loaded (${dict.size} full / ${commonDict.size} common)`);
   }
 
   // 2. Inject the SVG <symbol> sprite once so <use href="#id"> resolves anywhere.
@@ -86,6 +98,7 @@ async function boot(): Promise<void> {
   const app = document.querySelector("ac-app") as AcApp;
   app.launchMode = launchMode;
   app.dict = dict;
+  app.commonDict = commonDict;
   app.settings = loadSettings();
   fx.setShakeTarget(app);
   log.info("app shell mounted");

@@ -39,15 +39,20 @@ function aliasLogToShim(): Plugin {
   };
 }
 
-/** Copy the dictionary to the server-only authority path after the bundle is written. */
+/** Copy the dictionaries to the server-only authority paths after the bundle is written.
+ *  Both are declared in GAME.json authorityWords: `en` (full, typed play) and `en-common`
+ *  (the Reduced pool Picker draws its Offer from). Two files, not one, because the server
+ *  word service keys pools by declared file — see the header note on the assets/ split. */
 function copyWordList(): Plugin {
   return {
     name: "copy-authority-word-list",
     closeBundle() {
-      copyFileSync(
-        path.resolve(here, "public/assets/words.txt"),
-        path.resolve(here, "dist/words.txt"),
-      );
+      for (const file of ["words.txt", "words-common.txt"]) {
+        copyFileSync(
+          path.resolve(here, "public/assets", file),
+          path.resolve(here, "dist", file),
+        );
+      }
     },
   };
 }

@@ -6,6 +6,7 @@
   "maxPlayers": 8,
   "serverAuthority": "authority.js",
   "authorityWords": {
-    "en": { "file": "words.txt", "caseInsensitive": true }
+    "en": { "file": "words.txt", "caseInsensitive": true },
+    "en-common": { "file": "words-common.txt", "caseInsensitive": true }
   }
 }

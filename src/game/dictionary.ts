@@ -5,12 +5,12 @@
  */
 
 export class Dictionary {
-  private readonly words: Set<string>;
+  private readonly wordSet: Set<string>;
   private readonly byFirst = new Map<string, string[]>();
 
   constructor(words: Iterable<string>) {
-    this.words = words instanceof Set ? words : new Set(words);
-    for (const w of this.words) {
+    this.wordSet = words instanceof Set ? words : new Set(words);
+    for (const w of this.wordSet) {
       if (w.length === 0) continue;
       const first = w[0];
       let bucket = this.byFirst.get(first);
@@ -35,15 +35,22 @@ export class Dictionary {
   }
 
   get size(): number {
-    return this.words.size;
+    return this.wordSet.size;
   }
 
   has(word: string): boolean {
-    return this.words.has(word.trim().toLowerCase());
+    return this.wordSet.has(word.trim().toLowerCase());
   }
 
   /** All words beginning with `letter` (lowercased). Empty array if none. */
   wordsStartingWith(letter: string): readonly string[] {
     return this.byFirst.get(letter.toLowerCase()) ?? [];
+  }
+
+  /** Every word, in insertion (file) order. Used by `dictionaryWordPool` to build the
+   *  length-bucketed view the Picker's Offer generator draws against — enumerating via
+   *  `wordsStartingWith` over a-z would silently drop any non-alpha entry instead. */
+  words(): Iterable<string> {
+    return this.wordSet;
   }
 }
