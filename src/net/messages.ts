@@ -16,6 +16,14 @@ export type Intent =
   | { kind: "setSettings"; settings: AlphaChainSettings } // owner edits the pre-match lobby settings
   | { kind: "submit"; word: string }
   | { kind: "draftWord"; word: string } // current player's in-progress word, for timeout auto-submit
+  /* Picker's twin of draftWord/submit. BOTH carry the word rather than an Offer index: the
+   * authority would resolve an index against ITS Offer, so a client whose Offer was regenerated
+   * between render and tap would silently commit a word the player never saw (real once The
+   * Winnower redraws mid-turn), whereas a stale word just fails the membership check. Because the
+   * commit is self-contained, a throttled or dropped select can never produce a wrong commit — the
+   * select exists only so a clock expiry commits the right word instead of reading a no-show. */
+  | { kind: "selectOffer"; word: string }
+  | { kind: "commitSelection"; word: string }
   | { kind: "reorderBay"; engine: string[]; discard: string[] }
   | { kind: "lockInOptimize" } // any player locking in fast-forwards the shared optimize dwell
   | { kind: "unlockOptimize" } // a locked-in player re-opening their engine while others finish

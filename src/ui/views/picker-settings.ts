@@ -12,7 +12,8 @@
 
 import { html, nothing, type TemplateResult } from "lit";
 import { MAX_OFFER_COUNT, MIN_OFFER_COUNT } from "../../game/settings";
-import type { AlphaChainSettings, DictionaryTier } from "../../game/types";
+import { DictionaryTier, GameMode } from "../../game/types";
+import type { AlphaChainSettings } from "../../game/types";
 import type { SettingStepper } from "./rarity-weights";
 import { SETTING_HINTS } from "./settings-hints";
 
@@ -60,7 +61,7 @@ export const renderPickerSettings = (
   segmented: SettingSegmented,
   toggle: SettingToggle,
 ): TemplateResult | typeof nothing => {
-  if (draft.gameMode !== "picker") return nothing;
+  if (draft.gameMode !== GameMode.Picker) return nothing;
   const { min, max } = OFFER_COUNT_BOUNDS;
   const clock = PICKER_CLOCK_BOUNDS;
   return html`
@@ -75,8 +76,8 @@ export const renderPickerSettings = (
       "Word List",
       draft.offerDictionary,
       [
-        { value: "reduced", text: "common" },
-        { value: "full", text: "full" },
+        { value: DictionaryTier.Reduced, text: "common" },
+        { value: DictionaryTier.Full, text: "full" },
       ],
       (v) => set("offerDictionary", v),
       SETTING_HINTS.offerDictionary,

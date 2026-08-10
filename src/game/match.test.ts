@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { MatchController, type PlayerSeed } from "./match";
 import { DEFAULT_SETTINGS, rarityDealWeights, totalCardsDealtPerPlayer } from "./settings";
+import { GameMode } from "./types";
 import type { AlphaChainSettings, CardRarity } from "./types";
-import { DEALABLE_CARD_IDS, dealPoolCapacity, getCard } from "./cards/library";
+import { dealableCardIds, dealPoolCapacity, getCard } from "./cards/library";
 import { DEFAULT_MAX_INSTANCES } from "./cards/card";
 
 /** Mirror the dealer's rarity-weighted pick (match.ts:dealCards) so tests can
@@ -24,6 +25,10 @@ const weightedPick = (
   return pool[pool.length - 1];
 };
 
+/** The Classic deal pool. These suites assert Classic behaviour (see makeMatch), and the
+ *  dealer is mode-scoped, so the expectations must read the same list the dealer will. */
+const CLASSIC_IDS = dealableCardIds(GameMode.Classic);
+
 const WORDS = new Set(["cat", "tiger", "rabbit", "tractor", "rat", "torch", "house", "elephant"]);
 const seeds: PlayerSeed[] = [
   { id: "p1", name: "You", isBot: false },
@@ -33,7 +38,10 @@ const seeds: PlayerSeed[] = [
 const makeMatch = (overrides: Partial<AlphaChainSettings> = {}) =>
   new MatchController(
     seeds,
-    { ...DEFAULT_SETTINGS, enableTutorials: false, ...overrides },
+    // Every case here asserts CLASSIC dealer/timeout behaviour, and DEFAULT_SETTINGS now
+    // selects Picker — pin it so a Classic assertion can never silently start running Picker
+    // (whose pool excludes two cards). Picker has its own suites.
+    { ...DEFAULT_SETTINGS, gameMode: GameMode.Classic, enableTutorials: false, ...overrides },
     {
       isWord: (w) => WORDS.has(w),
       rng: () => 0.5,
@@ -263,7 +271,13 @@ describe("MatchController — dropPlayer (mid-match departure)", () => {
     ];
     const m3 = new MatchController(
       three,
-      { ...DEFAULT_SETTINGS, enableTutorials: false, preRoundCountdownSeconds: 3, eraInterval: 4 },
+      {
+        ...DEFAULT_SETTINGS,
+        gameMode: GameMode.Classic,
+        enableTutorials: false,
+        preRoundCountdownSeconds: 3,
+        eraInterval: 4,
+      },
       { isWord: (w) => WORDS.has(w), rng: () => 0.5 },
     );
     m3.start();
@@ -370,6 +384,7 @@ describe("shot-clock submit grace window", () => {
       seeds,
       {
         ...DEFAULT_SETTINGS,
+        gameMode: GameMode.Classic,
         enableTutorials: false,
         preRoundCountdownSeconds: 3,
         eraInterval: 4,
@@ -439,6 +454,7 @@ describe("turn order shuffles every era", () => {
       threeSeeds,
       {
         ...DEFAULT_SETTINGS,
+        gameMode: GameMode.Classic,
         enableTutorials: false,
         preRoundCountdownSeconds: 1,
         eraInterval: 9,
@@ -490,11 +506,12 @@ describe("per-card deal caps", () => {
   // The human p1 is NOT auto-trimmed during optimize, so its bay holds the full
   // dealt set for inspection. rng 0.5 keeps p1 the era opener (matches the other
   // intermission tests) and makes the deal deterministic.
-  const driveToIntermission = (modifiersDealtPerEra: number) => {
+  const driveToIntermission = (modifiersDealtPerEra: number, mode: GameMode = GameMode.Classic) => {
     const m = new MatchController(
       seeds,
       {
         ...DEFAULT_SETTINGS,
+        gameMode: mode,
         enableTutorials: false,
         preRoundCountdownSeconds: 1,
         eraInterval: 1,
@@ -536,22 +553,36 @@ describe("per-card deal caps", () => {
     // its cap, then moves on — so the first-picked card lands on EXACTLY its cap
     // (without the cap it would have swallowed all 10 deals). The pick is now
     // rarity-weighted, so derive it via the same weighted algorithm.
-    const firstPicked = weightedPick(DEALABLE_CARD_IDS, 0.5);
+    const firstPicked = weightedPick(CLASSIC_IDS, 0.5);
     expect(countIn(p1.bay, firstPicked)).toBe(capOf(firstPicked));
-    for (const id of DEALABLE_CARD_IDS) {
+    for (const id of CLASSIC_IDS) {
       expect(countIn(p1.bay, id)).toBeLessThanOrEqual(capOf(id));
     }
+  });
+
+  it("never deals a Classic-only card in Picker", () => {
+    // Exhaust the pool in Picker: The Blindfold and Insurance must be absent entirely, and the bay
+    // must land 4 short of Classic's ceiling (Blindfold cap 1 + Insurance cap 3). Driven through
+    // the real dealer, so this fails if the dealer and dealableCardIds ever disagree.
+    const picker = driveToIntermission(1000, GameMode.Picker).state.players[0];
+    expect(countIn(picker.bay, "Blindfold")).toBe(0);
+    expect(countIn(picker.bay, "Insurance")).toBe(0);
+
+    const classic = driveToIntermission(1000, GameMode.Classic).state.players[0];
+    expect(countIn(classic.bay, "Blindfold")).toBe(1);
+    expect(countIn(classic.bay, "Insurance")).toBe(3);
+    expect(classic.bay.length - picker.bay.length).toBe(4);
   });
 
   it("stops dealing early once every card is capped (no over-deal, no hang)", () => {
     // Ask for far more than the pool can supply; dealing must stop at the summed
     // caps rather than loop. This is the all-cards-exhausted safety path.
     const p1 = driveToIntermission(1000).state.players[0];
-    const expectedTotal = DEALABLE_CARD_IDS.reduce((sum, id) => sum + capOf(id), 0);
+    const expectedTotal = CLASSIC_IDS.reduce((sum, id) => sum + capOf(id), 0);
     expect(p1.bay.length).toBe(expectedTotal);
     // Exhaustion means every card sits at exactly its cap — including unique
     // (maxInstances: 1) cards like Sesquipedalian.
-    for (const id of DEALABLE_CARD_IDS) {
+    for (const id of CLASSIC_IDS) {
       expect(countIn(p1.bay, id)).toBe(capOf(id));
     }
     expect(countIn(p1.bay, "Sesquipedalian")).toBe(1);
@@ -578,6 +609,7 @@ describe("rarity-weighted dealing", () => {
       seeds,
       {
         ...DEFAULT_SETTINGS,
+        gameMode: GameMode.Classic,
         enableTutorials: false,
         preRoundCountdownSeconds: 1,
         eraInterval: 1,
@@ -608,7 +640,7 @@ describe("rarity-weighted dealing", () => {
     const counts: Record<string, number> = { common: 0, uncommon: 0, rare: 0, legendary: 0 };
     const N = 150;
     for (let i = 0; i < N; i++) {
-      const rarity = getCard(weightedPick(DEALABLE_CARD_IDS, (i + 0.5) / N))!.rarity;
+      const rarity = getCard(weightedPick(CLASSIC_IDS, (i + 0.5) / N))!.rarity;
       counts[rarity]++;
     }
     expect(counts.common).toBeGreaterThan(counts.uncommon);
@@ -639,6 +671,7 @@ describe("host-configured rarity weights", () => {
       seeds,
       {
         ...DEFAULT_SETTINGS,
+        gameMode: GameMode.Classic,
         enableTutorials: false,
         preRoundCountdownSeconds: 1,
         eraInterval: 1,
@@ -710,9 +743,9 @@ describe("host-configured rarity weights", () => {
     // exactly its cap and nothing exceeds it (Toll Booth 1, Magnifying Glass 5, rest 3).
     const m = driveWithWeights({ ...ONLY_RARE, modifiersDealtPerEra: 1000 });
     const bay = m.state.players[0].bay;
-    const rares = DEALABLE_CARD_IDS.filter((id) => getCard(id)!.rarity === "rare");
+    const rares = CLASSIC_IDS.filter((id) => getCard(id)!.rarity === "rare");
     expect(bay.length).toBe(
-      dealPoolCapacity(rarityDealWeights({ ...DEFAULT_SETTINGS, ...ONLY_RARE })),
+      dealPoolCapacity(rarityDealWeights({ ...DEFAULT_SETTINGS, ...ONLY_RARE }), GameMode.Classic),
     );
     for (const id of rares) {
       expect(bay.filter((b) => b.id === id).length).toBe(
@@ -733,6 +766,7 @@ describe("host-configured rarity weights", () => {
     };
     const capacity = dealPoolCapacity(
       rarityDealWeights({ ...DEFAULT_SETTINGS, ...ONLY_LEGENDARY }),
+      GameMode.Classic,
     );
     const m = driveWithWeights({ ...ONLY_LEGENDARY, modifiersDealtPerEra: 1000 });
     expect(m.state.players[0].bay.length).toBe(capacity);

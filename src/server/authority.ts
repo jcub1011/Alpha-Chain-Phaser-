@@ -21,7 +21,12 @@
 
 import { MatchController, type MatchEvents, type PlayerSeed } from "../game/match";
 import { DEFAULT_SETTINGS, sanitizeSettings, SUBMIT_GRACE_SECONDS } from "../game/settings";
-import { emptyMatchState, type AlphaChainSettings, type MatchState } from "../game/types";
+import {
+  DictionaryTier,
+  emptyMatchState,
+  type AlphaChainSettings,
+  type MatchState,
+} from "../game/types";
 import type { ClockAnchor, Intent, ServerStatePayload, WireEvent } from "../net/messages";
 import { serializeState } from "../net/serialize";
 import { kbWordPool } from "../game/picker/wordPool";
@@ -207,7 +212,7 @@ export function createAuthority(kb: Kb) {
       // host-side, and the Offer itself ships in the snapshot.
       wordPool: kbWordPool(
         kb.words,
-        chosen.offerDictionary === "reduced" ? DICTIONARY_COMMON : DICTIONARY,
+        chosen.offerDictionary === DictionaryTier.Reduced ? DICTIONARY_COMMON : DICTIONARY,
       ),
     });
     for (const type of REPLAYED_EVENTS) {
@@ -262,6 +267,20 @@ export function createAuthority(kb: Kb) {
             // event — nothing to broadcast.
             h.setDraft(fromId, action.word);
             return null;
+          case "selectOffer":
+            // Picker's twin of draftWord. Returning a literal null — never drainPatch — is
+            // LOAD-BEARING, not tidiness: there is no server-side rate limiter anywhere in this
+            // build, and an intent that cannot make the server fan state out is the only thing
+            // standing between a held-down tap and an amplification vector. setSelection also
+            // refuses a word that isn't in the current Offer, and refuses off-turn senders.
+            h.setSelection(fromId, action.word);
+            return null;
+          case "commitSelection":
+            // Mirrors `submit`: commitSelection emits `submission` on success or one `rejected`
+            // on a bad word, and is deliberately EVENTLESS when nothing is selected — so
+            // drainPatch(false) publishes exactly once per real outcome and nothing for a stray.
+            h.commitSelection(fromId, action.word);
+            return drainPatch(false);
           case "reorderBay":
             if (!inOptimize()) return null;
             h.setPlayerBay(fromId, action.engine, action.discard);
@@ -292,8 +311,16 @@ export function createAuthority(kb: Kb) {
             if (fromId !== ownerId) return null; // only the owner may skip
             h.skipTutorial();
             return drainPatch(false);
+          default: {
+            // Exhaustiveness guard. Without it a new Intent member with no case here silently
+            // returns null — the intent would just never work, with nothing to debug from. The
+            // two early `if` returns above narrow startMatch/setSettings out, so `action` is
+            // `never` here once every remaining kind is handled.
+            const unhandled: never = action;
+            log.warn(`applyIntent: unhandled intent ${String((unhandled as Intent).kind)}`);
+            return null;
+          }
         }
-        return null;
       } catch (err) {
         // Contained failure: drop the intent and re-broadcast the authoritative state so
         // clients re-converge, exactly like the old host's try/catch (never freeze play).

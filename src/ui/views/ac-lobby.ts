@@ -5,8 +5,9 @@
 
 import { html, nothing, type PropertyValues, type TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import type { AlphaChainSettings, BotDifficulty, GameMode } from "../../game/types";
-import { DEFAULT_SETTINGS, saveSettings } from "../../game/settings";
+import { GameMode } from "../../game/types";
+import type { AlphaChainSettings, BotDifficulty } from "../../game/types";
+import { DEFAULT_SETTINGS, MAX_ERA_STEPPER, saveSettings } from "../../game/settings";
 import { AcElement } from "../app/AcElement";
 import { renderPickerSettings } from "./picker-settings";
 import { RARITY_WEIGHT_BOUNDS, renderRarityWeights } from "./rarity-weights";
@@ -153,8 +154,8 @@ export class AcLobby extends AcElement {
               "Game Mode",
               d.gameMode,
               [
-                { value: "picker", text: "picker" },
-                { value: "classic", text: "classic" },
+                { value: GameMode.Picker, text: "picker" },
+                { value: GameMode.Classic, text: "classic" },
               ],
               (v) => this.set("gameMode", v),
               SETTING_HINTS.gameMode,
@@ -181,7 +182,7 @@ export class AcLobby extends AcElement {
               (v) => this.set("botDifficulty", v),
               SETTING_HINTS.botDifficulty,
             )}
-            ${d.gameMode === "classic"
+            ${d.gameMode === GameMode.Classic
               ? this.stepper(
                   "Shot Clock",
                   `${d.shotClockSeconds}s`,
@@ -222,15 +223,15 @@ export class AcLobby extends AcElement {
             ${this.stepper(
               "Eras",
               String(d.eraCount),
-              () => this.step("eraCount", -1, 1, 50),
-              () => this.step("eraCount", 1, 1, 50),
+              () => this.step("eraCount", -1, 1, MAX_ERA_STEPPER),
+              () => this.step("eraCount", 1, 1, MAX_ERA_STEPPER),
               SETTING_HINTS.eraCount,
             )}
             ${this.stepper(
               "Rounds Per Era",
               String(d.eraInterval),
-              () => this.step("eraInterval", -1, 1, 50),
-              () => this.step("eraInterval", 1, 1, 50),
+              () => this.step("eraInterval", -1, 1, MAX_ERA_STEPPER),
+              () => this.step("eraInterval", 1, 1, MAX_ERA_STEPPER),
               SETTING_HINTS.eraInterval,
             )}
             ${this.stepper(

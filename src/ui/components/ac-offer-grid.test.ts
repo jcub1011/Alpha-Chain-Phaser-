@@ -8,6 +8,7 @@ import { Dictionary } from "../../game/dictionary";
 import { MatchController, type PlayerSeed } from "../../game/match";
 import { dictionaryWordPool } from "../../game/picker/wordPool";
 import { DEFAULT_SETTINGS } from "../../game/settings";
+import { GameMode } from "../../game/types";
 import type { GameController } from "../../net/controller";
 import type { MatchLike } from "../../net/controller";
 import "./ac-offer-grid";
@@ -67,7 +68,7 @@ function harness(
     roster,
     {
       ...DEFAULT_SETTINGS,
-      gameMode: "picker",
+      gameMode: GameMode.Picker,
       enableTutorials: false,
       preRoundCountdownSeconds: 1,
       offerCount: 4,
@@ -108,6 +109,11 @@ async function mount(controller: GameController): Promise<AcOfferGrid> {
   return el;
 }
 
+/** Wait past the select throttle (120 ms) so any trailing send has fired. Real timers rather than
+ *  fake ones: the component reads Date.now() directly, so faking the clock without also faking
+ *  Date would leave the throttle comparing a frozen `now` against a real `lastSelectAt`. */
+const settle = (): Promise<void> => new Promise((r) => setTimeout(r, 180));
+
 const cards = (el: AcOfferGrid): HTMLButtonElement[] =>
   [...el.querySelectorAll(".og-card")] as HTMLButtonElement[];
 const go = (el: AcOfferGrid): HTMLButtonElement => el.querySelector(".og-go") as HTMLButtonElement;
@@ -145,14 +151,94 @@ describe("<ac-offer-grid>", () => {
   it("moves the selection when a different card is tapped, without committing", async () => {
     const { match, controller, calls } = harness();
     const el = await mount(controller);
+    const [first, second] = match.state.offer;
     cards(el)[0].click();
     await el.updateComplete;
     cards(el)[1].click();
     await el.updateComplete;
+
     expect(calls.commits).toEqual([]);
-    expect(calls.selections).toEqual([match.state.offer[0], match.state.offer[1]]);
+    // The visible selection moves immediately — the throttle only delays the WIRE message.
     expect(cards(el)[0].classList.contains("is-selected")).toBe(false);
     expect(cards(el)[1].classList.contains("is-selected")).toBe(true);
+    // First tap sent on the leading edge; the second is coalesced into a trailing send.
+    expect(calls.selections).toEqual([first]);
+    await settle();
+    expect(calls.selections).toEqual([first, second]);
+  });
+
+  it("coalesces a burst of taps into one trailing send", async () => {
+    const { match, controller, calls } = harness();
+    const el = await mount(controller);
+    const offer = [...match.state.offer];
+    for (let i = 0; i < 4; i++) {
+      cards(el)[i].click();
+      await el.updateComplete;
+    }
+    await settle();
+    // Leading edge, then ONE trailing send carrying whatever ended up selected — not four.
+    expect(calls.selections).toEqual([offer[0], offer[3]]);
+  });
+
+  it("cancels a queued send when the selection is cleared", async () => {
+    /* A trailing timer must not resurrect a word the player moved off: the authority would commit
+     * THAT on a clock expiry. `turnArmed` clears the selection, so drive it through the engine. */
+    const { match, controller, calls } = harness();
+    const el = await mount(controller);
+    const first = match.state.offer[0];
+    cards(el)[0].click(); // leading-edge send
+    await el.updateComplete;
+    cards(el)[1].click(); // queued trailing send
+    await el.updateComplete;
+
+    match.commitSelection("you", first); // resolves the turn → turnArmed → select(null)
+    await el.updateComplete;
+    await settle();
+    expect(calls.selections).toEqual([first]); // the queued second word never went out
+  });
+
+  it("cancels a queued send when the selection is committed", async () => {
+    /* The commit carries the word, so a queued select is redundant — and cancelling it removes any
+     * chance of it landing AFTER the commit and re-selecting on a resolved turn. */
+    const { match, controller, calls } = harness();
+    const el = await mount(controller);
+    const [first, second] = match.state.offer;
+    cards(el)[0].click(); // leading-edge send
+    await el.updateComplete;
+    cards(el)[1].click(); // queued
+    await el.updateComplete;
+    cards(el)[1].click(); // second tap on the same card commits
+    await el.updateComplete;
+    await settle();
+
+    expect(calls.commits).toEqual([second]);
+    expect(calls.selections).toEqual([first]); // no select after the commit
+  });
+
+  it("repaints a new Offer arriving without a replayed event", async () => {
+    /* Networked play only paints the match surface from replayed events, so a client that joins or
+     * reconnects mid-turn holds the Offer in state with no `turnArmed` to render it. clockTick is
+     * the fallback signal. */
+    const { match, controller } = harness();
+    const el = await mount(controller);
+    match.state.offer = ["zebra", "zombie"];
+    match.events.emit("clockTick", 12);
+    await el.updateComplete;
+
+    expect(cards(el).length).toBe(2);
+    expect(el.textContent).toContain("zebra");
+  });
+
+  it("does not re-render the grid when an identical Offer is re-synced", async () => {
+    // The mirror rebuilds state (and a fresh offer array) every snapshot; assigning the reference
+    // would re-render at the server's tick rate and fight the player's own taps.
+    const { match, controller } = harness();
+    const el = await mount(controller);
+    const before = cards(el)[0];
+    match.state.offer = [...match.state.offer]; // new array, same contents
+    match.events.emit("clockTick", 11);
+    await el.updateComplete;
+    expect(cards(el)[0]).toBe(before); // same DOM node — Lit did not re-render
   });
 
   it("commits the selection through the GO button", async () => {

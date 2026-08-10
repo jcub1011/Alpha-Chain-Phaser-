@@ -13,7 +13,7 @@ import { describe, expect, it } from "vitest";
 import { getCard } from "../game/cards/library";
 import { orderPreservingRng } from "../game/rng";
 import { DEFAULT_SETTINGS } from "../game/settings";
-import { CardRarity } from "../game/types";
+import { CardRarity, GameMode } from "../game/types";
 import type { AlphaChainSettings } from "../game/types";
 import type { NetPeer } from "../net/netPeer";
 import { ServerController } from "../net/serverController";
@@ -49,7 +49,7 @@ function makeWords(set: Set<string>): Kb["words"] {
  * started running Picker would keep passing while testing nothing. Picker has its own describe
  * block at the end of the file. */
 const FAST: Partial<AlphaChainSettings> = {
-  gameMode: "classic",
+  gameMode: GameMode.Classic,
   enableTutorials: false,
   preRoundCountdownSeconds: 1,
   eraInterval: 9,
@@ -930,14 +930,14 @@ describe("authority — the sandbox has no ambient clock", () => {
 });
 
 /*
- * Picker through the real authority. The select/commit intents are M2, so what is provable now is
- * the property those intents will depend on: the Offer is generated ONLY server-side and reaches
- * every client identically in the state snapshot — the same shape the rarity-dealing suite above
- * uses to prove both mirrors carry byte-identical bays.
+ * Picker through the real authority, over the real wire contract: the Offer is generated ONLY
+ * server-side and reaches every client identically in the state snapshot, and the select/commit
+ * intents drive a turn end-to-end. Same shape the rarity-dealing suite above uses to prove both
+ * mirrors carry byte-identical bays.
  */
 describe("authority — Picker offers through the server", () => {
   const PICKER: Partial<AlphaChainSettings> = {
-    gameMode: "picker",
+    gameMode: GameMode.Picker,
     enableTutorials: false,
     preRoundCountdownSeconds: 1,
     eraInterval: 9,
@@ -992,5 +992,107 @@ describe("authority — Picker offers through the server", () => {
     hub.advance(1000);
     expect(c1.match.state.offer).toEqual([]);
     expect(c2.match.state.offer).toEqual([]);
+  });
+
+  /** Start a Picker match and return the harness plus whoever is up. */
+  const pickerSession = (over: Partial<AlphaChainSettings> = {}) => {
+    const s = session();
+    s.c1.startMatch({ ...DEFAULT_SETTINGS, ...PICKER, ...over });
+    s.hub.advance(1000);
+    const upId = s.c1.match.current.id;
+    return {
+      ...s,
+      upId,
+      up: byId(s.c1, s.c2)[upId],
+      off: byId(s.c1, s.c2)[upId === "p1" ? "p2" : "p1"],
+    };
+  };
+
+  it("broadcasts NOTHING for a select", () => {
+    /* The single most important property of the select intent. There is no server-side rate
+     * limiter anywhere in this build, so an intent that cannot make the authority fan state out is
+     * the only thing between a held-down tap and an amplification vector. */
+    const { hub, up } = pickerSession();
+    const before = hub.broadcasts;
+    up.reportSelection(up.match.state.offer[0]);
+    up.reportSelection(up.match.state.offer[1]);
+    up.reportSelection(up.match.state.offer[2]);
+    expect(hub.broadcasts).toBe(before);
+  });
+
+  it("commits a selected word and converges both mirrors", () => {
+    const { hub, c1, c2, upId, up } = pickerSession();
+    const chosen = up.match.state.offer[1];
+    const before = hub.broadcasts;
+
+    up.reportSelection(chosen);
+    up.commitSelection(chosen);
+
+    expect(hub.broadcasts).toBeGreaterThan(before); // a real outcome DOES broadcast
+    for (const c of [c1, c2]) {
+      expect([...c.match.state.usedWords]).toContain(chosen);
+      expect(c.match.state.history[c.match.state.history.length - 1]?.word).toBe(chosen);
+      expect(c.match.current.id).not.toBe(upId);
+    }
+    // The next player's Offer is generated once, server-side, and is identical on both mirrors.
+    expect(c2.match.state.offer).toEqual(c1.match.state.offer);
+    expect(c1.match.state.offer.length).toBe(3);
+  });
+
+  it("commits the streamed selection when the clock expires", () => {
+    // The whole reason the select intent exists: the SERVER owns the clock, so it can only commit
+    // the right word if the selection reached it before the buzzer.
+    const { hub, c1, c2, upId, up } = pickerSession();
+    const chosen = up.match.state.offer[2];
+    up.reportSelection(chosen);
+    hub.advance((c1.match.state.clockRemaining + 2) * 1000); // clock + the 1s submit grace
+
+    expect([...c2.match.state.usedWords]).toContain(chosen);
+    expect(c1.match.current.id).not.toBe(upId);
+  });
+
+  it("treats an expiry with no selection as a no-show, but still resolves the turn", () => {
+    const { hub, c1, c2, upId } = pickerSession();
+    const offered = [...c1.match.state.offer];
+    hub.advance((c1.match.state.clockRemaining + 2) * 1000); // clock + the 1s submit grace
+
+    // A random Offer word still resolves so the chain continues...
+    const played = c1.match.state.history[c1.match.state.history.length - 1]?.word;
+    expect(offered).toContain(played);
+    expect([...c2.match.state.usedWords]).toContain(played);
+    // ...and there is NO timeout point penalty in Picker.
+    const scorer = c1.match.state.players.find((p) => p.id === upId);
+    expect(scorer && scorer.score).toBeGreaterThanOrEqual(0);
+  });
+
+  it("refuses a commit from the player whose turn it is not", () => {
+    const { hub, c1, upId, off } = pickerSession();
+    const before = hub.broadcasts;
+    off.commitSelection(c1.match.state.offer[0]);
+    expect(hub.broadcasts).toBe(before); // eventless refusal — nothing to publish
+    expect(c1.match.current.id).toBe(upId);
+    expect(c1.match.state.usedWords.size).toBe(0);
+  });
+
+  it("refuses a word that was never on offer, and says so", () => {
+    const { c1, c2, upId, up } = pickerSession();
+    const rejects: string[] = [];
+    c1.events.on("rejected", ({ reason }) => rejects.push(reason));
+    // "table" is a real word in the stub dictionary — legality is not enough.
+    expect(c1.match.state.offer).not.toContain("table");
+    up.commitSelection("table");
+
+    expect(rejects).toEqual(["not-offered"]);
+    expect(c1.match.current.id).toBe(upId);
+    expect(c2.match.state.usedWords.size).toBe(0);
+  });
+
+  it("ignores a select for a word that is not on offer", () => {
+    // A stale or tampered selection must not become the word the expiry commits.
+    const { hub, c1, up } = pickerSession();
+    up.reportSelection("table");
+    hub.advance((c1.match.state.clockRemaining + 2) * 1000); // clock + the 1s submit grace
+    const played = c1.match.state.history[c1.match.state.history.length - 1]?.word;
+    expect(played).not.toBe("table");
   });
 });

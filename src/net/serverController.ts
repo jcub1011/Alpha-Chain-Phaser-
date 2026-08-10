@@ -136,16 +136,22 @@ export class ServerController implements GameController {
     this.dispatch({ kind: "draftWord", word });
   }
 
-  /* Picker over the network needs two new intents (a throttled select mirroring draftWord, and a
-   * commit mirroring submit) plus their authority cases. That is M2; M1 ships Picker solo-vs-bots
-   * only. Failing loudly rather than silently no-op'ing, so a Picker match reaching a networked
-   * client is a visible bug and not an unresponsive grid. */
-  reportSelection(_word: string): void {
-    log.warn("picker: reportSelection is not wired for networked play yet (M2)");
+  reportSelection(word: string): void {
+    // Stream the highlighted Offer word so the SERVER clock can commit it on expiry. Without this
+    // the authority would see no selection and read every expiry as a no-show — which in Survival
+    // would eliminate a player who had in fact chosen. Throttled by <ac-offer-grid>; the server's
+    // 1s submit grace is what makes that throttle safe against the buzzer.
+    this.dispatch({ kind: "selectOffer", word });
   }
 
-  commitSelection(_word?: string): SubmitResult {
-    log.warn("picker: commitSelection is not wired for networked play yet (M2)");
+  commitSelection(word?: string): SubmitResult {
+    // The word is required on the wire: a payload-less commit would depend on the throttled select
+    // having already landed, so tap-then-immediately-GO could commit the wrong word or nothing.
+    // Nothing selected is a local no-op — never a wire message.
+    if (!word) return { accepted: false };
+    this.dispatch({ kind: "commitSelection", word });
+    // Event-driven like submitWord: the real outcome arrives as submission/rejected on the mirror,
+    // so this synchronous return is neutral.
     return { accepted: false };
   }
 

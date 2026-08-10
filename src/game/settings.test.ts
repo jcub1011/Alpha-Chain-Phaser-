@@ -120,6 +120,21 @@ describe("settings persistence", () => {
     expect(s.botDifficulty).toBe("hard");
   });
 
+  it("keeps a long match the lobby allows — eras and rounds up to 50", () => {
+    /* Regression: the validators read inRange(1, 20) while both lobbies' steppers clamp to 50, so
+     * a host who set 30 eras had it silently reset to the default on the next reload — rejection is
+     * deliberately silent, so nothing surfaced it. Both bounds now come from MAX_ERA_STEPPER. */
+    saveSettings({ ...DEFAULT_SETTINGS, eraCount: 30, eraInterval: 50 });
+    const s = loadSettings();
+    expect(s.eraCount).toBe(30);
+    expect(s.eraInterval).toBe(50);
+  });
+
+  it("still rejects an era count past the lobby's own ceiling", () => {
+    storeObj({ version: VERSION, ...DEFAULT_SETTINGS, eraCount: 51 });
+    expect(loadSettings().eraCount).toBe(DEFAULT_SETTINGS.eraCount);
+  });
+
   it("round-trips a saved settings object and stamps the schema version", () => {
     saveSettings({ ...DEFAULT_SETTINGS, shotClockSeconds: 45, banMode: "ConsonantsOnly" });
     const persisted = JSON.parse(globalThis.localStorage.getItem(KEY) as string);

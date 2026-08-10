@@ -16,6 +16,7 @@ import type { Dictionary } from "../game/dictionary";
 import { MatchController, type PlayerSeed } from "../game/match";
 import { dictionaryWordPool } from "../game/picker/wordPool";
 import { baseShotClockSeconds } from "../game/settings";
+import { DictionaryTier, GameMode } from "../game/types";
 import type { AlphaChainSettings, SubmitResult } from "../game/types";
 import { createLogger } from "../log";
 import type { GameController } from "./controller";
@@ -56,7 +57,7 @@ export class LocalController implements GameController {
       // and Classic's legal word set is left exactly as it was.
       isWord: (w) => this.dict.has(w),
       wordPool: dictionaryWordPool(
-        settings.offerDictionary === "reduced" ? (commonDict ?? dict) : dict,
+        settings.offerDictionary === DictionaryTier.Reduced ? (commonDict ?? dict) : dict,
       ),
     });
 
@@ -181,7 +182,7 @@ export class LocalController implements GameController {
     // Picker: the Offer IS the candidate set, so a bot ranks it through its own bay and commits.
     // No dictionary walk, and no difficulty-tiered gathering — every player, human or bot, faces
     // exactly the same five words, which is what makes the mode's skill purely evaluation.
-    if (s.settings.gameMode === "picker") {
+    if (s.settings.gameMode === GameMode.Picker) {
       const pick = bestScoredCandidate(s.offer, { bay, scoreOpts, bannedLetter: s.bannedLetter });
       if (pick) {
         log.debug(`bot ${playerId} picks "${pick}"`);

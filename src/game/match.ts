@@ -9,7 +9,7 @@
  * Phase flow:  Setup → Countdown → Round×eraInterval → Intermission → … → GameOver
  */
 
-import { DEALABLE_CARD_IDS, getCard } from "./cards/library";
+import { dealableCardIds, getCard } from "./cards/library";
 import { DEFAULT_MAX_INSTANCES } from "./cards/card";
 import { BanLetterService, EngineEffects, RoomServices } from "./cards/roomServices";
 import { createLogger } from "../log";
@@ -37,7 +37,7 @@ import {
   rarityDealWeights,
   isVowel,
 } from "./settings";
-import { byScoreDesc, emptyMatchState } from "./types";
+import { byScoreDesc, emptyMatchState, GameMode } from "./types";
 import type {
   AlphaChainSettings,
   BayCard,
@@ -310,7 +310,7 @@ export class MatchController {
    *  unplayable match is worse than falling back. The warning fires once so a wiring mistake is
    *  visible without flooding the log every turn. */
   private get isPicker(): boolean {
-    if (this.state.settings.gameMode !== "picker") return false;
+    if (this.state.settings.gameMode !== GameMode.Picker) return false;
     if (this.wordPool) return true;
     if (!this.warnedMissingPool) {
       this.warnedMissingPool = true;
@@ -1229,6 +1229,11 @@ export class MatchController {
     // must not vary mid-batch. Read from state.settings (the replicated field) — never
     // from module state or loadSettings(), which are host-local and would diverge.
     const tierWeight = rarityDealWeights(this.state.settings);
+    // The mode's dealable ids, resolved once for the same reason. Keyed on the REPLICATED
+    // `settings.gameMode`, deliberately NOT on `this.isPicker` — isPicker is false when no wordPool
+    // was injected, so a host missing that dependency would deal from a different pool than its
+    // guests' mirrors expect. The deal must depend only on replicated state.
+    const modeIds = dealableCardIds(this.state.settings.gameMode);
     for (let i = 0; i < count; i++) {
       // A card is dealable to this player only while they hold fewer than its
       // maxInstances (default 3), and only while its rarity tier carries weight — a
@@ -1238,7 +1243,7 @@ export class MatchController {
       // mid-batch (e.g. a card dealt twice this era) drops it from later draws too.
       // An empty pool stops dealing early: every card capped for this player, or every
       // tier zeroed (the host's "deal nothing" configuration).
-      const pool = DEALABLE_CARD_IDS.filter((id) => {
+      const pool = modeIds.filter((id) => {
         const card = getCard(id);
         if (!card || tierWeight[card.rarity] <= 0) return false;
         const max = card.maxInstances ?? DEFAULT_MAX_INSTANCES;

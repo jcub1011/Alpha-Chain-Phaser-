@@ -193,13 +193,26 @@ export type TutorialKind = "shiritori" | "timeout" | "engine" | "cards" | "tax" 
 
 export type BotDifficulty = "easy" | "medium" | "hard";
 
-/** Play mode. "picker" — choose from a server-generated Offer; "classic" — type the word. */
-export type GameMode = "picker" | "classic";
+/** Play mode. Picker — choose from a server-generated Offer; Classic — type the word.
+ *
+ *  A const object rather than a bare string union, matching {@link CardOp} / {@link CardRarity} /
+ *  {@link CardId}: the mode is compared in the dealer, the clock, both lobbies and the HUD, and a
+ *  typo in any bare `=== "pickr"` is silently false rather than a compile error. The VALUES are the
+ *  persisted and wire-serialized form, so they must not change without a SETTINGS_VERSION bump. */
+export const GameMode = {
+  Picker: "picker",
+  Classic: "classic",
+} as const;
+export type GameMode = (typeof GameMode)[keyof typeof GameMode];
 
-/** Which lexicon the Picker draws its Offer from. "full" is the shipped 386k list; "reduced" is
- *  the ~9k common-English list (public/assets/words-common.txt), which is a strict subset of it
- *  — see tools/build-common-wordlist.mjs for why that subset property is load-bearing. */
-export type DictionaryTier = "reduced" | "full";
+/** Which lexicon the Picker draws its Offer from. Full is the shipped 386k list; Reduced is the
+ *  ~9k common-English list (public/assets/words-common.txt), which is a strict subset of it — see
+ *  tools/build-common-wordlist.mjs for why that subset property is load-bearing. */
+export const DictionaryTier = {
+  Reduced: "reduced",
+  Full: "full",
+} as const;
+export type DictionaryTier = (typeof DictionaryTier)[keyof typeof DictionaryTier];
 
 export type GamePhase = "Setup" | "Tutorial" | "Countdown" | "Round" | "Intermission" | "GameOver";
 

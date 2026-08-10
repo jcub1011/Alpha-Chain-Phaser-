@@ -5,11 +5,13 @@
 // of the suite is node); see the docblock directive above. This is the seam that
 // lets us add further component tests without standing the whole app up.
 import { beforeEach, describe, expect, it } from "vitest";
-import { DEALABLE_CARD_IDS, getCard } from "../../game/cards/library";
+import { CARD_LIBRARY, getCard } from "../../game/cards/library";
 import "./ac-card";
 import type { AcCard } from "./ac-card";
 
-const sampleId = DEALABLE_CARD_IDS[0];
+// Any card will do — this suite is about rendering, not the deal pool, so it deliberately
+// reads the whole catalogue rather than a mode-scoped dealable list.
+const sampleId = Object.keys(CARD_LIBRARY)[0];
 
 async function mount(props: Partial<AcCard> = {}): Promise<AcCard> {
   const el = document.createElement("ac-card") as AcCard;

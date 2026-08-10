@@ -9,11 +9,19 @@ import { describe, expect, it } from "vitest";
 import { bayHidesInput, makeBayEvaluator, scoreWord, type ScoreOptions } from "../scoring";
 import {
   CardRarity,
+  GameMode,
   type BayCard,
   type CardRarity as CardRarityT,
   type Submission,
 } from "../types";
-import { CARD_LIBRARY, dealPoolCapacity, RARITY_CARD_COUNTS, rarityDealShare } from "./library";
+import {
+  CARD_LIBRARY,
+  dealableCardIds,
+  dealPoolCapacity,
+  getCard,
+  rarityCardCounts,
+  rarityDealShare,
+} from "./library";
 import { DEFAULT_RARITY_DEAL_WEIGHT } from "../settings";
 
 const bay = (...ids: string[]): BayCard[] => ids.map((id) => ({ id }));
@@ -338,8 +346,56 @@ describe("card rarity assignments", () => {
     expect(counts).toEqual({ common: 18, uncommon: 15, rare: 11, legendary: 3 });
   });
 
-  it("exposes those same counts as RARITY_CARD_COUNTS", () => {
-    expect(RARITY_CARD_COUNTS).toEqual({ common: 18, uncommon: 15, rare: 11, legendary: 3 });
+  it("exposes those same counts to the CLASSIC dealer", () => {
+    // Classic deals the whole catalogue, so its pool matches the distribution above exactly.
+    expect(rarityCardCounts(GameMode.Classic)).toEqual({
+      common: 18,
+      uncommon: 15,
+      rare: 11,
+      legendary: 3,
+    });
+  });
+
+  it("drops the Classic-only cards from the PICKER pool", () => {
+    // The Blindfold (Uncommon) masks an input box Picker has none of; Insurance (Common) negates a
+    // timeout penalty Picker does not have. Both would be dead weight or free upside, so neither is
+    // dealt in Picker — one Common and one Uncommon lighter.
+    expect(rarityCardCounts(GameMode.Picker)).toEqual({
+      common: 17,
+      uncommon: 14,
+      rare: 11,
+      legendary: 3,
+    });
+  });
+});
+
+// ── dealableCardIds: the mode-scoped pool the dealer and the lobby both read ──
+
+describe("dealableCardIds", () => {
+  it("deals every card in Classic", () => {
+    expect(dealableCardIds(GameMode.Classic).length).toBe(Object.keys(CARD_LIBRARY).length);
+  });
+
+  it("withholds exactly The Blindfold and Insurance in Picker", () => {
+    const classic = new Set(dealableCardIds(GameMode.Classic));
+    const picker = new Set(dealableCardIds(GameMode.Picker));
+    const withheld = [...classic].filter((id) => !picker.has(id));
+    expect(withheld.sort()).toEqual(["Blindfold", "Insurance"]);
+  });
+
+  it("still RESOLVES a withheld card, so an existing bay and the gallery keep rendering", () => {
+    // Undealable is not deleted: getCard stays mode-blind, or a score replay of a Classic match
+    // (or the sandbox gallery) would render blanks.
+    expect(getCard("Blindfold")?.name).toBe("Blindfold");
+    expect(getCard("Insurance")?.name).toBe("Insurance");
+  });
+
+  it("preserves declaration order, which the dealer's weighted walk indexes into", () => {
+    const all = Object.keys(CARD_LIBRARY);
+    for (const mode of [GameMode.Classic, GameMode.Picker]) {
+      const ids: string[] = [...dealableCardIds(mode)];
+      expect(ids).toEqual(all.filter((id) => ids.includes(id)));
+    }
   });
 });
 
@@ -347,7 +403,7 @@ describe("card rarity assignments", () => {
 
 describe("rarityDealShare", () => {
   it("splits a draw across tiers by count × weight, summing to 1", () => {
-    const share = rarityDealShare(DEFAULT_RARITY_DEAL_WEIGHT);
+    const share = rarityDealShare(DEFAULT_RARITY_DEAL_WEIGHT, GameMode.Classic);
     const sum = Object.values(share).reduce((a, b) => a + b, 0);
     expect(sum).toBeCloseTo(1, 10);
     // Σ = 18×10 + 15×5 + 11×2 + 3×1 = 280.
@@ -358,13 +414,16 @@ describe("rarityDealShare", () => {
   });
 
   it("gives a zeroed tier exactly no share, and redistributes the rest", () => {
-    const share = rarityDealShare({ ...DEFAULT_RARITY_DEAL_WEIGHT, common: 0 });
+    const share = rarityDealShare({ ...DEFAULT_RARITY_DEAL_WEIGHT, common: 0 }, GameMode.Classic);
     expect(share.common).toBe(0);
     expect(Object.values(share).reduce((a, b) => a + b, 0)).toBeCloseTo(1, 10);
   });
 
   it("returns zeros rather than NaN when every tier is zeroed", () => {
-    const share = rarityDealShare({ common: 0, uncommon: 0, rare: 0, legendary: 0 });
+    const share = rarityDealShare(
+      { common: 0, uncommon: 0, rare: 0, legendary: 0 },
+      GameMode.Classic,
+    );
     expect(share).toEqual({ common: 0, uncommon: 0, rare: 0, legendary: 0 });
   });
 });
@@ -377,23 +436,45 @@ describe("dealPoolCapacity", () => {
 
   it("sums every copy of every card when no tier is disabled", () => {
     const expected = Object.keys(CARD_LIBRARY).reduce((sum, id) => sum + capOf(id), 0);
-    expect(dealPoolCapacity(ALL_TIERS)).toBe(expected);
+    expect(dealPoolCapacity(ALL_TIERS, GameMode.Classic)).toBe(expected);
     // The weights are relative, so only the zero/non-zero split can move the ceiling.
-    expect(dealPoolCapacity(DEFAULT_RARITY_DEAL_WEIGHT)).toBe(expected);
+    expect(dealPoolCapacity(DEFAULT_RARITY_DEAL_WEIGHT, GameMode.Classic)).toBe(expected);
   });
 
   it("counts only the enabled tiers", () => {
-    const legendaryOnly = dealPoolCapacity({ ...ALL_TIERS, common: 0, uncommon: 0, rare: 0 });
+    const legendaryOnly = dealPoolCapacity(
+      { ...ALL_TIERS, common: 0, uncommon: 0, rare: 0 },
+      GameMode.Classic,
+    );
     // Deca-Quint 1 + Forgery 3 (the default cap) + Roulette Wheel 1 — a whole match's worth
     // of intermissions has 5 cards to draw from, against a default ask of 9.
     expect(legendaryOnly).toBe(5);
-    expect(dealPoolCapacity(ALL_TIERS) - dealPoolCapacity({ ...ALL_TIERS, legendary: 0 })).toBe(
-      legendaryOnly,
-    );
+    expect(
+      dealPoolCapacity(ALL_TIERS, GameMode.Classic) -
+        dealPoolCapacity({ ...ALL_TIERS, legendary: 0 }, GameMode.Classic),
+    ).toBe(legendaryOnly);
   });
 
   it("is 0 when every tier is disabled", () => {
-    expect(dealPoolCapacity({ common: 0, uncommon: 0, rare: 0, legendary: 0 })).toBe(0);
+    expect(
+      dealPoolCapacity({ common: 0, uncommon: 0, rare: 0, legendary: 0 }, GameMode.Classic),
+    ).toBe(0);
+  });
+
+  it("is exactly 4 lower in Picker — Blindfold (cap 1) plus Insurance (cap 3)", () => {
+    // The number the lobby's warning prints. If the dealer and this readout ever disagreed, the
+    // warning would be wrong precisely in the mode it was computed for.
+    const classic = dealPoolCapacity(ALL_TIERS, GameMode.Classic);
+    const picker = dealPoolCapacity(ALL_TIERS, GameMode.Picker);
+    expect(classic - picker).toBe(4);
+  });
+
+  it("still counts the legendary tier identically in both modes", () => {
+    // Neither withheld card is Legendary, so a legendary-only lobby is mode-invariant.
+    const legendaryOnly = { ...ALL_TIERS, common: 0, uncommon: 0, rare: 0 };
+    expect(dealPoolCapacity(legendaryOnly, GameMode.Picker)).toBe(
+      dealPoolCapacity(legendaryOnly, GameMode.Classic),
+    );
   });
 });
 

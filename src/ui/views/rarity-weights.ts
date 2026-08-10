@@ -74,8 +74,11 @@ export const renderRarityWeights = (
   stepper: SettingStepper,
 ): TemplateResult => {
   const weights = rarityDealWeights(draft);
-  const share = rarityDealShare(weights);
-  const capacity = dealPoolCapacity(weights);
+  // Both reads are MODE-SCOPED, and must stay that way: the dealer filters the pool by
+  // `settings.gameMode`, so a mode-blind readout here would quietly advertise a capacity and a
+  // per-tier share the dealer never uses — the warning would be wrong exactly when it matters.
+  const share = rarityDealShare(weights, draft.gameMode);
+  const capacity = dealPoolCapacity(weights, draft.gameMode);
   const requested = totalCardsDealtPerPlayer(draft);
   return html`
     <div class="set-group">

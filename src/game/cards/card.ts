@@ -19,6 +19,7 @@ import type {
   CardFamily,
   CardOp,
   CardRarity,
+  GameMode,
   PlayerState,
   Submission,
   WordResolution,
@@ -129,6 +130,14 @@ export interface ModifierCard {
    *  dealer would exceed this for a player, the card is dropped from that draw.
    *  Defaults to {@link DEFAULT_MAX_INSTANCES} (3) when unset. */
   maxInstances?: number;
+  /** Game modes this card is DEALT in. Unset = both, which is the case for all but a handful.
+   *
+   *  A dealer-side restriction only: `getCard` stays mode-blind, so a card already in a bay, in a
+   *  score replay, or in the sandbox gallery still resolves and renders whatever the mode. Use it
+   *  for cards whose effect is meaningless in a mode rather than merely weak — The Blindfold masks
+   *  an input box Picker does not have, and Insurance negates a timeout penalty Picker does not
+   *  have. Resolved through `dealableCardIds(mode)`. */
+  modes?: readonly GameMode[];
 
   /**
    * Fold this card into the running score. FX cards return the value unchanged

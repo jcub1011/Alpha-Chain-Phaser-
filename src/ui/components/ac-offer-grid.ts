@@ -57,6 +57,10 @@ export class AcOfferGrid extends AcElement {
   @state() private feedback = "";
   @state() private highlightBans = false;
 
+  /** Throttle for streaming the selection to the authority. See `streamSelection`. */
+  private selectTimer: ReturnType<typeof setTimeout> | null = null;
+  private lastSelectAt = 0;
+
   override willUpdate(changed: PropertyValues): void {
     if (changed.has("controller") && this.controller) {
       this.clearSubs();
@@ -85,8 +89,21 @@ export class AcOfferGrid extends AcElement {
         this.feedback = REJECT_REASON[reason];
         this.shake();
       });
+      // Networked play only paints the match surface from REPLAYED EVENTS (see
+      // ServerController.applyServerState), so a client that joins or reconnects mid-turn gets a
+      // full snapshot carrying the Offer but no `turnArmed` to render it — and would sit on an
+      // empty grid for the rest of the turn. clockTick is the cheapest reliable "state may have
+      // moved" signal: the mirror emits it every frame its interpolated clock changes. Safe to
+      // re-sync per frame because every assignment below is a primitive Lit compares by value,
+      // and the Offer goes through syncOffer's content check.
+      this.listen(e, "clockTick", () => this.syncFromState());
       this.syncFromState();
     }
+  }
+
+  override disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this.clearPendingSelect();
   }
 
   /** Pull the Offer and turn ownership off the authoritative state. The Offer is state, not an
@@ -94,12 +111,23 @@ export class AcOfferGrid extends AcElement {
   private syncFromState(): void {
     const s = this.controller.match.state;
     const human = this.controller.humanId;
-    this.offer = s.offer;
+    this.syncOffer(s.offer);
     this.bannedLetter = s.bannedLetter;
     this.highlightBans = s.settings.highlightBannedLetters;
     this.requiredLetter = s.requiredLetter;
     this.live = s.phase === "Round" && this.controller.match.current?.id === human;
     this.onDeck = !this.live && this.isOnDeck(human);
+  }
+
+  /** Adopt a new Offer only when its CONTENTS changed.
+   *
+   *  The networked mirror rebuilds `state` — and with it a fresh `offer` array — on every snapshot,
+   *  so assigning the reference would make Lit re-render the whole grid at the server's tick rate
+   *  and fight the player's own taps. Content-comparing is trivial: the Offer is at most 10 words. */
+  private syncOffer(next: readonly string[]): void {
+    const cur = this.offer;
+    if (cur.length === next.length && cur.every((w, i) => w === next[i])) return;
+    this.offer = [...next];
   }
 
   /** Whether the human is up immediately after the current player. Mirrors
@@ -116,11 +144,46 @@ export class AcOfferGrid extends AcElement {
     return false;
   }
 
+  private clearPendingSelect(): void {
+    if (this.selectTimer !== null) clearTimeout(this.selectTimer);
+    this.selectTimer = null;
+  }
+
+  /**
+   * Stream the selection to the authority, throttled the way `<ac-word-entry>` streams a draft:
+   * send immediately when idle, otherwise coalesce into one trailing send.
+   *
+   * The throttle is only safe because the engine holds an expired turn for `submitGraceSeconds`
+   * (1s server-side) before deciding it timed out — long enough for a tap on the buzzer to land.
+   * Without that window a late select would read as a NO-SHOW and, in Survival, eliminate a player
+   * who had actually chosen.
+   *
+   * The trailing send reads `this.selected` rather than the captured word, so rapid taps collapse
+   * to whatever is selected when it fires.
+   */
+  private streamSelection(): void {
+    const THROTTLE = 120;
+    const now = Date.now();
+    const elapsed = now - this.lastSelectAt;
+    this.clearPendingSelect();
+    if (elapsed >= THROTTLE) {
+      this.lastSelectAt = now;
+      if (this.selected !== null) this.controller.reportSelection(this.selected);
+      return;
+    }
+    this.selectTimer = setTimeout(() => {
+      this.selectTimer = null;
+      if (!this.live || this.selected === null) return;
+      this.lastSelectAt = Date.now();
+      this.controller.reportSelection(this.selected);
+    }, THROTTLE - elapsed);
+  }
+
   /** Set the selection, stream it to the engine (so a clock expiry commits it rather than counting
    *  as a no-show), and publish it for the bay projection. */
   private select(word: string | null): void {
     this.selected = word;
-    if (word !== null) this.controller.reportSelection(word);
+    // The bay projection is local and must feel instant, so it is never throttled.
     this.dispatchEvent(
       new CustomEvent<{ word: string | null }>("ac-offer-preview", {
         detail: { word },
@@ -128,6 +191,13 @@ export class AcOfferGrid extends AcElement {
         composed: true,
       }),
     );
+    if (word === null) {
+      // Clearing must also kill a queued send, or the trailing timer would resurrect a word the
+      // player has already moved off — and the authority would commit THAT on expiry.
+      this.clearPendingSelect();
+      return;
+    }
+    this.streamSelection();
   }
 
   /** Tap: select, or commit if this card was already selected (rule 2). */
@@ -139,6 +209,10 @@ export class AcOfferGrid extends AcElement {
 
   private commit(): void {
     if (!this.live || this.selected === null) return;
+    // Cancel a queued select rather than flushing it. The commit carries the word, so a pending
+    // select is redundant — and cancelling removes any possibility of it arriving AFTER the commit
+    // and re-selecting a word on a turn that has already resolved.
+    this.clearPendingSelect();
     this.controller.commitSelection(this.selected);
   }
 

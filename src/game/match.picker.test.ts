@@ -16,6 +16,7 @@ import { MatchController, type PlayerSeed } from "./match";
 import { dictionaryWordPool } from "./picker/wordPool";
 import { serializeState, deserializeState } from "../net/serialize";
 import { DEFAULT_SETTINGS } from "./settings";
+import { GameMode } from "./types";
 import type { AlphaChainSettings } from "./types";
 
 /** The real shipped Reduced pool: an Offer drawn from a toy fixture exercises the fallback rungs
@@ -47,7 +48,7 @@ function makePicker(
     roster,
     {
       ...DEFAULT_SETTINGS,
-      gameMode: "picker",
+      gameMode: GameMode.Picker,
       enableTutorials: false,
       preRoundCountdownSeconds: 3,
       eraInterval: 4,
@@ -291,7 +292,7 @@ describe("picker — degenerate pools", () => {
       seeds,
       {
         ...DEFAULT_SETTINGS,
-        gameMode: "picker",
+        gameMode: GameMode.Picker,
         enableTutorials: false,
         preRoundCountdownSeconds: 3,
         shotClockSeconds: 20,
@@ -315,7 +316,7 @@ describe("classic — unregressed by the Picker work", () => {
       seeds,
       {
         ...DEFAULT_SETTINGS,
-        gameMode: "classic",
+        gameMode: GameMode.Classic,
         enableTutorials: false,
         preRoundCountdownSeconds: 3,
         shotClockSeconds: 20,

@@ -10,6 +10,7 @@
 import { html, nothing, type PropertyValues, type TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type { GameController } from "../../net/controller";
+import { GameMode } from "../../game/types";
 import type { PlayerState } from "../../game/types";
 import { scoreWord } from "../../game/scoring";
 import type { FanCard } from "../components/ac-card-fan";
@@ -224,7 +225,7 @@ export class AcHud extends AcElement {
           <!-- The single input-surface mount. Picker swaps the whole surface rather than
                conditionally reshaping one component: typed entry and tap-to-pick share no state,
                and Classic's walkthrough/behaviour must stay untouched. -->
-          ${c.match.state.settings.gameMode === "picker"
+          ${c.match.state.settings.gameMode === GameMode.Picker
             ? html`<ac-offer-grid
                 .controller=${c}
                 @ac-offer-preview=${this.onOfferPreview}

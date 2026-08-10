@@ -26,7 +26,7 @@ import {
   skip,
   type ModifierCard,
 } from "./card";
-import { CardFamily, CardId, CardOp, CardRarity } from "../types";
+import { CardFamily, CardId, CardOp, CardRarity, GameMode } from "../types";
 import type { PlayerState } from "../types";
 
 /** Round to one decimal (per-letter multiplier steps are 0.1) for clean chips. */
@@ -368,6 +368,9 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     name: "Blindfold",
     rarity: CardRarity.Uncommon,
     maxInstances: 1,
+    // Classic-only: its whole downside is masking the input box while you type, and Picker has no
+    // input box — in Picker this would be a ×1.5 with no cost at all.
+    modes: [GameMode.Classic],
     color: "#8a7dff",
     family: CardFamily.Clock,
     op: CardOp.Multiplicative,
@@ -719,6 +722,9 @@ const CARD_DEFS: Record<CardId, CardDef> = {
   Insurance: {
     name: "Insurance",
     rarity: CardRarity.Common,
+    // Classic-only: it negates the timeout point penalty, and Picker has no timeout penalty (a
+    // Picker expiry commits a word and scores it), so the card would be pure dead weight.
+    modes: [GameMode.Classic],
     color: "#4cc2ff",
     family: CardFamily.Utility,
     op: CardOp.Fx,
@@ -811,25 +817,55 @@ export const CARD_LIBRARY: Record<CardId, ModifierCard> = Object.fromEntries(
   Object.entries(CARD_DEFS).map(([id, def]) => [id, { id, ...def }]),
 ) as Record<CardId, ModifierCard>;
 
-/** Ids dealt to players. Widens as each phase's cards land + pass tests. */
-export const DEALABLE_CARD_IDS: CardId[] = Object.keys(CARD_LIBRARY) as CardId[];
-
 export const getCard = (id: string): ModifierCard | undefined =>
   (CARD_LIBRARY as Record<string, ModifierCard>)[id];
 
-/** How many dealable cards sit in each rarity tier. */
-export const RARITY_CARD_COUNTS: Record<CardRarity, number> = DEALABLE_CARD_IDS.reduce(
-  (counts, id) => {
-    counts[CARD_LIBRARY[id].rarity]++;
-    return counts;
-  },
-  {
+/* ── The deal pool, per mode ───────────────────────────────────────────────────────────────────
+ * There is deliberately NO mode-blind exported id list. A card whose effect is meaningless in a
+ * mode (see ModifierCard.modes) must be invisible to the dealer AND to the lobby's capacity
+ * warning, and the way to guarantee that is to make every caller name a mode — if the dealer and
+ * the readout could disagree, the warning would simply be wrong.
+ *
+ * `getCard` stays mode-blind on purpose: a card already in a bay, in a score replay, or in the
+ * sandbox gallery must still resolve whatever mode is running. */
+
+/** Both pools, resolved once. `.filter` preserves CARD_DEFS declaration order, which is
+ *  load-bearing: the dealer's weighted walk and its float-drift last-slot fallback both index into
+ *  this array, so reordering it would change which card a given rng roll deals. */
+const DEALABLE_BY_MODE: Record<GameMode, CardId[]> = {
+  [GameMode.Picker]: [],
+  [GameMode.Classic]: [],
+};
+for (const mode of Object.values(GameMode)) {
+  DEALABLE_BY_MODE[mode] = (Object.keys(CARD_LIBRARY) as CardId[]).filter((id) => {
+    const modes = CARD_LIBRARY[id].modes;
+    return modes === undefined || modes.includes(mode);
+  });
+}
+
+const RARITY_COUNTS_BY_MODE: Record<GameMode, Record<CardRarity, number>> = {
+  [GameMode.Picker]: emptyTierCounts(),
+  [GameMode.Classic]: emptyTierCounts(),
+};
+for (const mode of Object.values(GameMode)) {
+  for (const id of DEALABLE_BY_MODE[mode]) RARITY_COUNTS_BY_MODE[mode][CARD_LIBRARY[id].rarity]++;
+}
+
+function emptyTierCounts(): Record<CardRarity, number> {
+  return {
     [CardRarity.Common]: 0,
     [CardRarity.Uncommon]: 0,
     [CardRarity.Rare]: 0,
     [CardRarity.Legendary]: 0,
-  } as Record<CardRarity, number>,
-);
+  };
+}
+
+/** The ids dealt to players in `mode`, in declaration order. */
+export const dealableCardIds = (mode: GameMode): readonly CardId[] => DEALABLE_BY_MODE[mode];
+
+/** How many dealable cards sit in each rarity tier, in `mode`. */
+export const rarityCardCounts = (mode: GameMode): Record<CardRarity, number> =>
+  RARITY_COUNTS_BY_MODE[mode];
 
 /**
  * Each tier's share of a single draw under the given deal weights, as a fraction in
@@ -840,12 +876,16 @@ export const RARITY_CARD_COUNTS: Record<CardRarity, number> = DEALABLE_CARD_IDS.
  * their maxInstances, which shifts the true odds mid-deal. Good enough to label a
  * lobby stepper, not a balance oracle — don't assert game outcomes against it.
  */
-export function rarityDealShare(weights: Record<CardRarity, number>): Record<CardRarity, number> {
+export function rarityDealShare(
+  weights: Record<CardRarity, number>,
+  mode: GameMode,
+): Record<CardRarity, number> {
+  const counts = rarityCardCounts(mode);
   const tiers = Object.values(CardRarity);
-  const total = tiers.reduce((sum, tier) => sum + RARITY_CARD_COUNTS[tier] * weights[tier], 0);
+  const total = tiers.reduce((sum, tier) => sum + counts[tier] * weights[tier], 0);
   const share = {} as Record<CardRarity, number>;
   for (const tier of tiers) {
-    share[tier] = total > 0 ? (RARITY_CARD_COUNTS[tier] * weights[tier]) / total : 0;
+    share[tier] = total > 0 ? (counts[tier] * weights[tier]) / total : 0;
   }
   return share;
 }
@@ -860,8 +900,8 @@ export function rarityDealShare(weights: Record<CardRarity, number>): Record<Car
  * `totalCardsDealtPerPlayer(settings)` will silently deal nothing in its later intermissions.
  * Both lobbies warn on exactly that comparison.
  */
-export function dealPoolCapacity(weights: Record<CardRarity, number>): number {
-  return DEALABLE_CARD_IDS.reduce((sum, id) => {
+export function dealPoolCapacity(weights: Record<CardRarity, number>, mode: GameMode): number {
+  return dealableCardIds(mode).reduce((sum, id) => {
     const card = CARD_LIBRARY[id];
     if (weights[card.rarity] <= 0) return sum;
     return sum + (card.maxInstances ?? DEFAULT_MAX_INSTANCES);
