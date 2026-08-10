@@ -281,6 +281,13 @@ export function createAuthority(kb: Kb) {
             // drainPatch(false) publishes exactly once per real outcome and nothing for a stray.
             h.commitSelection(fromId, action.word);
             return drainPatch(false);
+          case "redrawOffer":
+            // Mutates state (a new Offer + a shorter clock) and emits turnArmed/clockTick, so
+            // unlike selectOffer this one genuinely must broadcast. The engine re-derives
+            // eligibility — turn, phase, card held, charge unspent — so a spammed redraw is
+            // refused there and drainPatch publishes nothing.
+            h.redrawOffer(fromId);
+            return drainPatch(false);
           case "reorderBay":
             if (!inOptimize()) return null;
             h.setPlayerBay(fromId, action.engine, action.discard);

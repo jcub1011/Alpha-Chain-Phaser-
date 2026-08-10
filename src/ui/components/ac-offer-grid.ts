@@ -56,6 +56,8 @@ export class AcOfferGrid extends AcElement {
   @state() private bannedLetter = "";
   @state() private feedback = "";
   @state() private highlightBans = false;
+  /** Picker: Winnower is held, unspent, and it is our turn. */
+  @state() private canRedraw = false;
 
   /** Throttle for streaming the selection to the authority. See `streamSelection`. */
   private selectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -117,6 +119,7 @@ export class AcOfferGrid extends AcElement {
     this.requiredLetter = s.requiredLetter;
     this.live = s.phase === "Round" && this.controller.match.current?.id === human;
     this.onDeck = !this.live && this.isOnDeck(human);
+    this.canRedraw = this.live && s.offerRedrawAvailable;
   }
 
   /** Adopt a new Offer only when its CONTENTS changed.
@@ -305,13 +308,24 @@ export class AcOfferGrid extends AcElement {
               </div>
             `}
 
-        <button
-          class="ac-btn og-go"
-          ?disabled=${waiting || this.selected === null}
-          @click=${this.commit}
-        >
-          ${this.selected ? "GO" : "PICK A WORD"}
-        </button>
+        <div class="og-actions">
+          ${this.canRedraw
+            ? html`<button
+                class="og-redraw"
+                title="Winnower — redraw for 30% of your clock"
+                @click=${() => this.controller.redrawOffer()}
+              >
+                ↻ REDRAW
+              </button>`
+            : nothing}
+          <button
+            class="ac-btn og-go"
+            ?disabled=${waiting || this.selected === null}
+            @click=${this.commit}
+          >
+            ${this.selected ? "GO" : "PICK A WORD"}
+          </button>
+        </div>
       </div>
     `;
   }

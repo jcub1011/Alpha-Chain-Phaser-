@@ -968,3 +968,40 @@ ac-leaderboard[strip] .lb-row {
     padding: 0.4rem 0.3rem;
   }
 }
+
+/* The Winnower's redraw sits beside GO rather than above the grid: it is an alternative to
+ * committing, and pricing it in clock means it should read as a cost, not a free reroll. */
+.og-actions {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: stretch;
+}
+.og-actions .og-go {
+  flex: 1 1 auto;
+}
+.og-redraw {
+  flex: 0 0 auto;
+  padding: 0 0.9rem;
+  border: 2px solid var(--ac-magenta, #ff4fa3);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--ac-magenta, #ff4fa3);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+.og-redraw:hover {
+  background: var(--ac-magenta, #ff4fa3);
+  color: #0b0d16;
+}
+@media (max-width: 30rem) {
+  .og-redraw {
+    padding: 0 0.6rem;
+    font-size: 0.7rem;
+  }
+}

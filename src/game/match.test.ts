@@ -560,18 +560,26 @@ describe("per-card deal caps", () => {
     }
   });
 
-  it("never deals a Classic-only card in Picker", () => {
-    // Exhaust the pool in Picker: The Blindfold and Insurance must be absent entirely, and the bay
-    // must land 4 short of Classic's ceiling (Blindfold cap 1 + Insurance cap 3). Driven through
-    // the real dealer, so this fails if the dealer and dealableCardIds ever disagree.
+  it("deals each mode only its own cards", () => {
+    /* Exhaust the pool in both modes and check the split from the DEALER's side, so this fails if
+     * the dealer and dealableCardIds ever disagree — the failure the mode-scoping exists to
+     * prevent, since the lobby's capacity warning reads the same list. */
     const picker = driveToIntermission(1000, GameMode.Picker).state.players[0];
+    const classic = driveToIntermission(1000, GameMode.Classic).state.players[0];
+
+    // Classic-only cards never reach a Picker bay...
     expect(countIn(picker.bay, "Blindfold")).toBe(0);
     expect(countIn(picker.bay, "Insurance")).toBe(0);
-
-    const classic = driveToIntermission(1000, GameMode.Classic).state.players[0];
     expect(countIn(classic.bay, "Blindfold")).toBe(1);
     expect(countIn(classic.bay, "Insurance")).toBe(3);
-    expect(classic.bay.length - picker.bay.length).toBe(4);
+
+    // ...and Preference Cards never reach a Classic one.
+    for (const id of ["Sieve", "Winnower", "TunnelVision", "Sentinel"]) {
+      expect(countIn(classic.bay, id), id).toBe(0);
+      expect(countIn(picker.bay, id), id).toBeGreaterThan(0);
+    }
+    // Picker's pool is the larger of the two: −4 copies withheld, +17 gained.
+    expect(picker.bay.length - classic.bay.length).toBe(13);
   });
 
   it("stops dealing early once every card is capped (no over-deal, no hang)", () => {

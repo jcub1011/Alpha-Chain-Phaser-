@@ -9,6 +9,7 @@
 import { getCard } from "./cards/library";
 import { buildMagnifier } from "./cards/magnifier";
 import { skip, type EvalContext, type ModifierCard } from "./cards/card";
+import { isInertPreference } from "./picker/preference";
 import type { EngineEffects, RoomServices } from "./cards/roomServices";
 import { BASE_TIMEOUT_PENALTY, isVowel, MAX_WORD_SCORE, MIN_SHOT_CLOCK_SECONDS } from "./settings";
 import type { BayCard, PlayerState, ScoreBreakdown, ScoreStep, Submission } from "./types";
@@ -116,6 +117,28 @@ export function makeBayEvaluator(
   const resolved = bay.map((slot) => getCard(slot.id));
   const reg = buildMagnifier(resolved);
 
+  /* Preference Cards are invisible to BAY-SIZE scoring: they must not count toward bay length or
+   * "cards to the right", or Dividend (+2 per card in your bay) and Booster Pack (+2 per card to
+   * its right) would silently inflate — Booster Pack doubly so, since bubbling puts every
+   * Preference Card to its left.
+   *
+   * This is done by masking the three SIZE channels, NOT by filtering the bay array, which is what
+   * it first looks like it should be. Filtering would renumber every slot, and slot index is
+   * load-bearing in four separate places: CardBanService keys personal bans by `cardIndex`, The
+   * Flywheel excludes itself with `i !== c.cardIndex`, the magnifier registry maps a glass at `i`
+   * onto `i + 1`, and both <ac-score-replay> and the HUD's Offer projection align `steps[]` with
+   * `player.bay` one-to-one. A shorter array would quietly break all four, and each would fail as a
+   * wrong number rather than an error.
+   *
+   * `bayCardIds` deliberately stays the FULL list: its only reader is The Flywheel, which already
+   * self-filters to multiplier cards, so the inert (FX) Preference Cards are invisible to it
+   * anyway — and keeping it full is what preserves its `i !== c.cardIndex` self-exclusion. */
+  const counts = resolved.map((card) => (isInertPreference(card) ? 0 : 1));
+  const scoringCount = counts.reduce((sum: number, n) => sum + n, 0);
+  /** Scoring cards strictly to the right of `index`. */
+  const scoringRightOf = (index: number): number =>
+    counts.reduce((sum: number, n, i) => (i > index ? sum + n : sum), 0);
+
   // Perceived letter count seen by the card at `index` (Forgery stacks because
   // its own perceivedLength reads perceivedLengthAt(forgeryIndex) recursively).
   const perceivedLengthAt = (index: number): number => {
@@ -142,11 +165,13 @@ export function makeBayEvaluator(
 
   const ctxFor = (index: number): EvalContext => ({
     ...base,
-    cardsToRight: bay.length - 1 - index,
+    cardsToRight: scoringRightOf(index),
     cardIndex: index,
-    bayLength: bay.length,
+    bayLength: scoringCount,
     era: opts.era ?? 1,
-    slots: opts.slots ?? bay.length,
+    // The `slots` fallback tracks the masked count too, so a caller that omits slots (tests, the
+    // clock context) sees the same bay the size-reading cards do.
+    slots: opts.slots ?? scoringCount,
     baseClockSeconds: opts.baseClockSeconds ?? opts.clockTotal,
     history: opts.history ?? [],
     bayCardIds: bay.map((slot) => slot.id),

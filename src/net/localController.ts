@@ -157,6 +157,10 @@ export class LocalController implements GameController {
     return this.match.commitSelection(this.humanId, word);
   }
 
+  redrawOffer(): void {
+    this.match.redrawOffer(this.humanId);
+  }
+
   destroy(): void {
     this.botCountdown = null;
     this.botPlayerId = null;

@@ -36,12 +36,29 @@ const seeds: PlayerSeed[] = [
 
 const seeds3: PlayerSeed[] = [...seeds, { id: "p3", name: "Bot2", isBot: true }];
 
+/** One seat, so every commit re-arms the SAME player — the only way to see a bay set before the
+ *  turn arms take effect on that player's own Offer. */
+const solo: PlayerSeed = { id: "p1", name: "You", isBot: false };
+
+/** A varying rng, for the cases where the constant 0.5 would mask a change. */
+function mulberry(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 /** A Picker match over `words`, with the pool and the validator agreeing (the shipped invariant:
  *  words-common.txt is a strict subset of words.txt, so isWord always accepts an offered word). */
 function makePicker(
   overrides: Partial<AlphaChainSettings> = {},
   words: string[] = REDUCED,
   roster: PlayerSeed[] = seeds,
+  rng: () => number = () => 0.5,
 ): MatchController {
   const dict = new Dictionary(words);
   return new MatchController(
@@ -55,7 +72,7 @@ function makePicker(
       eraCount: 1,
       ...overrides,
     },
-    { isWord: (w) => dict.has(w), rng: () => 0.5, wordPool: dictionaryWordPool(dict) },
+    { isWord: (w) => dict.has(w), rng, wordPool: dictionaryWordPool(dict) },
   );
 }
 
@@ -345,5 +362,133 @@ describe("classic — unregressed by the Picker work", () => {
     const m = started(classic());
     expect(m.commitSelection("p1", "cat").accepted).toBe(false);
     expect(m.state.usedWords.size).toBe(0);
+  });
+});
+
+describe("picker — Winnower", () => {
+  /** A solo-roster Picker match whose only player holds `ids`, with the Offer already drawn from
+   *  that bay. Solo because `benchSetBay` does NOT redraw the Offer — the bay has to be in place
+   *  before the turn arms, and with one seat every commit re-arms the same player. */
+  const withBay = (
+    ids: string[],
+    over: Partial<AlphaChainSettings> = {},
+    rng: () => number = () => 0.5,
+  ): MatchController => {
+    const m = makePicker({ offerCount: 3, ...over }, REDUCED, [solo], rng);
+    m.benchSetBay(solo.id, ids);
+    return started(m);
+  };
+
+  it("redraws the Offer and charges 30% of the ARMED clock", () => {
+    // A varying rng: makePicker's default is the constant 0.5, which would redraw the same words.
+    const m = withBay(["Winnower"], {}, mulberry(7));
+    const before = [...m.state.offer];
+    const total = m.state.clockTotal;
+    m.tick(2); // burn a little, so the charge is provably off clockTotal and not off what is left
+    const remainingBefore = m.state.clockRemaining;
+
+    expect(m.redrawOffer(solo.id)).toBe(true);
+    expect(m.state.offer).not.toEqual(before);
+    expect(m.state.offer.length).toBe(3);
+    expect(remainingBefore - m.state.clockRemaining).toBeCloseTo(0.3 * total, 5);
+  });
+
+  it("is once per TURN, and re-arms on the next one", () => {
+    const m = withBay(["Winnower"]);
+    expect(m.redrawOffer(solo.id)).toBe(true);
+    expect(m.redrawOffer(solo.id)).toBe(false); // charge spent
+    expect(m.state.offerRedrawAvailable).toBe(false);
+
+    m.commitSelection(solo.id, m.state.offer[0]); // solo roster: the turn comes straight back
+    expect(m.canRedrawOffer(solo.id)).toBe(true); // fireTurnStarted reset it
+  });
+
+  it("does not burn the previous Offer's words", () => {
+    // They were never played. Marking them used would quietly shrink the pool on every redraw.
+    const m = withBay(["Winnower"], {}, mulberry(3));
+    const before = [...m.state.offer];
+    m.redrawOffer(solo.id);
+    for (const w of before) expect(m.state.usedWords.has(w)).toBe(false);
+  });
+
+  it("refuses a player with no Winnower", () => {
+    const m = withBay(["TheAnchor"]);
+    expect(m.canRedrawOffer(solo.id)).toBe(false);
+    expect(m.redrawOffer(solo.id)).toBe(false);
+  });
+
+  it("refuses an off-turn player", () => {
+    const m = started(makePicker({ offerCount: 3 }));
+    m.benchSetBay(m.current.id, ["Winnower"]);
+    const notUp = m.state.players.find((p) => p.id !== m.current.id)!.id;
+    expect(m.redrawOffer(notUp)).toBe(false);
+  });
+});
+
+describe("picker — Preference Cards through the engine", () => {
+  it("bubbles a Preference Card to the left of the scoring chain", () => {
+    const m = started(makePicker());
+    const p = m.state.players[0];
+    p.bay = [
+      { id: "TheAnchor", uid: "a" },
+      { id: "Sieve", uid: "s" },
+      { id: "Dividend", uid: "d" },
+    ];
+    m.setPlayerBay(p.id, ["a", "s", "d"], []);
+    expect(p.bay.map((b) => b.id)).toEqual(["Sieve", "TheAnchor", "Dividend"]);
+  });
+
+  it("shapes the Offer from the bay", () => {
+    const m = makePicker({ offerCount: 4 }, REDUCED, [solo]);
+    m.benchSetBay(solo.id, ["Sieve"]);
+    started(m);
+    expect(m.state.offer.length).toBe(4);
+    for (const w of m.state.offer) expect(w.length).toBeGreaterThanOrEqual(6);
+  });
+
+  it("applies Wide Net and Tunnel Vision to the Offer count", () => {
+    const wide = makePicker({ offerCount: 4 }, REDUCED, [solo]);
+    wide.benchSetBay(solo.id, ["WideNet"]);
+    started(wide);
+    expect(wide.state.offer.length).toBe(6);
+
+    const tunnel = makePicker({ offerCount: 4 }, REDUCED, [solo]);
+    tunnel.benchSetBay(solo.id, ["TunnelVision"]);
+    started(tunnel);
+    expect(tunnel.state.offer.length).toBe(2);
+  });
+
+  it("never serves a zero-card Offer, however many Tunnel Visions are stacked", () => {
+    const m = makePicker({ offerCount: 3 }, REDUCED, [solo]);
+    m.benchSetBay(solo.id, ["TunnelVision", "TunnelVision", "TunnelVision"]);
+    started(m);
+    expect(m.state.offer.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("keeps a working engine when an idle player is trimmed to capacity", () => {
+    /* The AFK path: nothing discarded, more cards than slots. Bubbling puts Preference Cards first,
+     * so a naive "keep the first N" would leave a player who never touched the screen holding
+     * nothing but shape filters and scoring almost nothing. */
+    const m = makePicker({ dealEngineCardsFirstEra: true, modifiersDealtPerEra: 3 }, REDUCED, [
+      solo,
+    ]);
+    m.start();
+    m.tick(0.001); // → the pre-era-1 setup intermission → deal → optimize
+    expect(m.state.intermissionPhase).toBe("optimize");
+
+    const p = m.state.players[0];
+    p.slots = 2;
+    p.bay = [
+      { id: "Sieve", uid: "s" },
+      { id: "Tide", uid: "t" },
+      { id: "TheAnchor", uid: "a" },
+      { id: "Dividend", uid: "d" },
+    ];
+    m.skipOptimize();
+    m.tick(0.001);
+
+    expect(p.bay.length).toBe(2);
+    // At least one real scoring card survived rather than two shape filters.
+    expect(p.bay.some((b) => b.id === "TheAnchor" || b.id === "Dividend")).toBe(true);
   });
 });

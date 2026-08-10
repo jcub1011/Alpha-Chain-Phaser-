@@ -104,6 +104,14 @@ export const CardId = {
   Crescendo: "Crescendo",
   Bookends: "Bookends",
   Dividend: "Dividend",
+  // ── Preference Cards (Picker only) — shape the Offer instead of scoring the word ──
+  Sieve: "Sieve",
+  Winnower: "Winnower",
+  WideNet: "WideNet",
+  TunnelVision: "TunnelVision",
+  Prospector: "Prospector",
+  Tide: "Tide",
+  Sentinel: "Sentinel",
 } as const;
 export type CardId = (typeof CardId)[keyof typeof CardId];
 
@@ -363,6 +371,10 @@ export interface MatchState {
    *  no RNG-derived logic may run on a client). A plain string[] is JSON-safe, so this needs no
    *  serialize.ts handling, unlike `usedWords`. */
   offer: string[];
+  /** Picker: whether the CURRENT player may still spend Winnower's redraw this turn.
+   *  Published as state because the charge lives in room services, which are not replicated —
+   *  a guest mirror could otherwise only guess, and would offer a button the server refuses. */
+  offerRedrawAvailable: boolean;
   history: Submission[];
   /** Seconds remaining on the active shot clock. */
   clockRemaining: number;
@@ -408,6 +420,7 @@ export function emptyMatchState(settings: AlphaChainSettings): MatchState {
     bannedLetterHistory: [],
     usedWords: new Set<string>(),
     offer: [],
+    offerRedrawAvailable: false,
     history: [],
     clockRemaining: 0,
     clockTotal: 0,

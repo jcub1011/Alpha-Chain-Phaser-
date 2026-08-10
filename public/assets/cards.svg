@@ -296,4 +296,49 @@
   <symbol id="fallback" viewBox="0 0 24 24">
     <circle cx="12" cy="12" r="6" />
   </symbol>
+
+  <!-- ── Preference Cards (Picker only) — they shape the Offer, not the score. ── -->
+  <!-- Sieve — a mesh sieve: only the big words stay in. -->
+  <symbol id="Sieve" viewBox="0 0 24 24">
+    <line x1="3" y1="8" x2="21" y2="8" />
+    <path d="M4 8a8 8 0 0 0 16 0" />
+    <line x1="9" y1="8" x2="9" y2="13.6" />
+    <line x1="15" y1="8" x2="15" y2="13.6" />
+    <line x1="5.2" y1="12" x2="18.8" y2="12" />
+  </symbol>
+  <!-- Winnower — a redraw loop, paid for in clock. -->
+  <symbol id="Winnower" viewBox="0 0 24 24">
+    <path d="M20 12a8 8 0 1 1-2.4-5.7" />
+    <polyline points="14.5,5.5 20,5.5 20,11" />
+  </symbol>
+  <!-- Wide Net — more to choose from, less time to choose. -->
+  <symbol id="WideNet" viewBox="0 0 24 24">
+    <path d="M3 7h18v10H3z" />
+    <line x1="3" y1="12" x2="21" y2="12" />
+    <line x1="9" y1="7" x2="9" y2="17" />
+    <line x1="15" y1="7" x2="15" y2="17" />
+  </symbol>
+  <!-- Tunnel Vision — the view narrows to a point. -->
+  <symbol id="TunnelVision" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="9" />
+    <circle cx="12" cy="12" r="5" />
+    <circle cx="12" cy="12" r="1.6" />
+  </symbol>
+  <!-- Prospector — a rare stone, dug out on purpose. -->
+  <symbol id="Prospector" viewBox="0 0 24 24">
+    <polygon points="12,4 19,10 12,20 5,10" />
+    <line x1="5" y1="10" x2="19" y2="10" />
+    <line x1="12" y1="4" x2="12" y2="20" />
+  </symbol>
+  <!-- Tide — the Offer comes in vowel-heavy. -->
+  <symbol id="Tide" viewBox="0 0 24 24">
+    <path d="M2 8c2-2.5 4-2.5 6 0s4 2.5 6 0 4-2.5 6 0" />
+    <path d="M2 13c2-2.5 4-2.5 6 0s4 2.5 6 0 4-2.5 6 0" />
+    <path d="M2 18c2-2.5 4-2.5 6 0s4 2.5 6 0 4-2.5 6 0" />
+  </symbol>
+  <!-- Sentinel — one guaranteed-clean word, on watch against the Tax. -->
+  <symbol id="Sentinel" viewBox="0 0 24 24">
+    <path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" />
+    <polyline points="9,12 11,14 15,9.8" />
+  </symbol>
 </svg>

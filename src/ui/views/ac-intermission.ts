@@ -15,6 +15,8 @@ import { html, nothing, type PropertyValues, type TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type { GameController } from "../../net/controller";
 import { availableBanLetters, legalBanLetters } from "../../game/settings";
+import { getCard } from "../../game/cards/library";
+import { bubblePreferences, isInertPreference } from "../../game/picker/preference";
 import { createLogger } from "../../log";
 import { AcElement } from "../app/AcElement";
 import "../components/ac-card";
@@ -86,6 +88,15 @@ export class AcIntermission extends AcElement {
 
   // ── Reorder / discard (committed to the host on every change) ────────────────
   private commit(): void {
+    /* Mirror the authority's bubbling rule BEFORE sending, and write it back into `this.engine` so
+     * the player sees the order that will actually be stored. Every reorder path funnels through
+     * here — the ◄ ► nudges, the ✕/＋ buttons and all three drag drops — and several of them would
+     * otherwise produce an order the server immediately rewrites (＋ keep appends rightmost, and a
+     * nudge can swap a scoring card left past a Preference Card). Normalizing at the one choke
+     * point beats patching six call sites. */
+    this.engine = bubblePreferences(this.engine, (uid) =>
+      isInertPreference(getCard(this.cardIdByUid.get(uid) ?? "")),
+    );
     this.controller.match.setPlayerBay(this.controller.humanId, this.engine, this.discard);
   }
 

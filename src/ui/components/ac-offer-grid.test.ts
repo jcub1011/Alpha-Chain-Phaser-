@@ -96,6 +96,7 @@ function harness(
       calls.commits.push(w);
       return match.commitSelection("you", w);
     },
+    redrawOffer: () => match.redrawOffer("you"),
     destroy: () => {},
   };
   return { match, controller, calls };

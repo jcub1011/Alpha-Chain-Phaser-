@@ -21,6 +21,7 @@ import {
   clampScore,
   DEFAULT_MAX_INSTANCES,
   fx,
+  isVowel,
   mul,
   RARE_START,
   skip,
@@ -808,6 +809,137 @@ const CARD_DEFS: Record<CardId, CardDef> = {
     magnitudeText: "+2/card",
     description: "+2 for each card in your bay.",
     fold: (v, c) => add(v, 2 * c.bayLength * c.magnification()),
+  },
+
+  /* ── Preference Cards (Picker only) ──────────────────────────────────────────────────────────
+   * They shape the Offer rather than scoring the word, and they occupy Engine Bay slots to do it.
+   * There is no second engine: a separate picker strip would be pure upside, and pure upside is not
+   * a decision. Sharing the bay makes the family an extension of the Intermission Dilemma.
+   *
+   * Every one is a shape constraint WITH A COST. Any Preference Card that is strictly good for its
+   * owner is mis-designed — check the cost column before adding to this block.
+   *
+   * RARITIES BELOW ARE PROPOSED, NOT VALIDATED. Because these compete with scoring cards for slots,
+   * their deal rate directly controls how often the mode's central dilemma is actually posed, so
+   * they want a balance pass once Picker has real play data. */
+
+  Sieve: {
+    name: "Sieve",
+    rarity: CardRarity.Common,
+    modes: [GameMode.Picker],
+    color: "#7ec8a9",
+    family: CardFamily.Utility,
+    op: CardOp.Fx,
+    magnitudeText: "6+ only",
+    description: "Your Offer contains only words of 6+ letters. Scores nothing itself.",
+    fold: (v) => fx(v),
+    // The cost: you can never duck a Banned Letter with a short safe word.
+    preference: { filter: () => (w) => w.length >= 6 },
+  },
+
+  Winnower: {
+    name: "Winnower",
+    rarity: CardRarity.Rare,
+    maxInstances: 1,
+    modes: [GameMode.Picker],
+    color: "#c9a6ff",
+    family: CardFamily.Utility,
+    op: CardOp.Fx,
+    magnitudeText: "redraw",
+    description: "Once per turn, redraw your whole Offer for 30% of your shot clock.",
+    fold: (v) => fx(v),
+    roomServices: ["winnowerGuard"],
+    // The price is a FIXED fraction, so it grows harsher as your engine grows and each Offer
+    // takes longer to read — the card gets worse exactly as your bay gets better.
+    preference: { redraw: { clockCostFraction: 0.3 } },
+  },
+
+  WideNet: {
+    name: "Wide Net",
+    rarity: CardRarity.Common,
+    modes: [GameMode.Picker],
+    color: "#6fb7ff",
+    family: CardFamily.Clock,
+    op: CardOp.Fx,
+    magnitudeText: "+2 / −15%",
+    description: "+2 Offer Cards, and −15% shot clock. More to choose from, less time to choose.",
+    fold: (v) => fx(v),
+    // A genuine ClockModifier, which is why armedClockSeconds keeps the FULL bay even though this
+    // card is hidden from bay-size SCORING.
+    clock: { pctDelta: -0.15 },
+    preference: { countDelta: 2 },
+  },
+
+  TunnelVision: {
+    name: "Tunnel Vision",
+    rarity: CardRarity.Legendary,
+    maxInstances: 1,
+    modes: [GameMode.Picker],
+    color: "#ff8f6b",
+    family: CardFamily.Utility,
+    op: CardOp.Multiplicative,
+    magnitudeText: "×1.4",
+    description: "×1.4 always, but you are offered 2 fewer words. Raw multiplier, less choice.",
+    fold: (v, c) => mul(v, 1.4 * c.magnification()),
+    // The one Preference Card that really scores, so it is placed and counted like any other
+    // multiplier rather than bubbling left — see isInertPreference for why that must be so.
+    preference: { countDelta: -2 },
+  },
+
+  Prospector: {
+    name: "Prospector",
+    rarity: CardRarity.Uncommon,
+    modes: [GameMode.Picker],
+    color: "#e0c060",
+    family: CardFamily.Letter,
+    op: CardOp.Fx,
+    magnitudeText: "1 rare",
+    description: "At least one Offer Card always contains Q, X, Z or J. Scores nothing itself.",
+    fold: (v) => fx(v),
+    // The cost: one of your Offer slots is permanently spent on a word you may not want.
+    preference: { guarantee: () => (w) => [...w].some((ch) => RARE_START.has(ch)) },
+  },
+
+  Tide: {
+    name: "Tide",
+    rarity: CardRarity.Uncommon,
+    modes: [GameMode.Picker],
+    color: "#5fd0d8",
+    family: CardFamily.Letter,
+    op: CardOp.Fx,
+    magnitudeText: "vowels",
+    description: "Your Offer is drawn vowel-heavy wherever the pool allows. Scores nothing itself.",
+    fold: (v) => fx(v),
+    // A SOFT bias, abandoned when the pool cannot serve it, so it never starves the Offer. The
+    // cost is concentration: a narrower draw means more repeats and a thinner ending-letter graph.
+    preference: {
+      prefer: () => (w) => {
+        let vowels = 0;
+        for (const ch of w) if (isVowel(ch)) vowels++;
+        return vowels * 2 >= w.length;
+      },
+    },
+  },
+
+  Sentinel: {
+    name: "Sentinel",
+    rarity: CardRarity.Rare,
+    modes: [GameMode.Picker],
+    color: "#9fb4c7",
+    family: CardFamily.Utility,
+    op: CardOp.Fx,
+    magnitudeText: "1 safe",
+    description:
+      "At least one Offer Card is guaranteed free of every letter banned against you. Scores nothing itself.",
+    fold: (v) => fx(v),
+    // Insurance against the Zero-Point Tax, paid for in slots — and it spends an Offer slot on
+    // safety rather than on ceiling. With no bans in force it guarantees nothing and costs nothing.
+    preference: {
+      guarantee: (ctx) =>
+        ctx.bannedLetters.length === 0
+          ? null
+          : (w) => !ctx.bannedLetters.some((letter) => w.includes(letter)),
+    },
   },
 };
 

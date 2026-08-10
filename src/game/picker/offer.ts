@@ -41,6 +41,7 @@
  */
 
 import { shuffle } from "../rng";
+import { NO_SHAPING, type OfferFilter, type OfferShaping } from "./preference";
 import type { WordPool } from "./wordPool";
 
 /** Shortest word the Offer may serve. match.ts rejects anything under 2 letters outright; 3 is
@@ -210,8 +211,10 @@ export interface OfferRequest {
   /** Words already played this match. Offering one would be offering an unplayable card, so
    *  this exclusion is never relaxed — unlike the lookahead. Never mutated. */
   usedWords: ReadonlySet<string>;
-  /** How many Offer Cards to serve. */
+  /** How many Offer Cards to serve, with any Preference Card deltas already applied. */
   count: number;
+  /** Preference Card shaping for this turn. Omit for an unshaped Offer. */
+  shaping?: OfferShaping;
   rng: () => number;
 }
 
@@ -225,6 +228,9 @@ export interface OfferResult {
   /** Fewer than `count` words could be served: this letter is nearly exhausted. Not an error —
    *  the turn is still playable — but on the Reduced pool it means the chain is dying. */
   short: boolean;
+  /** Card ids whose shape filter had to be skipped because it could not be satisfied at full
+   *  Offer size. Diagnostics only — the player is not told which card lapsed. */
+  skippedFilters: string[];
 }
 
 /** Uniform integer in [lo, hi). One rng() call. */
@@ -286,7 +292,8 @@ export function generateOffer(req: OfferRequest): OfferResult {
   const { pool, index, usedWords, rng } = req;
   const letter = req.requiredLetter.toLowerCase();
   const count = Math.max(0, Math.trunc(req.count));
-  if (count === 0) return { words: [], freedLetter: false, short: false };
+  const shaping = req.shaping ?? NO_SHAPING;
+  if (count === 0) return { words: [], freedLetter: false, short: false, skippedFilters: [] };
 
   const lengths = index.lengthsFor(letter);
 
@@ -296,7 +303,7 @@ export function generateOffer(req: OfferRequest): OfferResult {
    * tell the caller to clear the required letter. That is the same idiom the engine already uses
    * at an era boundary and after a banned-letter tail, not a new concept. */
   if (lengths.length === 0) {
-    if (letter === "") return { words: [], freedLetter: false, short: true };
+    if (letter === "") return { words: [], freedLetter: false, short: true, skippedFilters: [] };
     const free = generateOffer({ ...req, requiredLetter: "" });
     return { ...free, freedLetter: true };
   }
@@ -345,6 +352,16 @@ export function generateOffer(req: OfferRequest): OfferResult {
     offer.push(word);
   };
 
+  /* Preference Card filters, in bay order. They intersect, and their relative order is
+   * player-controlled and meaningful — which is why one is dropped from the RIGHT when they cannot
+   * all be satisfied: the leftmost survives longest, honouring the order the player chose. */
+  const activeFilters: OfferFilter[] = [...shaping.filters];
+  const skippedFilters: string[] = [];
+  const acceptable = (word: string, requireLookahead: boolean): boolean =>
+    fresh(word) &&
+    activeFilters.every((f) => f.accepts(word)) &&
+    (!requireLookahead || leavesViableChain(word));
+
   /** Words of `len` available to this letter. `range` already unifies constrained and free. */
   const sizeCache = new Map<number, number>();
   const sliceSize = (len: number): number => {
@@ -384,27 +401,57 @@ export function generateOffer(req: OfferRequest): OfferResult {
       let got = false;
       for (let attempt = 0; attempt < SAMPLE_ATTEMPTS && size > 0; attempt++) {
         const word = wordAt(len, randInt(rng, 0, size));
-        if (word !== null && fresh(word) && leavesViableChain(word)) {
-          accept(word);
-          got = true;
-          break;
-        }
+        if (word === null || !acceptable(word, true)) continue;
+        // The soft bias (Tide), spelling out "where the pool allows": insist on it for the
+        // first half of the attempts, then take anything that qualifies. It can narrow an Offer
+        // but must never starve one.
+        if (shaping.prefer && attempt * 2 < SAMPLE_ATTEMPTS && !shaping.prefer(word)) continue;
+        accept(word);
+        got = true;
+        break;
       }
       if (!got) return; // sampling has stopped paying; hand over to the next rung
     }
   };
 
-  /* ── Rung 0: ideal ── the normal path, aiming with the target distribution. */
-  sample(drawLength);
+  /* ── Guarantees first ──
+   * Prospector's rare letter and Sentinel's ban-free word each cost an Offer SLOT, so they
+   * are drawn before the general fill rather than patched in afterwards. That is the card's stated
+   * price ("an Offer slot spent on a word you may not want"), and seeding makes it literal.
+   *
+   * A guarantee that cannot be met is skipped in silence — same rule as an unsatisfiable filter,
+   * for the same reason: nothing a Preference Card asks for may shrink the Offer. */
+  const seedGuarantee = (g: OfferFilter): void => {
+    if (offer.length >= count || offer.some((w) => g.accepts(w))) return;
+    // Sample first — on a healthy pool this lands almost immediately.
+    for (let attempt = 0; attempt < SAMPLE_ATTEMPTS * 2; attempt++) {
+      const len = drawLength();
+      const size = sliceSize(len);
+      if (size === 0) continue;
+      const word = wordAt(len, randInt(rng, 0, size));
+      if (word !== null && acceptable(word, true) && g.accepts(word)) return accept(word);
+    }
+    // Then settle it deterministically: a rare-letter word is genuinely scarce, so rejection
+    // sampling alone would find one only by luck.
+    for (const len of lengths) {
+      const size = sliceSize(len);
+      for (let k = 0; k < size; k++) {
+        const word = wordAt(len, k);
+        if (word !== null && acceptable(word, true) && g.accepts(word)) return accept(word);
+      }
+    }
+  };
+  for (const g of shaping.guarantees) seedGuarantee(g);
 
-  /* ── Rung 1: widened ── relaxes the band table only.
-   * The commonest stall is aim, not unsatisfiability: the table keeps pointing at a length whose
-   * slice is tiny or exhausted. Re-aim proportionally to what the letter actually has. */
-  if (offer.length < count) {
-    sample(() => lengths[weightedIndex(lengths.map(sliceSize), rng)]);
-  }
+  /* ── Rungs 0 and 1, then drop a filter and retry ──
+   * Rung 0 aims with the target distribution; rung 1 relaxes the band table only, because the
+   * commonest stall is aim rather than unsatisfiability. If the Offer still cannot be filled, a
+   * shape filter is genuinely too tight for this letter, so the rightmost one is skipped ENTIRELY
+   * — never partially applied — and the whole fill is retried. Deterministic: which filter goes is
+   * decided by bay order, never by the rng. */
+  const widened = (): number => lengths[weightedIndex(lengths.map(sliceSize), rng)];
 
-  /* ── Rungs 2 and 3: deterministic exhaustive sweep ──
+  /* ── The deterministic exhaustive sweep ──
    * Rejection sampling cannot guarantee completion once the available set is only barely large
    * enough, so the ladder has to bottom out in an enumeration. Lengths ascending is a fixed
    * order; the random wrap-around start only stops a nearly-exhausted slice from always yielding
@@ -425,20 +472,56 @@ export function generateOffer(req: OfferRequest): OfferResult {
       const start = randInt(rng, 0, size);
       for (let k = 0; k < size && offer.length < count; k++) {
         const word = wordAt(len, (start + k) % size);
-        if (word === null || !fresh(word)) continue;
-        if (requireLookahead && !leavesViableChain(word)) continue;
+        if (word === null || !acceptable(word, requireLookahead)) continue;
         accept(word);
       }
     }
   };
 
-  if (offer.length < count) sweep(true);
-  /* The lookahead relaxes LAST, because it is the only constraint whose violation harms a
-   * DIFFERENT player on a LATER turn. Everything above it only shapes the current Offer, and the
-   * Offer being served at full size is a stated guarantee. Reaching here means the pool cannot
-   * fill the Offer any other way, and at that point a playable turn is worth more than a tidy
-   * chain. */
-  if (offer.length < count) sweep(false);
+  /**
+   * One filling pass: aim, re-aim, then enumerate — dropping the rightmost surviving filter and
+   * repeating whenever the ENUMERATION comes up short.
+   *
+   * The sweep, not the sampling, is what decides a filter is unsatisfiable. That distinction is the
+   * whole correctness of this ladder: `drawLength` aims by length band and knows nothing about the
+   * filters, so with Sieve in the bay it happily keeps aiming at 3- and 4-letter slices where
+   * no word can ever pass. Judging satisfiability by "sampling gave up" would therefore skip the
+   * Sieve on a pool holding hundreds of legal 6+ letter words — the card silently doing nothing,
+   * with no error anywhere.
+   */
+  const fillPass = (requireLookahead: boolean): string[] => {
+    activeFilters.length = 0;
+    activeFilters.push(...shaping.filters);
+    const dropped: string[] = [];
+    for (;;) {
+      if (requireLookahead) {
+        sample(drawLength);
+        if (offer.length >= count) break;
+        sample(widened);
+        if (offer.length >= count) break;
+      }
+      sweep(requireLookahead);
+      if (offer.length >= count || activeFilters.length === 0) break;
+      // Deterministic, and from the RIGHT: filter order is player-controlled, so the leftmost
+      // survives longest.
+      dropped.push(activeFilters.pop()!.cardId);
+    }
+    return dropped;
+  };
+
+  let dropped = fillPass(true);
+  if (offer.length < count) {
+    /* The lookahead relaxes LAST, because it is the only constraint whose violation harms a
+     * DIFFERENT player on a LATER turn — everything above it only shapes the current Offer, and a
+     * full-size Offer is a stated guarantee.
+     *
+     * Every filter is RESTORED for this pass. Reaching here means the first pass gave them all up
+     * and still came short, which proves the lookahead was the real blocker — so the filters were
+     * discarded for something that was never their fault, and are worth another try now that it is
+     * out of the way. */
+    dropped = fillPass(false);
+  }
+  skippedFilters.push(...dropped);
 
   /* Still nothing at all, with a constrained letter: every word starting with it has been
    * played. Same dead-letter escape as above — the difference is that here the letter had words
@@ -456,5 +539,6 @@ export function generateOffer(req: OfferRequest): OfferResult {
     words: shuffle(offer, rng),
     freedLetter: false,
     short: offer.length < count,
+    skippedFilters,
   };
 }

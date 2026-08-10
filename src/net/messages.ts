@@ -24,6 +24,7 @@ export type Intent =
    * select exists only so a clock expiry commits the right word instead of reading a no-show. */
   | { kind: "selectOffer"; word: string }
   | { kind: "commitSelection"; word: string }
+  | { kind: "redrawOffer" } // Winnower: once per turn, buy a fresh Offer with clock
   | { kind: "reorderBay"; engine: string[]; discard: string[] }
   | { kind: "lockInOptimize" } // any player locking in fast-forwards the shared optimize dwell
   | { kind: "unlockOptimize" } // a locked-in player re-opening their engine while others finish

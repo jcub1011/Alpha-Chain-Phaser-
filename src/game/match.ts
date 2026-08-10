@@ -15,6 +15,13 @@ import { BanLetterService, EngineEffects, RoomServices } from "./cards/roomServi
 import { createLogger } from "../log";
 import { Emitter } from "./emitter";
 import { buildPoolIndex, generateOffer, type PoolIndex } from "./picker/offer";
+import {
+  bubblePreferences,
+  buildOfferShaping,
+  isInertPreference,
+  type OfferShaping,
+  type PreferenceContext,
+} from "./picker/preference";
 import type { WordPool } from "./picker/wordPool";
 import { shuffle } from "./rng";
 import {
@@ -552,6 +559,7 @@ export class MatchController {
     this.offerIgnoresSuccession = false;
     this.pendingNoShowElimination = null; // a rescued turn discards its armed no-show
     this.state.offer = [];
+    this.state.offerRedrawAvailable = false;
     // Per-turn room state re-arms (currently a no-op seam; A5 uses it).
     this.services.fireTurnStarted(p);
     // Picker: draw the Offer BEFORE the clock is armed and turnArmed is emitted. A dead required
@@ -584,15 +592,20 @@ export class MatchController {
   private generateOfferForTurn(p: PlayerState): void {
     const wildcardAvailable =
       this.state.requiredLetter !== "" && baySuccessionExempt(this.bayEval(p, "", false));
+    const shaping = this.offerShapingFor(p);
     const result = generateOffer({
       pool: this.wordPool!,
       index: this.offerIndex,
       requiredLetter: wildcardAvailable ? "" : this.state.requiredLetter,
       usedWords: this.state.usedWords,
-      count: this.state.settings.offerCount,
+      count: this.offerCountFor(p, shaping.countDelta),
+      shaping,
       rng: this.rng,
     });
     this.state.offer = result.words;
+    for (const cardId of result.skippedFilters) {
+      log.debug(`picker: ${cardId}'s filter could not be satisfied this turn — skipped`);
+    }
     if (wildcardAvailable && result.words.length > 0) {
       this.services.wildcardGuard.tryConsume(p.id);
       this.offerIgnoresSuccession = true;
@@ -604,8 +617,35 @@ export class MatchController {
       this.state.requiredLetter = "";
       this.offerIgnoresSuccession = true;
     }
+    this.state.offerRedrawAvailable = this.canRedrawOffer(p.id);
     if (result.words.length === 0) log.error("picker: offer generation produced nothing");
     else if (result.short) log.warn(`picker: short offer (${result.words.length} words)`);
+  }
+
+  /** The letters that would tax `p` right now — Sentinel's definition of an unsafe word.
+   *  Mirrors submitWord's own tax check: the era ban unless exempt, plus personal and hijack bans. */
+  private preferenceContextFor(p: PlayerState): PreferenceContext {
+    const letters = new Set<string>();
+    if (this.state.bannedLetter && !this.isExempt(p)) letters.add(this.state.bannedLetter);
+    for (const b of this.services.cardBan.bansFor(p.id)) letters.add(b);
+    const hijack = this.services.hijackBan.peek(p.id);
+    if (hijack) letters.add(hijack);
+    return { bannedLetters: [...letters] };
+  }
+
+  /** This turn's Offer shaping, resolved from the player's bay in LEFT-TO-RIGHT order — the order
+   *  the player controls, and the order in which filters are given up when they conflict. */
+  private offerShapingFor(p: PlayerState): OfferShaping {
+    return buildOfferShaping(
+      p.bay.map((b) => getCard(b.id)),
+      this.preferenceContextFor(p),
+    );
+  }
+
+  /** Offer size after Wide Net (+2) / Tunnel Vision (−2). Clamped so a stack of Tunnel Visions can
+   *  never produce a zero-card Offer, which would be an unplayable turn rather than a hard choice. */
+  private offerCountFor(_p: PlayerState, countDelta: number): number {
+    return Math.max(1, this.state.settings.offerCount + countDelta);
   }
 
   private endTurn(fromSubmission = false): void {
@@ -828,6 +868,54 @@ export class MatchController {
   setDraft(playerId: string, word: string): void {
     if (this.state.phase !== "Round" || playerId !== this.current.id) return;
     this.currentDraft = word;
+  }
+
+  /**
+   * Picker: Winnower — redraw the whole Offer, once per turn, for 30% of the ARMED clock.
+   *
+   * Priced off `clockTotal` rather than what is left, so the cost is the same whether you redraw
+   * instantly or after agonising: it buys a fresh Offer, not a fresh clock. The charge is a
+   * TurnGuard reset by `fireTurnStarted`, so it re-arms for whoever is up rather than per era.
+   *
+   * Returns whether a redraw actually happened, so the caller can tell a spent charge from a
+   * missing card without reading room state.
+   */
+  redrawOffer(playerId: string): boolean {
+    const s = this.state;
+    if (!this.isPicker || s.phase !== "Round" || this.roundSettleRemaining > 0) return false;
+    if (playerId !== this.current.id) return false;
+    const p = this.current;
+    const cost = p.bay.reduce(
+      (max, b) => Math.max(max, getCard(b.id)?.preference?.redraw?.clockCostFraction ?? 0),
+      0,
+    );
+    if (cost <= 0) return false; // no Winnower in the bay
+    if (!this.services.winnowerGuard.tryConsume(p.id)) return false; // already redrawn this turn
+
+    // Charge first, so a redraw that then produces a short Offer still costs what it said it would.
+    s.clockRemaining = Math.max(0, s.clockRemaining - cost * s.clockTotal);
+    // The previous Offer's words are NOT marked used — they were never played, and burning them
+    // would quietly shrink the pool every time anyone redrew.
+    this.currentSelection = null;
+    this.generateOfferForTurn(p);
+    this.events.emit("clockTick", s.clockRemaining);
+    this.events.emit("turnArmed", {
+      playerIndex: s.currentPlayerIndex,
+      requiredLetter: s.requiredLetter,
+      clockTotal: s.clockTotal,
+    });
+    return true;
+  }
+
+  /** Whether `playerId` could redraw right now — Winnower button's enabled state. */
+  canRedrawOffer(playerId: string): boolean {
+    if (!this.isPicker || this.state.phase !== "Round") return false;
+    if (playerId !== this.current.id) return false;
+    const p = this.current;
+    const hasWinnower = p.bay.some(
+      (b) => (getCard(b.id)?.preference?.redraw?.clockCostFraction ?? 0) > 0,
+    );
+    return hasWinnower && this.services.winnowerGuard.isAvailable(p.id);
   }
 
   /** Picker: record the current player's selected-but-not-committed word, so a clock expiry can
@@ -1174,7 +1262,7 @@ export class MatchController {
     // (LocalController → planBotBay/setPlayerBay).
     for (const p of this.state.players) {
       p.bay = p.bay.filter((b) => !b.discarded);
-      if (p.bay.length > p.slots) p.bay = p.bay.slice(0, p.slots);
+      if (p.bay.length > p.slots) p.bay = this.trimToCapacity(p.bay, p.slots);
       p.lockedIn = false; // optimize is over; clear the lock-in slate
     }
     // Pre-era-1 setup optimize (no round has been played yet): there's no last-place
@@ -1312,11 +1400,16 @@ export class MatchController {
       seen.add(uid);
       return { ...b, discarded };
     };
-    const next: BayCard[] = [];
+    const engine: BayCard[] = [];
     for (const uid of engineUids) {
       const b = take(uid, false);
-      if (b) next.push(b);
+      if (b) engine.push(b);
     }
+    // Preference Cards auto-bubble to the leftmost engine slots. A player cannot place one in the
+    // middle of their scoring chain — see bubblePreferences for why (a hand-placed one would
+    // silently swallow a Magnifying Glass). Applied to the ENGINE only: order in the discard bin is
+    // meaningless, and reordering it would just make the bin jump around under the player's cursor.
+    const next: BayCard[] = bubblePreferences(engine, (b) => isInertPreference(getCard(b.id)));
     for (const uid of discardUids) {
       const b = take(uid, true);
       if (b) next.push(b);
@@ -1324,6 +1417,22 @@ export class MatchController {
     // Defensive: keep any owned card the caller omitted (never silently lost).
     for (const b of p.bay) if (!seen.has(b.uid!)) next.push({ ...b, discarded: false });
     p.bay = next;
+  }
+
+  /**
+   * Trim a bay down to capacity, keeping a WORKING ENGINE.
+   *
+   * Only reachable on the AFK path — a player who actually optimizes never exceeds capacity. The
+   * old rule was "keep the first `slots`", which was fine until Preference Cards started bubbling
+   * to the front: an idle player would then have kept nothing but shape filters and scored almost
+   * nothing, having never touched the screen. So scoring cards are kept first, and any slots left
+   * over go to Preference Cards, which are re-bubbled to the left of the result.
+   */
+  private trimToCapacity(bay: readonly BayCard[], slots: number): BayCard[] {
+    const isPref = (b: BayCard): boolean => isInertPreference(getCard(b.id));
+    const scoring = bay.filter((b) => !isPref(b)).slice(0, slots);
+    const preference = bay.filter(isPref).slice(0, Math.max(0, slots - scoring.length));
+    return [...preference, ...scoring];
   }
 
   /** Bots/non-submitters: trim oldest (left) cards to fit the expanded capacity. */
@@ -1395,7 +1504,12 @@ export class MatchController {
   benchSetBay(playerId: string, orderedIds: string[]): void {
     const p = this.state.players.find((x) => x.id === playerId);
     if (!p) return;
-    p.bay = orderedIds.filter((id) => getCard(id)).map((id) => ({ id, uid: this.nextBayUid() }));
+    // Bubble here too: the sandbox bypasses setPlayerBay entirely, and a Testing Bay that let you
+    // place a Preference Card mid-chain would be testing an arrangement the real game forbids.
+    p.bay = bubblePreferences(
+      orderedIds.filter((id) => getCard(id)).map((id) => ({ id, uid: this.nextBayUid() })),
+      (b) => isInertPreference(getCard(b.id)),
+    );
     this.armPlayerForEra(p);
   }
 
@@ -1408,6 +1522,7 @@ export class MatchController {
   private gameOver(): void {
     this.state.endedAt = this.now();
     this.state.offer = [];
+    this.state.offerRedrawAvailable = false;
     const standings = [...this.state.players].sort(byScoreDesc);
     this.state.winnerId = standings[0]?.id ?? null;
     this.setPhase("GameOver");

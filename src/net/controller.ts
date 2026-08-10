@@ -77,6 +77,8 @@ export interface GameController {
   reportSelection(word: string): void;
   /** Picker: commit the selected Offer word (second tap, or the GO button). */
   commitSelection(word?: string): SubmitResult;
+  /** Picker: Winnower's once-per-turn Offer redraw, bought with shot clock. */
+  redrawOffer(): void;
   /** Tear down timers/listeners. */
   destroy(): void;
 }

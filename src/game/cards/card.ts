@@ -25,6 +25,9 @@ import type {
   WordResolution,
 } from "../types";
 import type { EffectMagnifier } from "./magnifier";
+// Type-only, so it erases at build time and cannot form a runtime import cycle with the
+// Offer generator (which imports the same module for the shaping type).
+import type { PreferenceSpec } from "../picker/preference";
 import type { EngineEffects, RoomServices, RoomServiceKey } from "./roomServices";
 
 /** Everything a card needs to decide its trigger + magnitude for one word. */
@@ -138,6 +141,12 @@ export interface ModifierCard {
    *  an input box Picker does not have, and Insurance negates a timeout penalty Picker does not
    *  have. Resolved through `dealableCardIds(mode)`. */
   modes?: readonly GameMode[];
+  /** Picker: how this card shapes the Offer instead of (or as well as) scoring the word.
+   *
+   *  Presence of this is what MAKES a card a Preference Card. A scoring-inert one additionally
+   *  bubbles to the left of the scoring chain and is hidden from bay-size scoring — see
+   *  `isInertPreference`, which explains why Tunnel Vision is the deliberate exception. */
+  preference?: PreferenceSpec;
 
   /**
    * Fold this card into the running score. FX cards return the value unchanged

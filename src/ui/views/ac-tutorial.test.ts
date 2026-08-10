@@ -42,6 +42,7 @@ function controllerFor(match: MatchController, humanId: string, isOwner: boolean
     reportDraft: () => {},
     reportSelection: () => {},
     commitSelection: () => ({ accepted: false }),
+    redrawOffer: () => {},
     destroy: () => {},
   };
 }

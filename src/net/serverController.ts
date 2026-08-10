@@ -155,6 +155,12 @@ export class ServerController implements GameController {
     return { accepted: false };
   }
 
+  redrawOffer(): void {
+    // The authority re-derives eligibility (turn, charge, card held), so an ineligible redraw
+    // costs one refused intent and no broadcast.
+    this.dispatch({ kind: "redrawOffer" });
+  }
+
   destroy(): void {
     this.peer.events.off("ready", this.onReady as never);
     this.peer.events.off("message", this.onMessage as never);

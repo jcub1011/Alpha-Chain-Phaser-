@@ -335,7 +335,8 @@ describe("card rarity assignments", () => {
     }
   });
 
-  it("matches the agreed 18 / 15 / 11 / 3 distribution", () => {
+  it("matches the agreed whole-catalogue distribution", () => {
+    // 47 mode-agnostic + Classic-only cards, plus the 7 Picker-only Preference Cards.
     const counts: Record<CardRarityT, number> = {
       common: 0,
       uncommon: 0,
@@ -343,51 +344,73 @@ describe("card rarity assignments", () => {
       legendary: 0,
     };
     for (const c of cards) counts[c.rarity]++;
-    expect(counts).toEqual({ common: 18, uncommon: 15, rare: 11, legendary: 3 });
+    expect(counts).toEqual({ common: 20, uncommon: 17, rare: 13, legendary: 4 });
+    expect(cards.length).toBe(54);
   });
 
-  it("exposes those same counts to the CLASSIC dealer", () => {
-    // Classic deals the whole catalogue, so its pool matches the distribution above exactly.
+  it("gives the CLASSIC dealer the original 18 / 15 / 11 / 3 pool", () => {
+    // Classic is unchanged by all of this: the 7 Preference Cards are Picker-only, so its pool is
+    // still exactly the 47 cards it always was.
     expect(rarityCardCounts(GameMode.Classic)).toEqual({
       common: 18,
       uncommon: 15,
       rare: 11,
       legendary: 3,
     });
+    expect(dealableCardIds(GameMode.Classic).length).toBe(47);
   });
 
-  it("drops the Classic-only cards from the PICKER pool", () => {
-    // The Blindfold (Uncommon) masks an input box Picker has none of; Insurance (Common) negates a
-    // timeout penalty Picker does not have. Both would be dead weight or free upside, so neither is
-    // dealt in Picker — one Common and one Uncommon lighter.
+  it("gives the PICKER dealer its own pool: no Blindfold or Insurance, plus the seven", () => {
+    // Out: The Blindfold (Uncommon — masks an input box Picker has none of) and Insurance
+    // (Common — negates a timeout penalty Picker does not have).
+    // In: Sieve + Wide Net (Common), Tide + Prospector (Uncommon), Winnower + Sentinel (Rare),
+    // Tunnel Vision (Legendary).
     expect(rarityCardCounts(GameMode.Picker)).toEqual({
-      common: 17,
-      uncommon: 14,
-      rare: 11,
-      legendary: 3,
+      common: 19,
+      uncommon: 16,
+      rare: 13,
+      legendary: 4,
     });
+    expect(dealableCardIds(GameMode.Picker).length).toBe(52);
   });
 });
 
 // ── dealableCardIds: the mode-scoped pool the dealer and the lobby both read ──
 
 describe("dealableCardIds", () => {
-  it("deals every card in Classic", () => {
-    expect(dealableCardIds(GameMode.Classic).length).toBe(Object.keys(CARD_LIBRARY).length);
+  it("is a strict split — no card is dealable in neither mode", () => {
+    const union = new Set([
+      ...dealableCardIds(GameMode.Classic),
+      ...dealableCardIds(GameMode.Picker),
+    ]);
+    expect(union.size).toBe(Object.keys(CARD_LIBRARY).length);
   });
 
-  it("withholds exactly The Blindfold and Insurance in Picker", () => {
-    const classic = new Set(dealableCardIds(GameMode.Classic));
-    const picker = new Set(dealableCardIds(GameMode.Picker));
-    const withheld = [...classic].filter((id) => !picker.has(id));
-    expect(withheld.sort()).toEqual(["Blindfold", "Insurance"]);
+  it("withholds exactly The Blindfold and Insurance from Picker", () => {
+    const classic = new Set<string>(dealableCardIds(GameMode.Classic));
+    const picker = new Set<string>(dealableCardIds(GameMode.Picker));
+    expect([...classic].filter((id) => !picker.has(id)).sort()).toEqual(["Blindfold", "Insurance"]);
+  });
+
+  it("withholds every Preference Card from Classic", () => {
+    const classic = new Set<string>(dealableCardIds(GameMode.Classic));
+    const picker = new Set<string>(dealableCardIds(GameMode.Picker));
+    expect([...picker].filter((id) => !classic.has(id)).sort()).toEqual([
+      "Prospector",
+      "Sentinel",
+      "Sieve",
+      "Tide",
+      "TunnelVision",
+      "WideNet",
+      "Winnower",
+    ]);
   });
 
   it("still RESOLVES a withheld card, so an existing bay and the gallery keep rendering", () => {
     // Undealable is not deleted: getCard stays mode-blind, or a score replay of a Classic match
     // (or the sandbox gallery) would render blanks.
     expect(getCard("Blindfold")?.name).toBe("Blindfold");
-    expect(getCard("Insurance")?.name).toBe("Insurance");
+    expect(getCard("Sieve")?.name).toBe("Sieve");
   });
 
   it("preserves declaration order, which the dealer's weighted walk indexes into", () => {
@@ -434,11 +457,15 @@ describe("dealPoolCapacity", () => {
   const ALL_TIERS = { common: 1, uncommon: 1, rare: 1, legendary: 1 };
   const capOf = (id: string) => CARD_LIBRARY[id as keyof typeof CARD_LIBRARY].maxInstances ?? 3;
 
-  it("sums every copy of every card when no tier is disabled", () => {
-    const expected = Object.keys(CARD_LIBRARY).reduce((sum, id) => sum + capOf(id), 0);
-    expect(dealPoolCapacity(ALL_TIERS, GameMode.Classic)).toBe(expected);
-    // The weights are relative, so only the zero/non-zero split can move the ceiling.
-    expect(dealPoolCapacity(DEFAULT_RARITY_DEAL_WEIGHT, GameMode.Classic)).toBe(expected);
+  it("sums every copy of every card in the mode's pool when no tier is disabled", () => {
+    // Derived from the mode's own id list, not the whole catalogue — the two diverged once cards
+    // became mode-scoped, and the dealer reads the mode list.
+    for (const mode of [GameMode.Classic, GameMode.Picker]) {
+      const expected = dealableCardIds(mode).reduce((sum, id) => sum + capOf(id), 0);
+      expect(dealPoolCapacity(ALL_TIERS, mode), mode).toBe(expected);
+      // The weights are relative, so only the zero/non-zero split can move the ceiling.
+      expect(dealPoolCapacity(DEFAULT_RARITY_DEAL_WEIGHT, mode), mode).toBe(expected);
+    }
   });
 
   it("counts only the enabled tiers", () => {
@@ -461,20 +488,23 @@ describe("dealPoolCapacity", () => {
     ).toBe(0);
   });
 
-  it("is exactly 4 lower in Picker — Blindfold (cap 1) plus Insurance (cap 3)", () => {
-    // The number the lobby's warning prints. If the dealer and this readout ever disagreed, the
-    // warning would be wrong precisely in the mode it was computed for.
+  it("differs between the modes by exactly the cards each withholds", () => {
+    /* The number the lobby's warning prints. If the dealer and this readout ever disagreed, the
+     * warning would be wrong precisely in the mode it was computed for.
+     *
+     * Picker is the LARGER pool now: it gives up Blindfold (cap 1) and Insurance (cap 3), and gains
+     * the seven Preference Cards — 3+1+3+1+3+3+3 = 17 copies, since Winnower and Tunnel Vision
+     * are capped at one each. Net +13. */
     const classic = dealPoolCapacity(ALL_TIERS, GameMode.Classic);
     const picker = dealPoolCapacity(ALL_TIERS, GameMode.Picker);
-    expect(classic - picker).toBe(4);
+    expect(picker - classic).toBe(13);
   });
 
-  it("still counts the legendary tier identically in both modes", () => {
-    // Neither withheld card is Legendary, so a legendary-only lobby is mode-invariant.
+  it("counts the legendary tier one card higher in Picker (Tunnel Vision)", () => {
     const legendaryOnly = { ...ALL_TIERS, common: 0, uncommon: 0, rare: 0 };
-    expect(dealPoolCapacity(legendaryOnly, GameMode.Picker)).toBe(
-      dealPoolCapacity(legendaryOnly, GameMode.Classic),
-    );
+    expect(dealPoolCapacity(legendaryOnly, GameMode.Classic)).toBe(5);
+    // Tunnel Vision is the family's only Legendary, and it is capped at 1.
+    expect(dealPoolCapacity(legendaryOnly, GameMode.Picker)).toBe(6);
   });
 });
 

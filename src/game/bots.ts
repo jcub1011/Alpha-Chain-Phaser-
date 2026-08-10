@@ -6,6 +6,7 @@
  */
 
 import { getCard } from "./cards/library";
+import { bubblePreferences, isInertPreference } from "./picker/preference";
 import { scoreWord, type ScoreOptions } from "./scoring";
 import type { Dictionary } from "./dictionary";
 import { shuffle } from "./rng";
@@ -213,6 +214,7 @@ export function planBotBay(
   slots: number,
   scoreOpts: Omit<ScoreOptions, "taxed">,
 ): { engine: string[]; discard: string[] } {
+  const isPref = (c: BayCard): boolean => isInertPreference(getCard(c.id));
   const rankOf = (id: string) => OP_RANK[getCard(id)?.op ?? CardOp.Fx] ?? 1;
   // Stable sort by op-rank (preserve original order within a rank).
   const kept = bay
@@ -223,12 +225,30 @@ export function planBotBay(
   const scoreOf = (cards: BayCard[]): number =>
     scoreWord(PROBE_WORD, cards, { ...scoreOpts, taxed: false }).finalScore;
 
+  /* A Preference Card contributes NOTHING to scoreWord — it shapes the Offer, which the probe word
+   * knows nothing about — so its marginal value is exactly 0. Left alone the trim loop would drop
+   * every one of them first, deterministically, on the bot's very first optimize, and bots would
+   * never be seen holding the family at all.
+   *
+   * So they are valued at a flat notional instead. The number is a heuristic, not a measurement:
+   * high enough that a bot keeps one over a card that does nothing for the probe word (a
+   * conditional multiplier the probe never triggers), low enough that it never displaces a real
+   * contributor. And only ONE is protected — a bot that filled its bay with shape filters would
+   * have a beautifully-shaped Offer and nothing to score it with. */
+  const PREFERENCE_NOTIONAL = 6;
+  let prefKept = 0;
+  const valueOf = (i: number, full: number): number => {
+    if (isPref(kept[i])) return prefKept++ === 0 ? PREFERENCE_NOTIONAL : 0;
+    return full - scoreOf(kept.filter((_, j) => j !== i));
+  };
+
   while (kept.length > slots) {
     const full = scoreOf(kept);
     let worstIdx = 0;
     let worstMarginal = Infinity;
+    prefKept = 0;
     for (let i = 0; i < kept.length; i++) {
-      const marginal = full - scoreOf(kept.filter((_, j) => j !== i));
+      const marginal = valueOf(i, full);
       if (marginal < worstMarginal) {
         worstMarginal = marginal;
         worstIdx = i;
@@ -236,6 +256,14 @@ export function planBotBay(
     }
     kept.splice(worstIdx, 1);
   }
+
+  /* Bubble AFTER the trim, through the same helper the engine and the optimize UI use. Doing it
+   * via OP_RANK instead would not work: the ranks place FX mid-bay, between additives and
+   * multipliers, so a Preference Card would land in the middle of the scoring chain and the
+   * authority would immediately reorder it — the bot's plan and the stored bay would disagree. */
+  const ordered = bubblePreferences(kept, isPref);
+  kept.length = 0;
+  kept.push(...ordered);
 
   const keptSet = new Set(kept);
   const uidOf = (c: BayCard): string | undefined => c.uid;
