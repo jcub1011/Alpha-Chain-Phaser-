@@ -4,10 +4,10 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: 'Tag name for the release (e.g. v1.0.0)'
-        required: true
+        description: 'Tag name for the release (leave blank to auto-use version from GAME.json)'
+        required: false
         type: string
-        default: 'v1.0.0'
+        default: ''
       release_name:
         description: 'Release title (leave blank to use tag name)'
         required: false
@@ -42,13 +42,25 @@ jobs:
       - name: Run export script
         run: npm run export:game
 
+      - name: Resolve release tag
+        id: resolve_tag
+        run: |
+          if [ -n "${{ inputs.tag_name }}" ]; then
+            TAG="${{ inputs.tag_name }}"
+          else
+            VERSION=$(jq -r '.version' export/GAME.json)
+            TAG="v$VERSION"
+          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ inputs.tag_name }}
-          name: ${{ inputs.release_name != '' && inputs.release_name || inputs.tag_name }}
+          tag_name: ${{ steps.resolve_tag.outputs.tag }}
+          name: ${{ inputs.release_name != '' && inputs.release_name || steps.resolve_tag.outputs.tag }}
           draft: ${{ inputs.draft }}
           files: |
             dist-game/**
+            export/GAME.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
