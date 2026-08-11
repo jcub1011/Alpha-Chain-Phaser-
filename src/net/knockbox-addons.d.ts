@@ -22,6 +22,16 @@ declare module "*/knockbox-local.js" {
     KnockBoxLocalPlugin?: unknown;
     KnockBoxLocalPeer?: unknown;
     _resetLocalHubs?: unknown;
+    /** Builds a kb.words capability from a plain spec map, no fetching. Exported by the
+     *  addon so tests can pin the server-identical pick ordering — which is exactly what
+     *  src/game/picker/wordPool.test.ts uses it for. */
+    _buildLocalWords?: (spec: Record<string, string[]>) => {
+      has(key: string, word: string): boolean;
+      count(key: string): number;
+      pick(key: string, index: number): string | null;
+      countOfLength(key: string, len: number): number;
+      pickOfLength(key: string, len: number, index: number): string | null;
+    };
   };
   export default api;
 }

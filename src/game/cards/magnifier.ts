@@ -11,9 +11,10 @@
  * [Glass][Glass][card] lands ×2.25 on the one neighbor, [Glass]×3 → ×3.375.
  *
  * CRITICAL divergence from C#: the C# registry keys by card object identity
- * (distinct instances per slot). The TS CARD_LIBRARY holds shared singletons,
- * so this registry — and every "walk the bay up to self" helper in scoring.ts
- * — is keyed by SLOT INDEX instead.
+ * (distinct instances per slot). The TS catalogue holds shared singletons — one
+ * per card per game mode, so still shared across every player and slot — so this
+ * registry, and every "walk the bay up to self" helper in scoring.ts, is keyed by
+ * SLOT INDEX instead.
  */
 
 import type { ModifierCard } from "./card";

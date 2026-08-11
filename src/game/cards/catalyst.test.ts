@@ -1,9 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { scoreWord } from "../scoring";
 import type { BayCard } from "../types";
+import { GameMode } from "../types";
 
 const bay = (...ids: string[]): BayCard[] => ids.map((id) => ({ id }));
-const opts = { prevWordLength: 0, clockRemaining: 10, clockTotal: 20, taxed: false };
+const opts = {
+  // Classic explicitly: this file's expected numbers ARE Classic's, and naming the mode is
+  // what keeps them a lock on Classic rather than on whatever the default happens to be.
+  mode: GameMode.Classic,
+  prevWordLength: 0,
+  clockRemaining: 10,
+  clockTotal: 20,
+  taxed: false,
+};
 
 describe("The Catalyst — Y/W/H count as vowels for cards after it", () => {
   it("makes Vocal Vowels count Y as a vowel", () => {

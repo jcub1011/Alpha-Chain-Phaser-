@@ -9,11 +9,20 @@
  * Phase flow:  Setup → Countdown → Round×eraInterval → Intermission → … → GameOver
  */
 
-import { DEALABLE_CARD_IDS, getCard } from "./cards/library";
+import { cardIdentity, dealableCardIds, getCard } from "./cards/library";
 import { DEFAULT_MAX_INSTANCES } from "./cards/card";
 import { BanLetterService, EngineEffects, RoomServices } from "./cards/roomServices";
 import { createLogger } from "../log";
 import { Emitter } from "./emitter";
+import { buildPoolIndex, generateOffer, type PoolIndex } from "./picker/offer";
+import {
+  bubblePreferences,
+  buildOfferShaping,
+  isInertPreference,
+  type OfferShaping,
+  type PreferenceContext,
+} from "./picker/preference";
+import type { WordPool } from "./picker/wordPool";
 import { shuffle } from "./rng";
 import {
   armedClockSeconds,
@@ -35,7 +44,7 @@ import {
   rarityDealWeights,
   isVowel,
 } from "./settings";
-import { byScoreDesc } from "./types";
+import { byScoreDesc, emptyMatchState, GameMode } from "./types";
 import type {
   AlphaChainSettings,
   BayCard,
@@ -56,6 +65,8 @@ const log = createLogger("match");
 const TUTORIAL_DWELL: Record<TutorialKind, number> = {
   shiritori: 14,
   timeout: 12,
+  offer: 14,
+  pickerTimeout: 12,
   engine: 14,
   cards: 13,
   tax: 13,
@@ -65,7 +76,14 @@ const TUTORIAL_DWELL: Record<TutorialKind, number> = {
 /** Tutorial pages shown in sequence at each cue point (in order). Pre-game pages run
  *  during the top-level Tutorial phase; the optimize/ban groups run as intermission
  *  sub-phases before the era-1 optimize and sniper ban respectively. */
-const PREGAME_TUTORIALS: readonly TutorialKind[] = ["shiritori", "timeout"];
+/* Pre-game pages, per mode. This list is the ONE tutorial map that is not exhaustive over
+ * TutorialKind, so nothing here is a compile error — and getting it wrong is invisible: a
+ * first-run player in the DEFAULT mode would simply be taught the wrong game. Classic's pair is
+ * left byte-identical. */
+const PREGAME_TUTORIALS: Record<GameMode, readonly TutorialKind[]> = {
+  [GameMode.Classic]: ["shiritori", "timeout"],
+  [GameMode.Picker]: ["offer", "pickerTimeout"],
+};
 const OPTIMIZE_TUTORIALS: readonly TutorialKind[] = ["engine", "cards"];
 const BAN_TUTORIALS: readonly TutorialKind[] = ["tax", "sniper"];
 
@@ -91,6 +109,20 @@ export interface MatchDeps {
    *  authority can pass kb.now() — the sandbox has no ambient `Date`. Defaults to
    *  Date.now for the browser (solo/host paths). */
   now?: () => number;
+  /** Picker: a SEPARATE stream for Offer generation, defaulting to `rng`.
+   *
+   *  Offer generation makes a rejection-dependent number of draws, so sharing one stream with
+   *  `dealCards` means an Offer shifts which cards a later era deals. Harmless in production
+   *  (kb.rng is absent, so it is Math.random) but it matters wherever the main rng is deliberately
+   *  degenerate: the Testing Bay pins turn order with `orderPreservingRng`, a CONSTANT, which
+   *  would otherwise make every Offer a run of alphabetically-extreme words and misrepresent the
+   *  mode it exists to test. */
+  offerRng?: () => number;
+  /** Picker: the pool the Offer is drawn from (`kb.words` server-side, the client `Dictionary`
+   *  solo). Optional so Classic-only callers and the existing tests need no change; a Picker
+   *  match constructed without one logs once and falls back to Classic rather than throwing,
+   *  because a wiring mistake must never hang a lobby. */
+  wordPool?: WordPool;
 }
 
 export interface MatchEvents {
@@ -126,6 +158,35 @@ export class MatchController {
    *  timeout can auto-submit it. Transient (not part of MatchState; never serialized);
    *  reset on every turn arm. */
   private currentDraft = "";
+  /** Picker: the word the current player has selected but not yet committed, streamed in via
+   *  setSelection so a shot-clock expiry can commit it. Transient, exactly like currentDraft —
+   *  nothing requires publishing an opponent's in-progress selection, and keeping it off
+   *  MatchState keeps the authority in broadcast mode with no extra wire state.
+   *
+   *  Stores the WORD, not the Offer index: an index would silently commit a different word if
+   *  the Offer were ever regenerated mid-turn (M3's Winnower), whereas a stale word simply fails
+   *  the offer-membership check. `null` means no selection — which is what makes a clock expiry a
+   *  no-show rather than a slow pick. */
+  private currentSelection: string | null = null;
+  /** Picker: this turn's Offer ignored the Succession letter, because the player spent their
+   *  Wildcard charge on it. Lets commitSelection waive the succession check for exactly this
+   *  turn without the charge having to survive until the commit. */
+  private offerIgnoresSuccession = false;
+  /** Picker: a no-show elimination to apply at the top of endTurn.
+   *
+   *  Deferred rather than applied inline because Survival must see the elimination BEFORE
+   *  endTurn's active-count check (which runs inside submitWord), yet a Prism rescue means the
+   *  commit may not reach endTurn at all. A flag is cleared by the next armCurrentTurn, so the
+   *  rescue path discards it automatically instead of needing a mutate-then-revert. */
+  private pendingNoShowElimination: string | null = null;
+  /** Picker: the Offer pool and a lazily-built index over it. The index memoizes immutable pool
+   *  facts (letter ranges, per-letter totals), so it is built once per match and reused — Classic
+   *  builds neither. */
+  private readonly wordPool?: WordPool;
+  /** The stream Offer generation draws from; `rng` unless a caller separated them. */
+  private readonly offerRng: () => number;
+  private poolIndex?: PoolIndex;
+  private warnedMissingPool = false;
   /** Host-side leeway (s) the turn lingers at clockRemaining 0 before timing out,
    *  so a buzzer-time submit still in flight over the network can land. 0 ⇒ the
    *  turn times out the instant the clock hits 0 (solo/tests). */
@@ -153,6 +214,8 @@ export class MatchController {
     this.rng = deps.rng ?? Math.random;
     this.now = deps.now ?? Date.now;
     this.submitGraceSeconds = deps.submitGraceSeconds ?? 0;
+    this.wordPool = deps.wordPool;
+    this.offerRng = deps.offerRng ?? this.rng;
     const players: PlayerState[] = seeds.map((s, i) => ({
       id: s.id,
       name: s.name,
@@ -163,29 +226,11 @@ export class MatchController {
       bay: [],
       slots: modifierSlotsForCardEra(settings, 1),
     }));
-    this.state = {
-      phase: "Setup",
-      era: 1,
-      round: 0,
-      roundInEra: 0,
-      players,
-      currentPlayerIndex: 0,
-      requiredLetter: "",
-      bannedLetter: "",
-      bannedLetterHistory: [],
-      usedWords: new Set<string>(),
-      history: [],
-      clockRemaining: 0,
-      clockTotal: 0,
-      intermissionPhase: null,
-      currentTutorial: null,
-      subTimerRemaining: 0,
-      subTimerTotal: 0,
-      shownTutorials: [],
-      tutorialReady: [],
-      settings,
-      winnerId: null,
-    };
+    // Defaults come from emptyMatchState, which its own doc names as the single place every new
+    // MatchState field is defaulted — this constructor used to duplicate all 21 fields, so the
+    // two could silently drift and the guest mirror would disagree with the authority. Only
+    // `players` differs here (seeded from the roster).
+    this.state = { ...emptyMatchState(settings), players };
     this.services = new RoomServices(
       new BanLetterService(
         this.rng,
@@ -195,7 +240,7 @@ export class MatchController {
     );
     this.effects = new EngineEffects(this.services, {
       activePlayers: () => this.turnOrderedActive(),
-      armedClockOf: (p) => armedClockSeconds(this.state.settings.shotClockSeconds, p.bay),
+      armedClockOf: (p) => armedClockSeconds(this.baseClockSeconds, p.bay, this.effectiveMode),
     });
     this.installLogging();
   }
@@ -259,11 +304,12 @@ export class MatchController {
   /** Build the shared bay evaluator + hook context for `player` scoring `word`. */
   private bayEval(player: PlayerState, word: string, taxed: boolean): BayEvaluator {
     return makeBayEvaluator(word, player.bay, {
+      mode: this.effectiveMode,
       prevWordLength: this.prevWordLength,
       clockRemaining: this.state.clockRemaining,
       clockTotal: this.state.clockTotal,
       taxed,
-      baseClockSeconds: this.state.settings.shotClockSeconds,
+      baseClockSeconds: this.baseClockSeconds,
       era: this.state.era,
       slots: player.slots,
       history: this.state.history,
@@ -279,12 +325,79 @@ export class MatchController {
   hidesInput(playerId: string): boolean {
     const p = this.state.players.find((x) => x.id === playerId);
     if (!p) return false;
-    return p.bay.some((b) => getCard(b.id)?.hidesInput?.() ?? false);
+    return p.bay.some((b) => getCard(b.id, this.effectiveMode)?.hidesInput?.() ?? false);
   }
 
   // ── Accessors ──────────────────────────────────────────────────────────────
   get current(): PlayerState {
     return this.state.players[this.state.currentPlayerIndex];
+  }
+
+  /** Whether this match runs Picker (word selection) rather than Classic (typed entry).
+   *
+   *  Requires a pool: Picker without one cannot generate an Offer, and silently playing an
+   *  unplayable match is worse than falling back. The warning fires once so a wiring mistake is
+   *  visible without flooding the log every turn. */
+  private get isPicker(): boolean {
+    if (this.state.settings.gameMode !== GameMode.Picker) return false;
+    if (this.wordPool) return true;
+    if (!this.warnedMissingPool) {
+      this.warnedMissingPool = true;
+      log.error("picker mode requested but no wordPool was injected — falling back to classic");
+    }
+    return false;
+  }
+
+  /** The match's base shot clock, mode-aware. Every reader of the clock for SCORING purposes must
+   *  go through this rather than `settings.shotClockSeconds`, because `baseClockSeconds` feeds
+   *  every clock-scaling card's fraction (Panic Button, Speedracer, The Vault, Redline, Chrono
+   *  Syphon) — a site that reads the raw setting mis-scores silently instead of failing.
+   *
+   *  Keyed on `isPicker`, NOT on the raw setting: a match that asked for Picker but fell back to
+   *  Classic for want of a word pool must fall back to Classic's clock too, or it would arm the
+   *  pick timer for a typing match. */
+  private get baseClockSeconds(): number {
+    return this.isPicker
+      ? this.state.settings.pickerShotClockSeconds
+      : this.state.settings.shotClockSeconds;
+  }
+
+  /**
+   * The mode whose CARD VALUES this match scores with — pass it to `getCard` / `ScoreOptions.mode`
+   * / `armedClockSeconds` rather than reading `settings.gameMode` for anything a card's numbers
+   * depend on.
+   *
+   * Keyed on `isPicker`, NOT the raw setting — the same reasoning as `baseClockSeconds`, and for
+   * the same underlying reason: Picker's card values exist to compensate for Picker's clock
+   * economy, so they must follow the clock they compensate. A match that asked for Picker but fell
+   * back for want of a word pool types its words and levies a real timeout penalty through
+   * `timeoutCurrent`, so handing it Picker's re-costed cards would pair Classic's timeout drain
+   * with Picker's compensating buff — strictly worse than either mode.
+   *
+   * Deliberately NOT used by `dealCards`, which keys on the replicated `settings.gameMode` so the
+   * deal depends only on replicated state; see the comment there.
+   */
+  get effectiveMode(): GameMode {
+    return this.isPicker ? GameMode.Picker : GameMode.Classic;
+  }
+
+  /** The pre-game tutorial pages for the mode this match will ACTUALLY play.
+   *
+   *  Keyed on `isPicker`, not the raw setting — the same reasoning as `baseClockSeconds`. A match
+   *  that asked for Picker but fell back to Classic for want of a word pool will present typed
+   *  entry, so teaching the player to tap Offer Cards that will never appear is worse than either
+   *  mode's tutorial.
+   *
+   *  Note this differs from `dealCards`, which deliberately keys on the replicated
+   *  `settings.gameMode`: the deal must depend only on replicated state, whereas the tutorial run
+   *  is host-authoritative and reaches guests as snapshots — they never evaluate this. */
+  private get pregameTutorials(): readonly TutorialKind[] {
+    return PREGAME_TUTORIALS[this.isPicker ? GameMode.Picker : GameMode.Classic];
+  }
+
+  /** The Offer index, built on first use so Classic pays nothing. */
+  private get offerIndex(): PoolIndex {
+    return (this.poolIndex ??= buildPoolIndex(this.wordPool!));
   }
 
   /** Length of the previous accepted word (Booster/Blueprint scoring context).
@@ -307,7 +420,7 @@ export class MatchController {
   start(): void {
     this.state.startedAt ??= this.now();
     // The pre-game tutorials (chain → timeout), if enabled, play before the first round.
-    const first = this.nextTutorialIn(PREGAME_TUTORIALS);
+    const first = this.nextTutorialIn(this.pregameTutorials);
     if (first) this.enterTutorialPhase(first);
     else this.beginFirstRoundOrSetup();
   }
@@ -413,7 +526,7 @@ export class MatchController {
   }
 
   private advanceTutorialPhase(): void {
-    const next = this.nextTutorialIn(PREGAME_TUTORIALS);
+    const next = this.nextTutorialIn(this.pregameTutorials);
     if (next) {
       this.enterTutorialPhase(next);
       return;
@@ -497,9 +610,18 @@ export class MatchController {
   private armCurrentTurn(): void {
     const p = this.current;
     this.currentDraft = ""; // each turn starts with a blank draft (no stale carry-over)
+    this.currentSelection = null;
+    this.offerIgnoresSuccession = false;
+    this.pendingNoShowElimination = null; // a rescued turn discards its armed no-show
+    this.state.offer = [];
+    this.state.offerRedrawAvailable = false;
     // Per-turn room state re-arms (currently a no-op seam; A5 uses it).
     this.services.fireTurnStarted(p);
-    let armed = armedClockSeconds(this.state.settings.shotClockSeconds, p.bay);
+    // Picker: draw the Offer BEFORE the clock is armed and turnArmed is emitted. A dead required
+    // letter makes the generator free the letter, which rewrites state.requiredLetter — and
+    // turnArmed publishes that letter, so generating afterwards would ship one the Offer ignores.
+    if (this.isPicker) this.generateOfferForTurn(p);
+    let armed = armedClockSeconds(this.baseClockSeconds, p.bay, this.effectiveMode);
     // A time-penalty card (Blind Sniper) queued a shave onto this player's next clock.
     const penalty = this.services.timePenalty.consumeFor(p.id);
     if (penalty > 0) armed = Math.max(MIN_SHOT_CLOCK_SECONDS, armed - penalty);
@@ -513,7 +635,82 @@ export class MatchController {
     });
   }
 
+  /**
+   * Picker: draw this turn's Offer into `state.offer`.
+   *
+   * The Wildcard is reframed here. In Classic it lets one word per era ignore Succession, checked
+   * at submit; in Picker it makes the whole Offer ignore the required letter, so the charge is
+   * spent at generation. Only worth spending when a letter is actually imposed — an era opener is
+   * already free, so burning the charge there would waste it — and only consumed once the free
+   * draw came back non-empty, so a failed generation never eats it.
+   */
+  private generateOfferForTurn(p: PlayerState): void {
+    const wildcardAvailable =
+      this.state.requiredLetter !== "" && baySuccessionExempt(this.bayEval(p, "", false));
+    const shaping = this.offerShapingFor(p);
+    const result = generateOffer({
+      pool: this.wordPool!,
+      index: this.offerIndex,
+      requiredLetter: wildcardAvailable ? "" : this.state.requiredLetter,
+      usedWords: this.state.usedWords,
+      count: this.offerCountFor(p, shaping.countDelta),
+      shaping,
+      rng: this.offerRng,
+    });
+    this.state.offer = result.words;
+    for (const cardId of result.skippedFilters) {
+      log.debug(`picker: ${cardId}'s filter could not be satisfied this turn — skipped`);
+    }
+    if (wildcardAvailable && result.words.length > 0) {
+      this.services.wildcardGuard.tryConsume(p.id);
+      this.offerIgnoresSuccession = true;
+    }
+    // The generator could not honour the required letter at all — every word starting with it has
+    // been played. It redrew from the whole pool, so the letter must be cleared to match.
+    if (result.freedLetter) {
+      log.warn(`picker: required letter "${this.state.requiredLetter}" is exhausted — freeing it`);
+      this.state.requiredLetter = "";
+      this.offerIgnoresSuccession = true;
+    }
+    this.state.offerRedrawAvailable = this.canRedrawOffer(p.id);
+    if (result.words.length === 0) log.error("picker: offer generation produced nothing");
+    else if (result.short) log.warn(`picker: short offer (${result.words.length} words)`);
+  }
+
+  /** The letters that would tax `p` right now — Sentinel's definition of an unsafe word.
+   *  Mirrors submitWord's own tax check: the era ban unless exempt, plus personal and hijack bans. */
+  private preferenceContextFor(p: PlayerState): PreferenceContext {
+    const letters = new Set<string>();
+    if (this.state.bannedLetter && !this.isExempt(p)) letters.add(this.state.bannedLetter);
+    for (const b of this.services.cardBan.bansFor(p.id)) letters.add(b);
+    const hijack = this.services.hijackBan.peek(p.id);
+    if (hijack) letters.add(hijack);
+    return { bannedLetters: [...letters] };
+  }
+
+  /** This turn's Offer shaping, resolved from the player's bay in LEFT-TO-RIGHT order — the order
+   *  the player controls, and the order in which filters are given up when they conflict. */
+  private offerShapingFor(p: PlayerState): OfferShaping {
+    return buildOfferShaping(
+      p.bay.map((b) => cardIdentity(b.id)),
+      this.preferenceContextFor(p),
+    );
+  }
+
+  /** Offer size after Wide Net (+2) / Tunnel Vision (−2). Clamped so a stack of Tunnel Visions can
+   *  never produce a zero-card Offer, which would be an unplayable turn rather than a hard choice. */
+  private offerCountFor(_p: PlayerState, countDelta: number): number {
+    return Math.max(1, this.state.settings.offerCount + countDelta);
+  }
+
   private endTurn(fromSubmission = false): void {
+    // A Picker no-show elimination, applied before the Survival count below reads it.
+    if (this.pendingNoShowElimination) {
+      const id = this.pendingNoShowElimination;
+      this.pendingNoShowElimination = null;
+      const q = this.state.players.find((x) => x.id === id);
+      if (q) q.eliminated = true;
+    }
     // Survival: stop the match when one player remains.
     if (this.state.settings.survivalMode && this.activePlayers.length <= 1) {
       this.gameOver();
@@ -556,7 +753,7 @@ export class MatchController {
   personalBansFor(playerId: string): { letter: string; cardName: string }[] {
     return this.services.cardBan.entriesFor(playerId).map((b) => ({
       letter: b.letter,
-      cardName: getCard(b.cardId)?.name ?? "",
+      cardName: cardIdentity(b.cardId)?.name ?? "",
     }));
   }
 
@@ -578,8 +775,12 @@ export class MatchController {
     // 4. Succession — a held Wildcard exempts the owner once per era. The bypass
     //    is only recorded here; it's consumed once the word is fully accepted, so
     //    a duplicate/typo rejection below never burns the era's charge.
+    //    In Picker the picker satisfies Succession, not the player, so the only case where a
+    //    committed word can mismatch is a Wildcard Offer — whose charge was already spent at
+    //    generation, making baySuccessionExempt false by then. `offerIgnoresSuccession` records
+    //    that this turn's Offer was drawn free, so the check is waived for exactly this turn.
     let usedWildcard = false;
-    if (s.requiredLetter && word[0] !== s.requiredLetter) {
+    if (s.requiredLetter && word[0] !== s.requiredLetter && !this.offerIgnoresSuccession) {
       if (!baySuccessionExempt(this.bayEval(player, word, false))) {
         return reject("wrong-start-letter");
       }
@@ -622,10 +823,11 @@ export class MatchController {
     // 8. Score, then the two owner-side tax rules (IRS Agent flat override +
     //    bounty suppression, then Tax Write-Off's first-letter salvage on top).
     const scoreOpts = {
+      mode: this.effectiveMode,
       prevWordLength: this.prevWordLength,
       clockRemaining: s.clockRemaining,
       clockTotal: s.clockTotal,
-      baseClockSeconds: s.settings.shotClockSeconds,
+      baseClockSeconds: this.baseClockSeconds,
       era: s.era,
       slots: player.slots,
       history: s.history,
@@ -724,6 +926,94 @@ export class MatchController {
     this.currentDraft = word;
   }
 
+  /**
+   * Picker: Winnower — redraw the whole Offer, once per turn, for 30% of the ARMED clock.
+   *
+   * Priced off `clockTotal` rather than what is left, so the cost is the same whether you redraw
+   * instantly or after agonising: it buys a fresh Offer, not a fresh clock. The charge is a
+   * TurnGuard reset by `fireTurnStarted`, so it re-arms for whoever is up rather than per era.
+   *
+   * Returns whether a redraw actually happened, so the caller can tell a spent charge from a
+   * missing card without reading room state.
+   */
+  redrawOffer(playerId: string): boolean {
+    const s = this.state;
+    if (!this.isPicker || s.phase !== "Round" || this.roundSettleRemaining > 0) return false;
+    if (playerId !== this.current.id) return false;
+    const p = this.current;
+    const cost = p.bay.reduce(
+      (max, b) => Math.max(max, cardIdentity(b.id)?.preference?.redraw?.clockCostFraction ?? 0),
+      0,
+    );
+    if (cost <= 0) return false; // no Winnower in the bay
+    if (!this.services.winnowerGuard.tryConsume(p.id)) return false; // already redrawn this turn
+
+    // Charge first, so a redraw that then produces a short Offer still costs what it said it would.
+    s.clockRemaining = Math.max(0, s.clockRemaining - cost * s.clockTotal);
+    // The previous Offer's words are NOT marked used — they were never played, and burning them
+    // would quietly shrink the pool every time anyone redrew.
+    this.currentSelection = null;
+    this.generateOfferForTurn(p);
+    this.events.emit("clockTick", s.clockRemaining);
+    this.events.emit("turnArmed", {
+      playerIndex: s.currentPlayerIndex,
+      requiredLetter: s.requiredLetter,
+      clockTotal: s.clockTotal,
+    });
+    return true;
+  }
+
+  /** Whether `playerId` could redraw right now — Winnower button's enabled state. */
+  canRedrawOffer(playerId: string): boolean {
+    if (!this.isPicker || this.state.phase !== "Round") return false;
+    if (playerId !== this.current.id) return false;
+    const p = this.current;
+    const hasWinnower = p.bay.some(
+      (b) => (cardIdentity(b.id)?.preference?.redraw?.clockCostFraction ?? 0) > 0,
+    );
+    return hasWinnower && this.services.winnowerGuard.isAvailable(p.id);
+  }
+
+  /** Picker: record the current player's selected-but-not-committed word, so a clock expiry can
+   *  commit it. The twin of setDraft, and like it: no state change, no event, nothing to
+   *  broadcast. Refuses a word that isn't in the Offer, so a stale or tampered selection cannot
+   *  become the word a timeout commits. */
+  setSelection(playerId: string, word: string): void {
+    if (this.state.phase !== "Round" || playerId !== this.current.id) return;
+    const chosen = word.trim().toLowerCase();
+    if (!this.state.offer.includes(chosen)) return;
+    this.currentSelection = chosen;
+  }
+
+  /**
+   * Picker: commit a selection.
+   *
+   * A gate in front of submitWord, never a second pipeline. Everything downstream — Succession,
+   * uniqueness, dictionary membership, the Zero-Point Tax, the Prism rescue, scoring, the card
+   * lifecycle hooks, usedWords, the required-letter advance, endTurn — is reached exactly once
+   * through the existing code. Forking that ordering is the one thing nobody wants two copies of.
+   *
+   * Offer membership is the ONLY added check, and it is the trust boundary: a client cannot commit
+   * a word it invented, even a legal one. The three checks that already hold by construction stay
+   * enforced anyway, because this is a wire entry point and they are nearly free.
+   */
+  commitSelection(playerId: string, word?: string): SubmitResult {
+    const s = this.state;
+    if (s.phase !== "Round" || this.roundSettleRemaining > 0 || playerId !== this.current.id) {
+      return { accepted: false };
+    }
+    if (!this.isPicker) return { accepted: false };
+    const chosen = (word ?? this.currentSelection ?? "").trim().toLowerCase();
+    // Nothing selected yet: not an error, and deliberately eventless — a stray commit must not
+    // make the authority broadcast.
+    if (!chosen) return { accepted: false };
+    if (!s.offer.includes(chosen)) {
+      this.events.emit("rejected", { playerId, reason: "not-offered" });
+      return { accepted: false, reason: "not-offered" };
+    }
+    return this.submitWord(playerId, chosen);
+  }
+
   /** Offer each of a player's resolved cards its once-per-era clock rescue (Prism);
    *  returns true if one fired (consumed its charge and refilled the clock). */
   private tryClockRescue(player: PlayerState): boolean {
@@ -732,6 +1022,9 @@ export class MatchController {
   }
 
   private timeoutCurrent(): void {
+    // Picker's clock means something different, so it gets its own path and Classic's stays
+    // byte-identical below.
+    if (this.isPicker) return this.pickerTimeoutCurrent();
     // Auto-submit the live player's drafted word if it stands on its own; a blank or
     // illegal draft falls through to a real timeout below.
     const draft = this.currentDraft.trim();
@@ -750,11 +1043,14 @@ export class MatchController {
     // plus each glass-cannon card's drain, and any Insurance refund) the engine
     // theater replays card-by-card. finalScore is the net signed delta.
     const breakdown = scoreTimeout(p.bay, {
+      // Classic by construction — `timeoutCurrent` returns early on isPicker, so this path is
+      // unreachable in Picker — but named rather than assumed, so it is not the odd one out.
+      mode: this.effectiveMode,
       prevWordLength: this.prevWordLength,
       clockRemaining: s.clockRemaining,
       clockTotal: s.clockTotal,
       taxed: false,
-      baseClockSeconds: s.settings.shotClockSeconds,
+      baseClockSeconds: this.baseClockSeconds,
       era: s.era,
       slots: p.slots,
       history: s.history,
@@ -797,6 +1093,68 @@ export class MatchController {
     this.endTurn(true);
   }
 
+  /**
+   * Picker: the shot clock expired. Commit the current selection; with none selected, commit one
+   * at random so the chain continues.
+   *
+   * THERE IS NO POINT PENALTY IN PICKER. The clock enforces pace, not punishment — docking a slow
+   * reader would reintroduce exactly the barrier this mode exists to remove. That falls out of
+   * never calling `scoreTimeout`, rather than from zeroing any constant: BASE_TIMEOUT_PENALTY and
+   * every card's `timeoutFold` are simply unreachable here, which is also why Insurance
+   * (negatesTimeoutLoss) has nothing to do in Picker.
+   *
+   * Survival keys on the NO-SHOW, not the timeout: the random pick still resolves, but a player
+   * who never engaged is out. Without that split, Survival could never eliminate anyone in Picker.
+   */
+  private pickerTimeoutCurrent(): void {
+    const s = this.state;
+    const p = this.current;
+    // Decide this BEFORE the random pick, or every timeout would look like a real selection.
+    const noShow = this.currentSelection === null;
+    const chosen =
+      this.currentSelection ??
+      (s.offer.length > 0 ? s.offer[Math.floor(this.rng() * s.offer.length)] : null);
+
+    // No tryClockRescue here, deliberately. Classic offers a held Prism a refill INSTEAD of the
+    // penalty; Picker has no penalty to be rescued from, and refilling a turn that always resolves
+    // would let a Prism owner stall the table. The Prism's banned-letter half still fires below,
+    // via submitWord — which is its primary mode in Picker anyway.
+
+    if (noShow && s.settings.survivalMode) this.pendingNoShowElimination = p.id;
+
+    if (chosen !== null) {
+      const res = this.submitWord(p.id, chosen);
+      // The commit tripped the Prism on a banned letter: word rejected, clock refilled, turn
+      // continues — "you picked the poisoned one, here is your Offer back". endTurn was never
+      // reached, so the armed no-show is discarded by the next armCurrentTurn.
+      if (res.reason === "prism-saved") return;
+      if (res.accepted) return; // submitWord already ran endTurn
+      // Should be unreachable: an offered word satisfies Succession, uniqueness and the
+      // dictionary by construction, and a TAXED word is still accepted (scoring 0), not rejected.
+      log.error(`picker: commit unexpectedly rejected (${res.reason ?? "no reason"})`);
+    }
+
+    // Nothing committable — an empty Offer, or the unreachable rejection above. Resolve the turn
+    // anyway so it cannot hang. Score and penalty are both 0; the required letter is unchanged.
+    const submission: Submission = {
+      playerId: p.id,
+      displayName: p.name,
+      accentIndex: p.accentIndex,
+      era: s.era,
+      word: "—",
+      score: 0,
+      taxed: false,
+      taxBounty: 0,
+      // An empty breakdown, built directly rather than through scoreTimeout — which is never
+      // called on this path, since calling it is exactly what would apply a penalty.
+      breakdown: { word: "—", seed: 0, steps: [], finalBeforeTax: 0, taxed: false, finalScore: 0 },
+      timedOut: true,
+    };
+    this.events.emit("timeout", { playerId: p.id, penalty: 0 });
+    this.events.emit("submission", { submission, bounties: [] });
+    this.endTurn(true);
+  }
+
   // ── Intermission ─────────────────────────────────────────────────────────────
   // Host-authoritative sub-phase walk (timers live here, not in the UI):
   //   [tutorial(engine) — era 1] → optimize → [tutorial(tax) — era 1] → sniperBan
@@ -816,6 +1174,10 @@ export class MatchController {
 
   private enterIntermission(): void {
     this.setPhase("Intermission");
+    // Drop the Offer so it isn't still in the snapshot during the intermission. armCurrentTurn
+    // clears it too, but that only runs on the way back into a Round — and the settle window
+    // between deliberately keeps it, so the grid stays on screen while the score replay finishes.
+    this.state.offer = [];
     // `state.era` is still the era that just ended (it advances later in
     // applySniperBanAndAdvance). The card-era index — which deal this is — depends on whether
     // a pre-era-1 setup deal happened: with dealEngineCardsFirstEra the setup deal was cardEra 1,
@@ -959,7 +1321,7 @@ export class MatchController {
     // (LocalController → planBotBay/setPlayerBay).
     for (const p of this.state.players) {
       p.bay = p.bay.filter((b) => !b.discarded);
-      if (p.bay.length > p.slots) p.bay = p.bay.slice(0, p.slots);
+      if (p.bay.length > p.slots) p.bay = this.trimToCapacity(p.bay, p.slots);
       p.lockedIn = false; // optimize is over; clear the lock-in slate
     }
     // Pre-era-1 setup optimize (no round has been played yet): there's no last-place
@@ -1014,6 +1376,11 @@ export class MatchController {
     // must not vary mid-batch. Read from state.settings (the replicated field) — never
     // from module state or loadSettings(), which are host-local and would diverge.
     const tierWeight = rarityDealWeights(this.state.settings);
+    // The mode's dealable ids, resolved once for the same reason. Keyed on the REPLICATED
+    // `settings.gameMode`, deliberately NOT on `this.isPicker` — isPicker is false when no wordPool
+    // was injected, so a host missing that dependency would deal from a different pool than its
+    // guests' mirrors expect. The deal must depend only on replicated state.
+    const modeIds = dealableCardIds(this.state.settings.gameMode);
     for (let i = 0; i < count; i++) {
       // A card is dealable to this player only while they hold fewer than its
       // maxInstances (default 3), and only while its rarity tier carries weight — a
@@ -1023,8 +1390,8 @@ export class MatchController {
       // mid-batch (e.g. a card dealt twice this era) drops it from later draws too.
       // An empty pool stops dealing early: every card capped for this player, or every
       // tier zeroed (the host's "deal nothing" configuration).
-      const pool = DEALABLE_CARD_IDS.filter((id) => {
-        const card = getCard(id);
+      const pool = modeIds.filter((id) => {
+        const card = cardIdentity(id);
         if (!card || tierWeight[card.rarity] <= 0) return false;
         const max = card.maxInstances ?? DEFAULT_MAX_INSTANCES;
         const owned = player.bay.filter((b) => b.id === id).length;
@@ -1039,7 +1406,7 @@ export class MatchController {
       // weight >= 1, so totalWeight > 0 here and the last-slot fallback
       // covers only floating-point drift, where the accumulated weights never quite
       // drop `r` below zero.
-      const weights = pool.map((id) => tierWeight[getCard(id)!.rarity]);
+      const weights = pool.map((id) => tierWeight[cardIdentity(id)!.rarity]);
       const totalWeight = weights.reduce((sum, w) => sum + w, 0);
       let r = this.rng() * totalWeight;
       let id = pool[pool.length - 1];
@@ -1092,11 +1459,16 @@ export class MatchController {
       seen.add(uid);
       return { ...b, discarded };
     };
-    const next: BayCard[] = [];
+    const engine: BayCard[] = [];
     for (const uid of engineUids) {
       const b = take(uid, false);
-      if (b) next.push(b);
+      if (b) engine.push(b);
     }
+    // Preference Cards auto-bubble to the leftmost engine slots. A player cannot place one in the
+    // middle of their scoring chain — see bubblePreferences for why (a hand-placed one would
+    // silently swallow a Magnifying Glass). Applied to the ENGINE only: order in the discard bin is
+    // meaningless, and reordering it would just make the bin jump around under the player's cursor.
+    const next: BayCard[] = bubblePreferences(engine, (b) => isInertPreference(cardIdentity(b.id)));
     for (const uid of discardUids) {
       const b = take(uid, true);
       if (b) next.push(b);
@@ -1104,6 +1476,30 @@ export class MatchController {
     // Defensive: keep any owned card the caller omitted (never silently lost).
     for (const b of p.bay) if (!seen.has(b.uid!)) next.push({ ...b, discarded: false });
     p.bay = next;
+  }
+
+  /**
+   * Trim a bay down to capacity, keeping a WORKING ENGINE.
+   *
+   * Only reachable on the AFK path — a player who actually optimizes never exceeds capacity. The
+   * old rule was "keep the first `slots`", which was fine until Preference Cards started bubbling
+   * to the front: an idle player would then have kept nothing but shape filters and scored almost
+   * nothing, having never touched the screen. So scoring cards are kept first, and any slots left
+   * over go to Preference Cards, which are re-bubbled to the left of the result.
+   */
+  private trimToCapacity(bay: readonly BayCard[], slots: number): BayCard[] {
+    const isPref = (b: BayCard): boolean => isInertPreference(cardIdentity(b.id));
+    const scoring = bay.filter((b) => !isPref(b)).slice(0, slots);
+    const preference = bay.filter(isPref).slice(0, Math.max(0, slots - scoring.length));
+    return [...preference, ...scoring];
+  }
+
+  /** Testing Bay: re-arm the current turn in place, so a bay edit is reflected in a freshly drawn
+   *  Offer. Not reachable in a real match — the Offer is drawn once when a turn arms, and redrawing
+   *  it mid-turn is otherwise Winnower's paid-for privilege. */
+  benchRearmTurn(): void {
+    if (this.state.phase !== "Round") return;
+    this.armCurrentTurn();
   }
 
   /** Bots/non-submitters: trim oldest (left) cards to fit the expanded capacity. */
@@ -1175,7 +1571,12 @@ export class MatchController {
   benchSetBay(playerId: string, orderedIds: string[]): void {
     const p = this.state.players.find((x) => x.id === playerId);
     if (!p) return;
-    p.bay = orderedIds.filter((id) => getCard(id)).map((id) => ({ id, uid: this.nextBayUid() }));
+    // Bubble here too: the sandbox bypasses setPlayerBay entirely, and a Testing Bay that let you
+    // place a Preference Card mid-chain would be testing an arrangement the real game forbids.
+    p.bay = bubblePreferences(
+      orderedIds.filter((id) => cardIdentity(id)).map((id) => ({ id, uid: this.nextBayUid() })),
+      (b) => isInertPreference(cardIdentity(b.id)),
+    );
     this.armPlayerForEra(p);
   }
 
@@ -1187,6 +1588,8 @@ export class MatchController {
   // ── End ────────────────────────────────────────────────────────────────────
   private gameOver(): void {
     this.state.endedAt = this.now();
+    this.state.offer = [];
+    this.state.offerRedrawAvailable = false;
     const standings = [...this.state.players].sort(byScoreDesc);
     this.state.winnerId = standings[0]?.id ?? null;
     this.setPhase("GameOver");

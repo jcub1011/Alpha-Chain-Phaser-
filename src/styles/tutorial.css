@@ -513,6 +513,69 @@
   animation: tut-banned-pulse 1.6s ease-in-out infinite;
 }
 
+/* ── Offer page (Picker) ─────────────────────────────────────────────────────
+ * Three Offer Cards with the middle one selected, over a miniature engine whose
+ * multiplier lights up — the two-stage tap, the shape annotations and the engine
+ * projection, which are the three things the page teaches. */
+.tut-offer {
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.tut-offer-row {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: stretch;
+}
+.tut-ocard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  min-width: 4.6rem;
+  padding: 0.45rem 0.5rem;
+  border: 2px solid var(--ac-border);
+  border-radius: var(--r-sm);
+  background: rgba(255, 255, 255, 0.04);
+  animation: tut-word-in 0.5s ease-out both;
+  animation-delay: calc(var(--i) * 0.16s);
+}
+.tut-ocard.is-picked {
+  border-color: var(--ac-amber);
+  box-shadow: var(--ac-glow-amber);
+  transform: translateY(-3px);
+}
+.tut-oword {
+  font-family: var(--font-mono);
+  font-weight: 800;
+  font-size: 0.86rem;
+  letter-spacing: 0.04em;
+}
+.tut-otag {
+  font-size: 0.6rem;
+  font-weight: 700;
+  opacity: 0.7;
+}
+.tut-offer-bay {
+  display: flex;
+  gap: var(--sp-2);
+}
+/* The engine card the selected word would fire. Static, not animated: the point is which
+ * card lights up, not the lighting. */
+.tut-ecard.is-lit {
+  border-color: var(--ac-amber);
+  box-shadow: var(--ac-glow-amber);
+  animation: none;
+}
+
+/* Picker's timeout outcome is the opposite of Classic's, so it must not read as punishment:
+ * the same clock, but the stamp and the "penalty" go safe-cyan instead of danger-red. */
+.tut-stamp.is-safe,
+.tut-penalty.is-safe {
+  color: var(--ac-cyan);
+  border-color: var(--ac-cyan);
+}
+
 /* Reduced motion: freeze every demo to its informative end-state. */
 @media (prefers-reduced-motion: reduce) {
   .tut-stage,
@@ -529,6 +592,8 @@
   .tut-clock-fill {
     stroke: var(--ac-amber);
   }
+  /* The Offer page needs no fixup: which card is picked and which engine card is lit are both
+     class-driven, so the blanket freeze above leaves the informative state intact. */
 }
 
 /* Terminal multiplayer end (host left / socket closed). */

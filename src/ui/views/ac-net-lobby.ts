@@ -10,10 +10,12 @@
 
 import { html, nothing, type PropertyValues, type TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import { DEFAULT_SETTINGS, saveSettings } from "../../game/settings";
+import { DEFAULT_SETTINGS, MAX_ERA_STEPPER, saveSettings } from "../../game/settings";
+import { GameMode } from "../../game/types";
 import type { AlphaChainSettings } from "../../game/types";
 import type { ServerController } from "../../net/serverController";
 import { AcElement } from "../app/AcElement";
+import { renderPickerSettings } from "./picker-settings";
 import { RARITY_WEIGHT_BOUNDS, renderRarityWeights } from "./rarity-weights";
 import { SETTING_HINTS } from "./settings-hints";
 
@@ -249,13 +251,35 @@ export class AcNetLobby extends AcElement {
                   Settings (read-only) — the owner controls these.
                 </p>`
               : nothing}
-            ${this.stepper(
-              "Shot Clock",
-              `${d.shotClockSeconds}s`,
-              () => this.step("shotClockSeconds", -5, 5, 60),
-              () => this.step("shotClockSeconds", 5, 5, 60),
-              SETTING_HINTS.shotClockSeconds,
+            <!-- Game Mode leads the list, matching <ac-lobby>: Picker is the default, so stored
+                 settings load with it selected and Classic must stay discoverable. -->
+            ${this.segmented<GameMode>(
+              "Game Mode",
+              d.gameMode,
+              [
+                { value: GameMode.Picker, text: "picker" },
+                { value: GameMode.Classic, text: "classic" },
+              ],
+              (v) => this.set("gameMode", v),
+              SETTING_HINTS.gameMode,
             )}
+            ${renderPickerSettings(
+              d,
+              this.step.bind(this),
+              this.set.bind(this),
+              this.stepper.bind(this),
+              this.segmented.bind(this),
+              this.toggle.bind(this),
+            )}
+            ${d.gameMode === GameMode.Classic
+              ? this.stepper(
+                  "Shot Clock",
+                  `${d.shotClockSeconds}s`,
+                  () => this.step("shotClockSeconds", -5, 5, 60),
+                  () => this.step("shotClockSeconds", 5, 5, 60),
+                  SETTING_HINTS.shotClockSeconds,
+                )
+              : nothing}
             ${this.toggle(
               "Tutorials",
               d.enableTutorials,
@@ -304,15 +328,15 @@ export class AcNetLobby extends AcElement {
             ${this.stepper(
               "Eras",
               String(d.eraCount),
-              () => this.step("eraCount", -1, 1, 50),
-              () => this.step("eraCount", 1, 1, 50),
+              () => this.step("eraCount", -1, 1, MAX_ERA_STEPPER),
+              () => this.step("eraCount", 1, 1, MAX_ERA_STEPPER),
               SETTING_HINTS.eraCount,
             )}
             ${this.stepper(
               "Rounds Per Era",
               String(d.eraInterval),
-              () => this.step("eraInterval", -1, 1, 50),
-              () => this.step("eraInterval", 1, 1, 50),
+              () => this.step("eraInterval", -1, 1, MAX_ERA_STEPPER),
+              () => this.step("eraInterval", 1, 1, MAX_ERA_STEPPER),
               SETTING_HINTS.eraInterval,
             )}
             ${this.stepper(

@@ -7,6 +7,13 @@
 import type { AlphaChainSettings } from "../../game/types";
 
 export const SETTING_HINTS: Record<keyof AlphaChainSettings, string> = {
+  gameMode: "Picker: choose a word from the cards you're dealt. Classic: type it yourself.",
+  offerCount: "How many words you get to choose from each turn. Fewer is less to read.",
+  offerDictionary:
+    "Common: ~9,000 everyday words, easier to read at a glance. Full: all 386,000, far more obscure.",
+  pickerShotClockSeconds: "Seconds to pick a word in Picker mode.",
+  highlightBannedLetters:
+    "Highlight the era's banned letter inside the words you're offered. Off keeps the nasty surprise.",
   botCount: "How many AI opponents you play against.",
   botDifficulty: "How well the bots play; their word quality and reaction speed.",
   banMode: "Which letters are eligible to be the era's banned letter.",

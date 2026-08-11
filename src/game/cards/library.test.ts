@@ -9,15 +9,31 @@ import { describe, expect, it } from "vitest";
 import { bayHidesInput, makeBayEvaluator, scoreWord, type ScoreOptions } from "../scoring";
 import {
   CardRarity,
+  GameMode,
   type BayCard,
   type CardRarity as CardRarityT,
   type Submission,
 } from "../types";
-import { CARD_LIBRARY, dealPoolCapacity, RARITY_CARD_COUNTS, rarityDealShare } from "./library";
+import {
+  CARD_CATALOGUE,
+  dealableCardIds,
+  dealPoolCapacity,
+  getCard,
+  rarityCardCounts,
+  rarityDealShare,
+} from "./library";
 import { DEFAULT_RARITY_DEAL_WEIGHT } from "../settings";
 
 const bay = (...ids: string[]): BayCard[] => ids.map((id) => ({ id }));
-const opts = { prevWordLength: 0, clockRemaining: 10, clockTotal: 20, taxed: false };
+const opts = {
+  // Classic explicitly: this file's expected numbers ARE Classic's, and naming the mode is
+  // what keeps them a lock on Classic rather than on whatever the default happens to be.
+  mode: GameMode.Classic,
+  prevWordLength: 0,
+  clockRemaining: 10,
+  clockTotal: 20,
+  taxed: false,
+};
 const score = (word: string, ids: string[], over: Partial<ScoreOptions> = {}): number =>
   scoreWord(word, bay(...ids), { ...opts, ...over }).finalScore;
 /** Minimal history rows (only `.word` is read by Scavenger). */
@@ -318,7 +334,7 @@ describe("Crescendo — clean-streak multiplier", () => {
 // ── Rarity coverage: every card is tiered, and the agreed distribution holds ──
 
 describe("card rarity assignments", () => {
-  const cards = Object.values(CARD_LIBRARY);
+  const cards = Object.values(CARD_CATALOGUE);
   const validTiers = new Set<CardRarityT>(Object.values(CardRarity));
 
   it("assigns every card a valid rarity tier", () => {
@@ -327,7 +343,8 @@ describe("card rarity assignments", () => {
     }
   });
 
-  it("matches the agreed 18 / 15 / 11 / 3 distribution", () => {
+  it("matches the agreed whole-catalogue distribution", () => {
+    // 47 mode-agnostic + Classic-only cards, plus the 7 Picker-only Preference Cards.
     const counts: Record<CardRarityT, number> = {
       common: 0,
       uncommon: 0,
@@ -335,11 +352,85 @@ describe("card rarity assignments", () => {
       legendary: 0,
     };
     for (const c of cards) counts[c.rarity]++;
-    expect(counts).toEqual({ common: 18, uncommon: 15, rare: 11, legendary: 3 });
+    expect(counts).toEqual({ common: 20, uncommon: 17, rare: 13, legendary: 4 });
+    expect(cards.length).toBe(54);
   });
 
-  it("exposes those same counts as RARITY_CARD_COUNTS", () => {
-    expect(RARITY_CARD_COUNTS).toEqual({ common: 18, uncommon: 15, rare: 11, legendary: 3 });
+  it("gives the CLASSIC dealer the original 18 / 15 / 11 / 3 pool", () => {
+    // Classic is unchanged by all of this: the 7 Preference Cards are Picker-only, so its pool is
+    // still exactly the 47 cards it always was.
+    expect(rarityCardCounts(GameMode.Classic)).toEqual({
+      common: 18,
+      uncommon: 15,
+      rare: 11,
+      legendary: 3,
+    });
+    expect(dealableCardIds(GameMode.Classic).length).toBe(47);
+  });
+
+  it("gives the PICKER dealer its own pool: no Blindfold or Insurance, plus the seven", () => {
+    // Out: The Blindfold (Uncommon — masks an input box Picker has none of) and Insurance
+    // (Common — negates a timeout penalty Picker does not have).
+    // In: Sieve + Wide Net (Common), Tide + Prospector (Uncommon), Winnower + Sentinel (Rare),
+    // Tunnel Vision (Legendary).
+    expect(rarityCardCounts(GameMode.Picker)).toEqual({
+      common: 19,
+      uncommon: 16,
+      rare: 13,
+      legendary: 4,
+    });
+    expect(dealableCardIds(GameMode.Picker).length).toBe(52);
+  });
+});
+
+// ── dealableCardIds: the mode-scoped pool the dealer and the lobby both read ──
+
+describe("dealableCardIds", () => {
+  it("is a strict split — no card is dealable in neither mode", () => {
+    const union = new Set([
+      ...dealableCardIds(GameMode.Classic),
+      ...dealableCardIds(GameMode.Picker),
+    ]);
+    expect(union.size).toBe(Object.keys(CARD_CATALOGUE).length);
+  });
+
+  it("withholds exactly The Blindfold and Insurance from Picker", () => {
+    const classic = new Set<string>(dealableCardIds(GameMode.Classic));
+    const picker = new Set<string>(dealableCardIds(GameMode.Picker));
+    expect([...classic].filter((id) => !picker.has(id)).sort()).toEqual(["Blindfold", "Insurance"]);
+  });
+
+  it("withholds every Preference Card from Classic", () => {
+    const classic = new Set<string>(dealableCardIds(GameMode.Classic));
+    const picker = new Set<string>(dealableCardIds(GameMode.Picker));
+    expect([...picker].filter((id) => !classic.has(id)).sort()).toEqual([
+      "Prospector",
+      "Sentinel",
+      "Sieve",
+      "Tide",
+      "TunnelVision",
+      "WideNet",
+      "Winnower",
+    ]);
+  });
+
+  it("still RESOLVES a withheld card, so an existing bay and the gallery keep rendering", () => {
+    // Undealable is not deleted. `getCard` is mode-PARAMETERIZED but never mode-FILTERED, so each
+    // card resolves in the mode it is withheld from — otherwise a score replay of a Classic match,
+    // or the sandbox gallery, would render blanks.
+    expect(getCard("Blindfold", GameMode.Picker)?.name).toBe("Blindfold");
+    expect(getCard("Sieve", GameMode.Classic)?.name).toBe("Sieve");
+    // And in their own modes too, so the assertion above is about filtering, not existence.
+    expect(getCard("Blindfold", GameMode.Classic)?.name).toBe("Blindfold");
+    expect(getCard("Sieve", GameMode.Picker)?.name).toBe("Sieve");
+  });
+
+  it("preserves declaration order, which the dealer's weighted walk indexes into", () => {
+    const all = Object.keys(CARD_CATALOGUE);
+    for (const mode of [GameMode.Classic, GameMode.Picker]) {
+      const ids: string[] = [...dealableCardIds(mode)];
+      expect(ids).toEqual(all.filter((id) => ids.includes(id)));
+    }
   });
 });
 
@@ -347,7 +438,7 @@ describe("card rarity assignments", () => {
 
 describe("rarityDealShare", () => {
   it("splits a draw across tiers by count × weight, summing to 1", () => {
-    const share = rarityDealShare(DEFAULT_RARITY_DEAL_WEIGHT);
+    const share = rarityDealShare(DEFAULT_RARITY_DEAL_WEIGHT, GameMode.Classic);
     const sum = Object.values(share).reduce((a, b) => a + b, 0);
     expect(sum).toBeCloseTo(1, 10);
     // Σ = 18×10 + 15×5 + 11×2 + 3×1 = 280.
@@ -358,13 +449,16 @@ describe("rarityDealShare", () => {
   });
 
   it("gives a zeroed tier exactly no share, and redistributes the rest", () => {
-    const share = rarityDealShare({ ...DEFAULT_RARITY_DEAL_WEIGHT, common: 0 });
+    const share = rarityDealShare({ ...DEFAULT_RARITY_DEAL_WEIGHT, common: 0 }, GameMode.Classic);
     expect(share.common).toBe(0);
     expect(Object.values(share).reduce((a, b) => a + b, 0)).toBeCloseTo(1, 10);
   });
 
   it("returns zeros rather than NaN when every tier is zeroed", () => {
-    const share = rarityDealShare({ common: 0, uncommon: 0, rare: 0, legendary: 0 });
+    const share = rarityDealShare(
+      { common: 0, uncommon: 0, rare: 0, legendary: 0 },
+      GameMode.Classic,
+    );
     expect(share).toEqual({ common: 0, uncommon: 0, rare: 0, legendary: 0 });
   });
 });
@@ -373,27 +467,56 @@ describe("rarityDealShare", () => {
 
 describe("dealPoolCapacity", () => {
   const ALL_TIERS = { common: 1, uncommon: 1, rare: 1, legendary: 1 };
-  const capOf = (id: string) => CARD_LIBRARY[id as keyof typeof CARD_LIBRARY].maxInstances ?? 3;
+  const capOf = (id: string) => CARD_CATALOGUE[id as keyof typeof CARD_CATALOGUE].maxInstances ?? 3;
 
-  it("sums every copy of every card when no tier is disabled", () => {
-    const expected = Object.keys(CARD_LIBRARY).reduce((sum, id) => sum + capOf(id), 0);
-    expect(dealPoolCapacity(ALL_TIERS)).toBe(expected);
-    // The weights are relative, so only the zero/non-zero split can move the ceiling.
-    expect(dealPoolCapacity(DEFAULT_RARITY_DEAL_WEIGHT)).toBe(expected);
+  it("sums every copy of every card in the mode's pool when no tier is disabled", () => {
+    // Derived from the mode's own id list, not the whole catalogue — the two diverged once cards
+    // became mode-scoped, and the dealer reads the mode list.
+    for (const mode of [GameMode.Classic, GameMode.Picker]) {
+      const expected = dealableCardIds(mode).reduce((sum, id) => sum + capOf(id), 0);
+      expect(dealPoolCapacity(ALL_TIERS, mode), mode).toBe(expected);
+      // The weights are relative, so only the zero/non-zero split can move the ceiling.
+      expect(dealPoolCapacity(DEFAULT_RARITY_DEAL_WEIGHT, mode), mode).toBe(expected);
+    }
   });
 
   it("counts only the enabled tiers", () => {
-    const legendaryOnly = dealPoolCapacity({ ...ALL_TIERS, common: 0, uncommon: 0, rare: 0 });
+    const legendaryOnly = dealPoolCapacity(
+      { ...ALL_TIERS, common: 0, uncommon: 0, rare: 0 },
+      GameMode.Classic,
+    );
     // Deca-Quint 1 + Forgery 3 (the default cap) + Roulette Wheel 1 — a whole match's worth
     // of intermissions has 5 cards to draw from, against a default ask of 9.
     expect(legendaryOnly).toBe(5);
-    expect(dealPoolCapacity(ALL_TIERS) - dealPoolCapacity({ ...ALL_TIERS, legendary: 0 })).toBe(
-      legendaryOnly,
-    );
+    expect(
+      dealPoolCapacity(ALL_TIERS, GameMode.Classic) -
+        dealPoolCapacity({ ...ALL_TIERS, legendary: 0 }, GameMode.Classic),
+    ).toBe(legendaryOnly);
   });
 
   it("is 0 when every tier is disabled", () => {
-    expect(dealPoolCapacity({ common: 0, uncommon: 0, rare: 0, legendary: 0 })).toBe(0);
+    expect(
+      dealPoolCapacity({ common: 0, uncommon: 0, rare: 0, legendary: 0 }, GameMode.Classic),
+    ).toBe(0);
+  });
+
+  it("differs between the modes by exactly the cards each withholds", () => {
+    /* The number the lobby's warning prints. If the dealer and this readout ever disagreed, the
+     * warning would be wrong precisely in the mode it was computed for.
+     *
+     * Picker is the LARGER pool now: it gives up Blindfold (cap 1) and Insurance (cap 3), and gains
+     * the seven Preference Cards — 3+1+3+1+3+3+3 = 17 copies, since Winnower and Tunnel Vision
+     * are capped at one each. Net +13. */
+    const classic = dealPoolCapacity(ALL_TIERS, GameMode.Classic);
+    const picker = dealPoolCapacity(ALL_TIERS, GameMode.Picker);
+    expect(picker - classic).toBe(13);
+  });
+
+  it("counts the legendary tier one card higher in Picker (Tunnel Vision)", () => {
+    const legendaryOnly = { ...ALL_TIERS, common: 0, uncommon: 0, rare: 0 };
+    expect(dealPoolCapacity(legendaryOnly, GameMode.Classic)).toBe(5);
+    // Tunnel Vision is the family's only Legendary, and it is capped at 1.
+    expect(dealPoolCapacity(legendaryOnly, GameMode.Picker)).toBe(6);
   });
 });
 

@@ -136,6 +136,31 @@ export class ServerController implements GameController {
     this.dispatch({ kind: "draftWord", word });
   }
 
+  reportSelection(word: string): void {
+    // Stream the highlighted Offer word so the SERVER clock can commit it on expiry. Without this
+    // the authority would see no selection and read every expiry as a no-show — which in Survival
+    // would eliminate a player who had in fact chosen. Throttled by <ac-offer-grid>; the server's
+    // 1s submit grace is what makes that throttle safe against the buzzer.
+    this.dispatch({ kind: "selectOffer", word });
+  }
+
+  commitSelection(word?: string): SubmitResult {
+    // The word is required on the wire: a payload-less commit would depend on the throttled select
+    // having already landed, so tap-then-immediately-GO could commit the wrong word or nothing.
+    // Nothing selected is a local no-op — never a wire message.
+    if (!word) return { accepted: false };
+    this.dispatch({ kind: "commitSelection", word });
+    // Event-driven like submitWord: the real outcome arrives as submission/rejected on the mirror,
+    // so this synchronous return is neutral.
+    return { accepted: false };
+  }
+
+  redrawOffer(): void {
+    // The authority re-derives eligibility (turn, charge, card held), so an ineligible redraw
+    // costs one refused intent and no broadcast.
+    this.dispatch({ kind: "redrawOffer" });
+  }
+
   destroy(): void {
     this.peer.events.off("ready", this.onReady as never);
     this.peer.events.off("message", this.onMessage as never);

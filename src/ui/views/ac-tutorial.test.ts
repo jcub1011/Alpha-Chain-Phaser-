@@ -40,6 +40,9 @@ function controllerFor(match: MatchController, humanId: string, isOwner: boolean
     tick: () => {},
     submitWord: () => ({ accepted: false, reason: "invalid" }) as never,
     reportDraft: () => {},
+    reportSelection: () => {},
+    commitSelection: () => ({ accepted: false }),
+    redrawOffer: () => {},
     destroy: () => {},
   };
 }

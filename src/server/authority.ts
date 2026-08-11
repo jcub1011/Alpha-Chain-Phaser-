@@ -21,9 +21,15 @@
 
 import { MatchController, type MatchEvents, type PlayerSeed } from "../game/match";
 import { DEFAULT_SETTINGS, sanitizeSettings, SUBMIT_GRACE_SECONDS } from "../game/settings";
-import { emptyMatchState, type AlphaChainSettings, type MatchState } from "../game/types";
+import {
+  DictionaryTier,
+  emptyMatchState,
+  type AlphaChainSettings,
+  type MatchState,
+} from "../game/types";
 import type { ClockAnchor, Intent, ServerStatePayload, WireEvent } from "../net/messages";
 import { serializeState } from "../net/serialize";
+import { kbWordPool } from "../game/picker/wordPool";
 import { createLogger, setLogSink, type KbLog } from "./serverLog";
 
 const log = createLogger("authority");
@@ -55,8 +61,15 @@ export interface Kb {
   rng?: () => number;
 }
 
-/** The dictionary key Alpha Chain declares in GAME.json authorityWords. */
+/** The dictionary keys Alpha Chain declares in GAME.json authorityWords.
+ *
+ *  `en` is the full 386k list and is the ONLY validator, in both game modes. `en-common` is the
+ *  ~9k common-word list Picker can draw its Offer from — a strict subset of `en`
+ *  (tools/build-common-wordlist.mjs enforces the intersection), which is what lets validation stay
+ *  on the full list while the Offer comes from the smaller one. If that subset property ever
+ *  broke, offered words would start rejecting as "not-a-word". */
 const DICTIONARY = "en";
+const DICTIONARY_COMMON = "en-common";
 
 /** Match events replayed to clients for animation (everything but the per-frame clock,
  *  which clients interpolate from the snapshot's absolute-expiry anchor). Mirrors the
@@ -194,6 +207,13 @@ export function createAuthority(kb: Kb) {
       rng: kb.rng ?? Math.random,
       now: () => kb.now(),
       submitGraceSeconds: SUBMIT_GRACE_SECONDS,
+      // Picker's Offer pool. The dictionary never reaches the client in networked play — the
+      // index-only word service is enough to build a length-shaped, succession-constrained Offer
+      // host-side, and the Offer itself ships in the snapshot.
+      wordPool: kbWordPool(
+        kb.words,
+        chosen.offerDictionary === DictionaryTier.Reduced ? DICTIONARY_COMMON : DICTIONARY,
+      ),
     });
     for (const type of REPLAYED_EVENTS) {
       host.events.on(type, (payload) => pending.push({ type, payload } as WireEvent));
@@ -247,6 +267,27 @@ export function createAuthority(kb: Kb) {
             // event — nothing to broadcast.
             h.setDraft(fromId, action.word);
             return null;
+          case "selectOffer":
+            // Picker's twin of draftWord. Returning a literal null — never drainPatch — is
+            // LOAD-BEARING, not tidiness: there is no server-side rate limiter anywhere in this
+            // build, and an intent that cannot make the server fan state out is the only thing
+            // standing between a held-down tap and an amplification vector. setSelection also
+            // refuses a word that isn't in the current Offer, and refuses off-turn senders.
+            h.setSelection(fromId, action.word);
+            return null;
+          case "commitSelection":
+            // Mirrors `submit`: commitSelection emits `submission` on success or one `rejected`
+            // on a bad word, and is deliberately EVENTLESS when nothing is selected — so
+            // drainPatch(false) publishes exactly once per real outcome and nothing for a stray.
+            h.commitSelection(fromId, action.word);
+            return drainPatch(false);
+          case "redrawOffer":
+            // Mutates state (a new Offer + a shorter clock) and emits turnArmed/clockTick, so
+            // unlike selectOffer this one genuinely must broadcast. The engine re-derives
+            // eligibility — turn, phase, card held, charge unspent — so a spammed redraw is
+            // refused there and drainPatch publishes nothing.
+            h.redrawOffer(fromId);
+            return drainPatch(false);
           case "reorderBay":
             if (!inOptimize()) return null;
             h.setPlayerBay(fromId, action.engine, action.discard);
@@ -277,8 +318,16 @@ export function createAuthority(kb: Kb) {
             if (fromId !== ownerId) return null; // only the owner may skip
             h.skipTutorial();
             return drainPatch(false);
+          default: {
+            // Exhaustiveness guard. Without it a new Intent member with no case here silently
+            // returns null — the intent would just never work, with nothing to debug from. The
+            // two early `if` returns above narrow startMatch/setSettings out, so `action` is
+            // `never` here once every remaining kind is handled.
+            const unhandled: never = action;
+            log.warn(`applyIntent: unhandled intent ${String((unhandled as Intent).kind)}`);
+            return null;
+          }
         }
-        return null;
       } catch (err) {
         // Contained failure: drop the intent and re-broadcast the authoritative state so
         // clients re-converge, exactly like the old host's try/catch (never freeze play).

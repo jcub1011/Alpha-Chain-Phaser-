@@ -23,6 +23,10 @@ import "./ac-card";
 export interface FanCard extends BayCard {
   /** Grayed out (e.g. a card that didn't trigger in a scoring trace). */
   dimmed?: boolean;
+  /** Lit up — Picker highlights the bay cards that WOULD fire for the currently selected Offer
+   *  word, which is the main way a player learns what their engine wants. Distinct from the score
+   *  replay's transient `triggered`, which walks one card at a time after the fact. */
+  triggered?: boolean;
   /** Content revealed in a chip above the card while it's hovered/lifted. */
   hover?: TemplateResult;
 }
@@ -80,6 +84,7 @@ export class AcCardFan extends AcElement {
               .cardId=${c.id}
               ?mini=${this.mini}
               ?dimmed=${c.dimmed ?? false}
+              ?triggered=${c.triggered ?? false}
               style=${at(i)}
             ></ac-card>
             ${c.hover

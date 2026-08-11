@@ -9,8 +9,10 @@ import { describe, expect, it } from "vitest";
 import { chooseBotWordScored, planBotBay, type BotScoredPick } from "./bots";
 import { Dictionary } from "./dictionary";
 import type { BayCard } from "./types";
+import { GameMode } from "./types";
 
 const scoreOpts = {
+  mode: GameMode.Classic,
   prevWordLength: 0,
   clockRemaining: 10,
   clockTotal: 20,

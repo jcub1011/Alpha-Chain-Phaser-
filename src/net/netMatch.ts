@@ -16,6 +16,7 @@ import { DEFAULT_SETTINGS, legalBanLetters } from "../game/settings";
 import {
   byScoreDesc,
   emptyMatchState,
+  type GameMode,
   type GamePhase,
   type MatchState,
   type PlayerState,
@@ -183,10 +184,22 @@ export class NetMatch implements MatchLike {
     // snapshot carries them; read straight from the synced state.
     return this._state.players.find((p) => p.id === playerId)?.personalBans ?? [];
   }
+  /**
+   * The mode this mirror renders card values for.
+   *
+   * Read from the replicated setting rather than derived, because `isPicker`'s word-pool half is
+   * host-local and a guest has no pool to inspect. The two can only disagree in the logged
+   * wiring-bug case where the host asked for Picker and was given no pool — and there the guest is
+   * a display mirror whose scores all arrive pre-computed from the authority anyway.
+   */
+  get effectiveMode(): GameMode {
+    return this._state.settings.gameMode;
+  }
+
   hidesInput(playerId: string): boolean {
     const p = this._state.players.find((x) => x.id === playerId);
     if (!p) return false;
-    return p.bay.some((b) => getCard(b.id)?.hidesInput?.() ?? false);
+    return p.bay.some((b) => getCard(b.id, this.effectiveMode)?.hidesInput?.() ?? false);
   }
 
   // ── Mutators → authority intents (clients never mutate authoritative state) ──

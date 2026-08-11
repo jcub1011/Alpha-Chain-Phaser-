@@ -11,7 +11,9 @@
 import { html, nothing, type PropertyValues, type TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { BenchScenario } from "../../game/bench";
-import { CARD_LIBRARY } from "../../game/cards/library";
+import { CARD_CATALOGUE } from "../../game/cards/library";
+import { setCardDisplayMode } from "../app/cardMode";
+import { CardId, GameMode } from "../../game/types";
 import type { Dictionary } from "../../game/dictionary";
 import type { ScoreStep } from "../../game/types";
 import { familyAccentVar, fmtScore, playerAccentVar } from "../app/util";
@@ -19,7 +21,8 @@ import { AcElement } from "../app/AcElement";
 import "../components/ac-engine-bay";
 import "../components/ac-card";
 
-const CARD_COUNT = Object.keys(CARD_LIBRARY).length;
+// Mode-independent: resolution never filters, so every mode holds every id.
+const CARD_COUNT = Object.keys(CardId).length;
 
 @customElement("ac-sandbox")
 export class AcSandbox extends AcElement {
@@ -39,6 +42,9 @@ export class AcSandbox extends AcElement {
     if (changed.has("dict") && this.dict && !this.bench) {
       this.bench = new BenchScenario(this.dict);
     }
+    // The palette and the bays render <ac-card>, so the faces must follow the bench's mode
+    // selector. No-ops when unchanged.
+    if (this.bench) setCardDisplayMode(this.bench.gameMode);
   }
 
   // ── Actions ────────────────────────────────────────────────────────────────
@@ -76,6 +82,33 @@ export class AcSandbox extends AcElement {
     if (r.accepted) this.word = "";
     this.requestUpdate();
   }
+  private setMode(mode: GameMode): void {
+    this.bench?.setMode(mode);
+    this.message = "";
+    this.requestUpdate();
+  }
+
+  /** Picker: commit an offered word. */
+  private commit(word: string): void {
+    if (!this.bench) return;
+    const r = this.bench.commitOffer(word, this.remaining);
+    this.message = r.accepted ? "" : `Rejected: ${r.reason ?? "invalid"}`;
+    this.requestUpdate();
+  }
+
+  private redrawOffer(): void {
+    this.bench?.redraw();
+    this.requestUpdate();
+  }
+
+  /** Adding a Preference Card from the palette does not itself redraw the Offer — the Offer is
+   *  generated when a turn ARMS. This re-arms in place so a shape filter's effect is visible
+   *  immediately, which is the whole point of testing the family here. */
+  private rearm(): void {
+    this.bench?.redrawForBayChange();
+    this.requestUpdate();
+  }
+
   private skip(): void {
     this.bench?.skip();
     this.message = "";
@@ -130,6 +163,20 @@ export class AcSandbox extends AcElement {
               @input=${(e: Event) => this.onBan(e)}
             />
           </label>
+          <label
+            >Mode
+            <select
+              @change=${(e: Event) =>
+                this.setMode((e.target as HTMLSelectElement).value as GameMode)}
+            >
+              <option value=${GameMode.Classic} ?selected=${b.gameMode === GameMode.Classic}>
+                classic
+              </option>
+              <option value=${GameMode.Picker} ?selected=${b.gameMode === GameMode.Picker}>
+                picker
+              </option>
+            </select>
+          </label>
           <div class="sandbox-turn">
             <span class="sandbox-turn-label">Current turn</span>
             <strong>${currentName}</strong>
@@ -144,16 +191,32 @@ export class AcSandbox extends AcElement {
         </section>
 
         <section class="sandbox-submit">
-          <label class="sandbox-word"
-            >Word for ${currentName}
-            <input
-              type="text"
-              placeholder="type a word…"
-              .value=${this.word}
-              @input=${(e: Event) => (this.word = (e.target as HTMLInputElement).value)}
-              @keydown=${(e: KeyboardEvent) => e.key === "Enter" && this.submit()}
-            />
-          </label>
+          ${b.gameMode === GameMode.Picker
+            ? html`<div class="sandbox-offer">
+                <span class="sandbox-turn-label">
+                  Offer for ${currentName}
+                  ${b.offer.length === 0 ? html`<em>— none drawn</em>` : nothing}
+                </span>
+                <div class="sandbox-offer-row">
+                  ${b.offer.map(
+                    (w) =>
+                      html`<button class="chip" @click=${() => this.commit(w)}>
+                        ${w}
+                        <small>${w.length}L</small>
+                      </button>`,
+                  )}
+                </div>
+              </div>`
+            : html`<label class="sandbox-word"
+                >Word for ${currentName}
+                <input
+                  type="text"
+                  placeholder="type a word…"
+                  .value=${this.word}
+                  @input=${(e: Event) => (this.word = (e.target as HTMLInputElement).value)}
+                  @keydown=${(e: KeyboardEvent) => e.key === "Enter" && this.submit()}
+                />
+              </label>`}
           <label
             >Clock remaining (s)
             <input
@@ -164,7 +227,12 @@ export class AcSandbox extends AcElement {
                 (this.remaining = Number((e.target as HTMLInputElement).value))}
             />
           </label>
-          <button class="ac-btn" @click=${this.submit}>Submit</button>
+          ${b.gameMode === GameMode.Picker
+            ? html`<button class="chip" @click=${this.redrawOffer} ?disabled=${!b.canRedraw}>
+                  ↻ Redraw
+                </button>
+                <button class="chip" @click=${this.rearm}>Redraw for bay change</button>`
+            : html`<button class="ac-btn" @click=${this.submit}>Submit</button>`}
           <button class="chip" @click=${this.skip}>Skip turn ▶</button>
           ${this.message ? html`<span class="sandbox-msg">${this.message}</span>` : nothing}
         </section>
@@ -320,7 +388,7 @@ export class AcSandbox extends AcElement {
           </button>
         </div>
         <div class="palette-grid ${this.paletteLarge ? "" : "is-small"}">
-          ${Object.values(CARD_LIBRARY).map(
+          ${Object.values(CARD_CATALOGUE).map(
             (c) => html`
               <div class="palette-item">
                 <ac-card .cardId=${c.id} ?mini=${!this.paletteLarge}></ac-card>

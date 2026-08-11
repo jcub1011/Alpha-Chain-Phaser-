@@ -1,5 +1,5 @@
 import { createLogger } from "../log";
-import { CardRarity } from "./types";
+import { CardRarity, DictionaryTier, GameMode } from "./types";
 import type {
   AlphaChainSettings,
   BanMode,
@@ -42,6 +42,15 @@ export const RARITY_WEIGHT_KEYS: Record<CardRarity, RarityWeightKey> = {
 
 /** Defaults ported from AlphaChainSettings.cs, plus single-player bot options. */
 export const DEFAULT_SETTINGS: AlphaChainSettings = {
+  // Picker is the default mode, not an alternate — it is what a new player meets first.
+  gameMode: GameMode.Picker,
+  offerCount: 5,
+  offerDictionary: DictionaryTier.Reduced,
+  // A genuine playtest question, not a design decision: too generous and turns drag, which is
+  // fatal in a party game; too tight and Picker becomes a reading-speed race. 25s is the starting
+  // guess, deliberately a lone tunable constant.
+  pickerShotClockSeconds: 25,
+  highlightBannedLetters: false,
   banMode: "All",
   banRepeatRule: "NoConsecutive",
   dealEngineCardsFirstEra: false,
@@ -73,7 +82,7 @@ const STORAGE_KEY = "alphachain.settings";
 
 /** Bump when a setting's valid range/enum changes so stale persisted blobs (which
  *  may now hold out-of-range values) are discarded rather than silently loaded. */
-const SETTINGS_VERSION = 3;
+const SETTINGS_VERSION = 4;
 
 /**
  * Load persisted settings, merged over defaults with per-field validation.
@@ -153,6 +162,27 @@ export const isVowel = (c: string): boolean => VOWELS.has(c.toLowerCase());
 const BAN_MODES: readonly BanMode[] = ["All", "VowelsOnly", "ConsonantsOnly"];
 const BAN_REPEAT_RULES: readonly BanRepeatRule[] = ["AllowRepeat", "NoConsecutive", "NoRepeat"];
 const BOT_DIFFICULTIES: readonly BotDifficulty[] = ["easy", "medium", "hard"];
+const GAME_MODES: readonly GameMode[] = Object.values(GameMode);
+const DICTIONARY_TIERS: readonly DictionaryTier[] = Object.values(DictionaryTier);
+
+/** Offer size bounds. The upper bound is a layout guarantee, not a taste call: GDD §2.1 requires
+ *  every Offer Card be visible without scrolling, and past 8 that stops holding on a phone. */
+export const MIN_OFFER_COUNT = 3;
+export const MAX_OFFER_COUNT = 8;
+
+/** Upper bound for `eraCount` / `eraInterval`, shared by the persistence validators and both
+ *  lobbies' steppers so the editable range and the accepted range cannot drift apart. */
+export const MAX_ERA_STEPPER = 50;
+
+/** The match's base shot clock for the active mode.
+ *
+ *  MUST be used everywhere the clock is read for MATHS rather than display. `baseClockSeconds`
+ *  feeds every clock-scaling card's fraction (Panic Button, Speedracer, The Vault, Redline,
+ *  Chrono Syphon), so a site that keeps reading `shotClockSeconds` while Picker arms
+ *  `pickerShotClockSeconds` mis-scores silently instead of failing. */
+export function baseShotClockSeconds(s: AlphaChainSettings): number {
+  return s.gameMode === GameMode.Picker ? s.pickerShotClockSeconds : s.shotClockSeconds;
+}
 
 /** A finite number within [min, max]. Rejects NaN/±Infinity (which are `typeof
  *  "number"`) and out-of-range values that the lobby's step-clamp never sees on load. */
@@ -165,6 +195,11 @@ const isBool = (v: unknown): boolean => typeof v === "boolean";
 /** Per-field validator for persisted settings. Ranges mirror the lobby limits; a
  *  value that fails keeps the default (see loadSettings). */
 const SETTINGS_VALIDATORS: { [K in keyof AlphaChainSettings]: (v: unknown) => boolean } = {
+  gameMode: (v) => GAME_MODES.includes(v as GameMode),
+  offerCount: inRange(MIN_OFFER_COUNT, MAX_OFFER_COUNT),
+  offerDictionary: (v) => DICTIONARY_TIERS.includes(v as DictionaryTier),
+  pickerShotClockSeconds: inRange(5, 60),
+  highlightBannedLetters: isBool,
   banMode: (v) => BAN_MODES.includes(v as BanMode),
   banRepeatRule: (v) => BAN_REPEAT_RULES.includes(v as BanRepeatRule),
   dealEngineCardsFirstEra: isBool,
@@ -173,8 +208,11 @@ const SETTINGS_VALIDATORS: { [K in keyof AlphaChainSettings]: (v: unknown) => bo
   intermissionCardSelectSeconds: inRange(5, 180),
   sniperBanSeconds: inRange(5, 120),
   preRoundCountdownSeconds: inRange(0, 30),
-  eraInterval: inRange(1, 20),
-  eraCount: inRange(1, 20),
+  // 50, matching both lobbies' steppers. These read 1-20 until now, which silently broke every
+  // long match: a host who set 30 eras had it saved, reset to the default on the next reload, and
+  // sanitized away server-side — with no warning anywhere, because rejection is by design silent.
+  eraInterval: inRange(1, MAX_ERA_STEPPER),
+  eraCount: inRange(1, MAX_ERA_STEPPER),
   survivalMode: isBool,
   modifiersDealtPerEra: inRange(0, 10),
   // 0 is a legal, meaningful value: it disables the tier (see rarityDealWeights).

@@ -40,6 +40,23 @@ const SCRIPTS: Record<TutorialKind, Script> = {
       "Time out and you lose points — and in Survival mode, your spot.",
     ],
   },
+  // ── Picker's pre-game pair. Classic's two above are left exactly as they were. ──
+  offer: {
+    eyebrow: "how to play · the offer",
+    title: "Pick your word",
+    lines: [
+      "Each turn you're offered a few words. Tap one to select it, tap again to play it.",
+      "Selecting shows which of your engine cards would fire — the score itself stays hidden.",
+    ],
+  },
+  pickerTimeout: {
+    eyebrow: "how to play · the shot clock",
+    title: "The clock plays your pick",
+    lines: [
+      "Run out of time and your selected word is played for you. You lose no points for it.",
+      "Pick nothing at all and one is chosen at random — and in Survival mode, that costs you your spot.",
+    ],
+  },
   engine: {
     eyebrow: "how to play · your engine",
     title: "Your engine scores left → right",
@@ -152,6 +169,46 @@ export class AcTutorial extends AcElement {
           <div class="tut-timeout-out">
             <span class="tut-stamp">TIMED OUT</span>
             <span class="tut-penalty">−10</span>
+          </div>
+        </div>`;
+      case "offer":
+        // Three Offer Cards with the middle one selected: the two-stage tap, the shape
+        // annotations, and the engine lighting up — the three things the page is teaching.
+        return html`<div class="tut-stage tut-offer">
+          <div class="tut-offer-row">
+            ${[
+              { w: "CANDLE", tag: "6L 2v", on: false },
+              { w: "CRISP", tag: "5L 1v", on: true },
+              { w: "CAVE", tag: "4L 2v", on: false },
+            ].map(
+              (c, i) => html`
+                <span class="tut-ocard ${c.on ? "is-picked" : ""}" style="--i:${i}">
+                  <span class="tut-oword">${c.w}</span>
+                  <span class="tut-otag">${c.tag}</span>
+                </span>
+              `,
+            )}
+          </div>
+          <div class="tut-offer-bay" aria-hidden="true">
+            <span class="tut-ecard is-add" style="--i:0">+5</span>
+            <span class="tut-ecard is-mul is-lit" style="--i:1">×2</span>
+            <span class="tut-ecard is-add" style="--i:2">+8</span>
+          </div>
+        </div>`;
+      case "pickerTimeout":
+        // The same clock as Classic's page, with the opposite outcome: your pick resolves, and
+        // the penalty slot reads "no penalty" rather than −10.
+        return html`<div class="tut-stage tut-timeout">
+          <div class="tut-clock">
+            <svg viewBox="0 0 64 64" aria-hidden="true">
+              <circle class="tut-clock-track" cx="32" cy="32" r="28" />
+              <circle class="tut-clock-fill" cx="32" cy="32" r="28" />
+            </svg>
+            <span class="tut-clock-ico">⏱</span>
+          </div>
+          <div class="tut-timeout-out">
+            <span class="tut-stamp is-safe">YOUR PICK PLAYS</span>
+            <span class="tut-penalty is-safe">−0</span>
           </div>
         </div>`;
       case "engine":

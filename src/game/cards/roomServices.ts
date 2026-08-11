@@ -14,10 +14,33 @@ import type { AlphaChainSettings, EngineEffectNotice, PlayerState } from "../typ
 export type RoomServiceKey =
   | "prismGuard"
   | "wildcardGuard"
+  | "winnowerGuard"
   | "cardBan"
   | "timePenalty"
   | "hijackBan"
   | "crescendoStreak";
+
+/** A once-per-TURN charge (Winnower's Offer redraw).
+ *
+ *  Same shape as {@link EraGuard} but reset from `fireTurnStarted`, and reset for ONE player —
+ *  the one whose turn is starting — because that is all `fireTurnStarted` is handed. That is
+ *  exactly right for a "once per your turn" charge, and would be wrong for anything that needs
+ *  clearing across the whole table. */
+export class TurnGuard {
+  private readonly used = new Set<string>();
+  /** Consume the charge if available; returns true if it fired this call. */
+  tryConsume(id: string): boolean {
+    if (this.used.has(id)) return false;
+    this.used.add(id);
+    return true;
+  }
+  isAvailable(id: string): boolean {
+    return !this.used.has(id);
+  }
+  resetTurn(id: string): void {
+    this.used.delete(id);
+  }
+}
 
 /** A once-per-era charge (Prism refill, Wildcard succession bypass). */
 export class EraGuard {
@@ -129,6 +152,7 @@ export class CrescendoStreakService {
 export class RoomServices {
   readonly prismGuard = new EraGuard();
   readonly wildcardGuard = new EraGuard();
+  readonly winnowerGuard = new TurnGuard();
   readonly cardBan = new CardBanService();
   readonly timePenalty = new TimePenaltyService();
   readonly hijackBan = new HijackBanService();
@@ -137,9 +161,10 @@ export class RoomServices {
   /** Draws personal banned letters for Roulette Wheel / Toll Booth at era start. */
   constructor(readonly banLetters: BanLetterService) {}
 
-  /** Per-turn reset boundary (room services that re-arm each turn). No-op today. */
-  fireTurnStarted(_player: PlayerState): void {
-    // Reserved: turn-scoped services re-arm here (mirrors C# IRoomStateService.OnTurnStarted).
+  /** Per-turn reset boundary (room services that re-arm each turn). Runs for the player whose
+   *  turn is starting, before the Offer is generated and before the clock is armed. */
+  fireTurnStarted(player: PlayerState): void {
+    this.winnowerGuard.resetTurn(player.id);
   }
 
   /** Reset the per-era guards + streaks for a player at an era boundary. */

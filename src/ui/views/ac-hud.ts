@@ -10,12 +10,16 @@
 import { html, nothing, type PropertyValues, type TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type { GameController } from "../../net/controller";
-import type { BayCard, PlayerState } from "../../game/types";
+import { GameMode } from "../../game/types";
+import type { PlayerState } from "../../game/types";
+import { scoreWord } from "../../game/scoring";
+import type { FanCard } from "../components/ac-card-fan";
 import { playerAccentVar } from "../app/util";
 import { AcElement } from "../app/AcElement";
 
 import "../components/ac-shot-clock";
 import "../components/ac-word-entry";
+import "../components/ac-offer-grid";
 import "../components/ac-leaderboard";
 import "../components/ac-recent-words";
 import "../components/ac-score-replay";
@@ -33,7 +37,9 @@ export class AcHud extends AcElement {
   @state() private isHumanTurn = false;
   @state() private humanExempt = false;
   @state() private personalBans: { letter: string; cardName: string }[] = [];
-  @state() private humanBay: BayCard[] = [];
+  @state() private humanBay: FanCard[] = [];
+  /** Picker: which Offer word is selected, if any. Drives the engine-fire projection below. */
+  @state() private previewWord: string | null = null;
   @state() private humanSlots = 3;
   @state() private opponents: PlayerState[] = [];
 
@@ -63,7 +69,7 @@ export class AcHud extends AcElement {
     this.currentName = cur?.name ?? "";
     this.isHumanTurn = s.phase === "Round" && cur?.id === human;
     const me = s.players.find((p) => p.id === human);
-    this.humanBay = me ? [...me.bay] : [];
+    this.humanBay = me ? this.projectBay(me) : [];
     this.humanSlots = me?.slots ?? 3;
     // Sort opponents by their (stable) accent index for display, not by array
     // order: the host reshuffles `players` every era for turn order, which would
@@ -76,6 +82,44 @@ export class AcHud extends AcElement {
     this.humanExempt = !!me && !!s.bannedLetter && m.isExempt(me);
     this.personalBans = me ? m.personalBansFor(me.id) : [];
   }
+
+  /**
+   * The human's bay, with `triggered` set on the cards that WOULD fire for the currently selected
+   * Offer word. This is Picker's primary teaching tool: it shows what your engine wants without
+   * solving the decision for you.
+   *
+   * THE NUMBER IS DISCARDED ON PURPOSE. `scoreWord` returns a full breakdown and only
+   * `steps[].triggered` is read — showing the projected total would turn evaluation into a lookup.
+   *
+   * Called with the PURE scoreOpts shape only. `makeBayEvaluator` is side-effect-free until it is
+   * handed `services` / `effects` / `clock`, at which point card hooks can mutate room state — a
+   * preview that ran on every tap must never do that.
+   */
+  private projectBay(me: PlayerState): FanCard[] {
+    const bay = [...me.bay] as FanCard[];
+    const word = this.previewWord;
+    if (!word) return bay;
+    const s = this.controller.match.state;
+    const fired = scoreWord(word, me.bay, {
+      mode: this.controller.match.effectiveMode,
+      prevWordLength: 0,
+      clockRemaining: s.clockRemaining,
+      clockTotal: s.clockTotal,
+      taxed: false,
+      era: s.era,
+      slots: me.slots,
+      history: s.history,
+    }).steps;
+    // Index-aligned to the bay: both flow from the same player state, the same contract
+    // <ac-score-replay> relies on.
+    return bay.map((c, i) => ({ ...c, triggered: fired[i]?.triggered === true }));
+  }
+
+  /** <ac-offer-grid> publishes the current selection; re-derive the bay projection from it. */
+  private onOfferPreview = (e: CustomEvent<{ word: string | null }>): void => {
+    this.previewWord = e.detail.word;
+    this.refresh();
+  };
 
   /** Group personal bans by their source card so duplicate ban-rolling cards
    *  (e.g. two Toll Booths) share one card pill rather than cluttering the rail
@@ -179,7 +223,15 @@ export class AcHud extends AcElement {
             <ac-recent-words .controller=${c}></ac-recent-words>
           </section>
 
-          <ac-word-entry .controller=${c}></ac-word-entry>
+          <!-- The single input-surface mount. Picker swaps the whole surface rather than
+               conditionally reshaping one component: typed entry and tap-to-pick share no state,
+               and Classic's walkthrough/behaviour must stay untouched. -->
+          ${c.match.state.settings.gameMode === GameMode.Picker
+            ? html`<ac-offer-grid
+                .controller=${c}
+                @ac-offer-preview=${this.onOfferPreview}
+              ></ac-offer-grid>`
+            : html`<ac-word-entry .controller=${c}></ac-word-entry>`}
 
           <ac-score-replay .controller=${c}></ac-score-replay>
 

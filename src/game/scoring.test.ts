@@ -1,9 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { armedClockSeconds, roundHalfUp, scoreTimeout, scoreWord } from "./scoring";
 import type { BayCard } from "./types";
+import { GameMode } from "./types";
 
 const bay = (...ids: string[]): BayCard[] => ids.map((id) => ({ id }));
-const opts = { prevWordLength: 0, clockRemaining: 10, clockTotal: 20, taxed: false };
+const opts = {
+  // Classic explicitly: this file's expected numbers ARE Classic's, and naming the mode is
+  // what keeps them a lock on Classic rather than on whatever the default happens to be.
+  mode: GameMode.Classic,
+  prevWordLength: 0,
+  clockRemaining: 10,
+  clockTotal: 20,
+  taxed: false,
+};
 
 describe("scoreWord — sequential fold", () => {
   it("seeds with word length when the bay is empty", () => {
@@ -113,16 +122,20 @@ describe("roundHalfUp", () => {
 
 describe("armedClockSeconds", () => {
   it("applies percentage clock modifiers", () => {
-    expect(armedClockSeconds(20, bay())).toBe(20);
-    expect(armedClockSeconds(20, bay("TheVault"))).toBe(16); // -20%
-    expect(armedClockSeconds(20, bay("Redline"))).toBe(14); // -30%
-    expect(armedClockSeconds(20, bay("TheVault", "Redline"))).toBe(10); // -50%
-    expect(armedClockSeconds(20, bay("Redline", "HeatSink"))).toBe(20); // -30% +30%
+    expect(armedClockSeconds(20, bay(), GameMode.Classic)).toBe(20);
+    expect(armedClockSeconds(20, bay("TheVault"), GameMode.Classic)).toBe(16); // -20%
+    expect(armedClockSeconds(20, bay("Redline"), GameMode.Classic)).toBe(14); // -30%
+    expect(armedClockSeconds(20, bay("TheVault", "Redline"), GameMode.Classic)).toBe(10); // -50%
+    expect(armedClockSeconds(20, bay("Redline", "HeatSink"), GameMode.Classic)).toBe(20); // -30% +30%
   });
 
   it("never falls below the 3s floor", () => {
-    expect(armedClockSeconds(4, bay("Redline", "Redline", "Redline", "Redline", "Redline"))).toBe(
-      3,
-    );
+    expect(
+      armedClockSeconds(
+        4,
+        bay("Redline", "Redline", "Redline", "Redline", "Redline"),
+        GameMode.Classic,
+      ),
+    ).toBe(3);
   });
 });

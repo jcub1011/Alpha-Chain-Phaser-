@@ -16,9 +16,10 @@ import { html, nothing, type TemplateResult } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import { getCard } from "../../game/cards/library";
 import type { ClockModifier } from "../../game/cards/card";
-import { CardOp } from "../../game/types";
+import { CardOp, type GameMode } from "../../game/types";
 import { familyAccentVar, rarityAccentVar } from "../app/util";
 import { AcElement } from "../app/AcElement";
+import { cardDisplayMode, cardModeEvents } from "../app/cardMode";
 
 const chipVar = (op: CardOp): string =>
   op === CardOp.Additive
@@ -40,6 +41,9 @@ const clockText = (clock: ClockModifier): string => {
 @customElement("ac-card")
 export class AcCard extends AcElement {
   @property() cardId = "";
+  /** Render this card's values for a specific mode, overriding the ambient display mode. Only
+   *  needed by a surface that shows two modes at once; nothing does today. */
+  @property() mode?: GameMode;
   /** Mini cards (opponent bays, sandbox, replay piles): icon + magnitude + name
    *  only — no description, flip, or back face. Full width but shorter. */
   @property({ type: Boolean, reflect: true }) mini = false;
@@ -64,6 +68,13 @@ export class AcCard extends AcElement {
 
   /** Refits the title whenever the card resizes (responsive --gc-w/--gc-h). */
   private resizeObs?: ResizeObserver;
+
+  override connectedCallback(): void {
+    super.connectedCallback();
+    // Re-render when the app switches modes (the Testing Bay's selector, or a new match), so a
+    // card already on screen never keeps the previous mode's prose. `listen` auto-unsubscribes.
+    this.listen(cardModeEvents, "changed", () => this.requestUpdate());
+  }
 
   override firstUpdated(): void {
     // Mini cards never refit (their titles wrap freely), so skip the observer —
@@ -104,7 +115,7 @@ export class AcCard extends AcElement {
   };
 
   override render(): TemplateResult | typeof nothing {
-    const card = getCard(this.cardId);
+    const card = getCard(this.cardId, this.mode ?? cardDisplayMode());
     if (!card) return nothing;
     const accent = familyAccentVar(card.family);
     const cardColor = card.color ?? accent;

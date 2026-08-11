@@ -1,9 +1,9 @@
 node_modules/
 dist/
+dist-game/
 dev.log
 *.local
 .DS_Store
 .playwright-mcp/
 *.png
 /.vs
-dist-game/

@@ -8,19 +8,14 @@
 import { html, type PropertyValues, type TemplateResult } from "lit";
 import { customElement, property, query, state } from "lit/decorators.js";
 import type { GameController } from "../../net/controller";
-import type { SubmitResult } from "../../game/types";
 import { createLogger } from "../../log";
 import { AcElement } from "../app/AcElement";
+import { REJECT_REASON } from "./reject-reasons";
 
 const log = createLogger("input");
 
-const REASON: Record<NonNullable<SubmitResult["reason"]>, string> = {
-  "not-a-word": "Not a word",
-  "already-used": "Already played",
-  "wrong-start-letter": "Wrong start letter",
-  "too-short": "Too short",
-  "prism-saved": "The Prism — clock refilled",
-};
+// Copy lives in reject-reasons.ts — shared with <ac-offer-grid>, Picker's input surface.
+const REASON = REJECT_REASON;
 
 @customElement("ac-word-entry")
 export class AcWordEntry extends AcElement {

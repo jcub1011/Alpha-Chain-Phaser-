@@ -15,6 +15,15 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
+    // Build/maintenance scripts run under Node, not the browser, so they legitimately reach for
+    // `process` and `console`. Everything else in the repo targets the browser or the Jint sandbox,
+    // where neither exists — hence scoping the globals here rather than enabling them globally.
+    files: ["tools/**/*.mjs", "*.config.{js,mjs,ts}"],
+    languageOptions: {
+      globals: { process: "readonly", console: "readonly" },
+    },
+  },
+  {
     files: ["**/*.ts"],
     rules: {
       // No-op lifecycle seams (reserved hooks) are intentional in this codebase.

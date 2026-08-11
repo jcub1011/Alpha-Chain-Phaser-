@@ -28,13 +28,21 @@ import "../views/ac-intermission";
 import "../views/ac-tutorial";
 import "../views/ac-game-over";
 import "../views/ac-sandbox";
+import { setCardDisplayMode } from "./cardMode";
 
 /** Largest sane per-frame step — protects the shot clock after a tab was hidden. */
 const MAX_DT = 0.05;
 
 @customElement("ac-app")
 export class AcApp extends AcElement {
+  /** The full 386k lexicon. Word validation and Classic bot word-search both read this
+   *  one, in either game mode — see `commonDict` for why they aren't tier-switched. */
   @property({ attribute: false }) dict?: Dictionary;
+  /** The Reduced (~9k common-word) lexicon, Picker's default Offer pool. A separate
+   *  property rather than a tier map on `dict` because the two are not interchangeable:
+   *  Reduced is only ever an Offer *source*, while legality stays anchored to the full
+   *  list in both modes (Reduced is not a subset of it). Both load at boot (main.ts). */
+  @property({ attribute: false }) commonDict?: Dictionary;
   @property({ attribute: false }) settings!: AlphaChainSettings;
   /** How the game was launched — resolved once at boot (main.ts), never re-derived
    *  here, because the KnockBox plugin scrubs the ticket from location.hash on start. */
@@ -75,6 +83,11 @@ export class AcApp extends AcElement {
       if (this.screen === "lobby") this.screen = "netlobby";
       if (!this.net) this.setupNet();
     }
+    // Keep every card face on the mode the match is actually playing. Done here rather than at the
+    // two controller-construction sites because a networked match learns its mode from a server
+    // push AFTER construction, and a guest's lobby mode can change before the match starts. The
+    // setter no-ops when unchanged, so running it on every update costs nothing.
+    if (this.controller) setCardDisplayMode(this.controller.match.effectiveMode);
   }
 
   /** Create the networked controller once the KnockBox plugin is attached. The peer
@@ -139,7 +152,7 @@ export class AcApp extends AcElement {
     this.controller?.destroy();
     this.clearSubs();
 
-    const controller = new LocalController(this.settings, this.dict!);
+    const controller = new LocalController(this.settings, this.dict!, this.commonDict);
     this.controller = controller;
     this.phase = "Setup";
     this.screen = "match";

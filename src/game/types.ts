@@ -104,11 +104,39 @@ export const CardId = {
   Crescendo: "Crescendo",
   Bookends: "Bookends",
   Dividend: "Dividend",
+  // ── Preference Cards (Picker only) — shape the Offer instead of scoring the word ──
+  Sieve: "Sieve",
+  Winnower: "Winnower",
+  WideNet: "WideNet",
+  TunnelVision: "TunnelVision",
+  Prospector: "Prospector",
+  Tide: "Tide",
+  Sentinel: "Sentinel",
 } as const;
 export type CardId = (typeof CardId)[keyof typeof CardId];
 
 /** Host-configurable match settings (ported from AlphaChainSettings.cs). */
 export interface AlphaChainSettings {
+  /** Which play mode the match runs. Picker is the DEFAULT: it replaces typed word entry with
+   *  selection from a server-generated Offer, removing the recall and typing barriers that
+   *  exclude dyslexic and mobile players. Classic is the original typing race. */
+  gameMode: GameMode;
+  /** Picker: how many Offer Cards are presented each turn. Also a cognitive-load dial, not just
+   *  a strategic one — fewer cards is less to read under the clock. */
+  offerCount: number;
+  /** Picker: which lexicon the Offer is drawn from. Reduced trades variety for decodability
+   *  (a reader recognises CANDLE at a glance and must decode ZYGODACTYL letter by letter, and
+   *  whole-word recognition is exactly what dyslexia impairs). Word *validation* always uses the
+   *  full list regardless — this only chooses the Offer's source. */
+  offerDictionary: DictionaryTier;
+  /** Picker's shot clock. Distinct from `shotClockSeconds` because the right duration for
+   *  reading several words is not the right duration for typing one. */
+  pickerShotClockSeconds: number; // 5–60
+  /** Picker: highlight occurrences of an active Banned Letter inside Offer words. Off by
+   *  default — scanning several words for one letter under a clock is close to the hardest
+   *  single operation you can ask of a dyslexic reader, but competitive tables want the
+   *  surprise. Purely a rendering change: no rules, balance or network effect. */
+  highlightBannedLetters: boolean;
   banMode: BanMode;
   /** Whether a previously-banned letter may be chosen again (see BanRepeatRule). */
   banRepeatRule: BanRepeatRule;
@@ -167,11 +195,45 @@ export type RarityWeightKey = Extract<keyof AlphaChainSettings, `rarityWeight${s
 export type IntermissionPhase = "deal" | "optimize" | "sniperBan" | "tutorial" | null;
 
 /** A scripted tutorial overlay shown once at its cue point. Pages are grouped at
- *  three cue points: pre-game (shiritori → timeout), the era-1 optimize cue
- *  (engine → cards), and the era-1 ban cue (tax/sniper). */
-export type TutorialKind = "shiritori" | "timeout" | "engine" | "cards" | "tax" | "sniper";
+ *  three cue points: pre-game, the era-1 optimize cue (engine → cards), and the
+ *  era-1 ban cue (tax/sniper).
+ *
+ *  The PRE-GAME pair is chosen by mode: Classic teaches typed entry and the timeout
+ *  penalty (shiritori → timeout), Picker teaches the Offer and its very different
+ *  expiry rule (offer → pickerTimeout). Both `timeout` pages exist because a Picker
+ *  expiry commits your pick and costs nothing, which is the opposite of Classic's. */
+export type TutorialKind =
+  | "shiritori"
+  | "timeout"
+  | "offer"
+  | "pickerTimeout"
+  | "engine"
+  | "cards"
+  | "tax"
+  | "sniper";
 
 export type BotDifficulty = "easy" | "medium" | "hard";
+
+/** Play mode. Picker — choose from a server-generated Offer; Classic — type the word.
+ *
+ *  A const object rather than a bare string union, matching {@link CardOp} / {@link CardRarity} /
+ *  {@link CardId}: the mode is compared in the dealer, the clock, both lobbies and the HUD, and a
+ *  typo in any bare `=== "pickr"` is silently false rather than a compile error. The VALUES are the
+ *  persisted and wire-serialized form, so they must not change without a SETTINGS_VERSION bump. */
+export const GameMode = {
+  Picker: "picker",
+  Classic: "classic",
+} as const;
+export type GameMode = (typeof GameMode)[keyof typeof GameMode];
+
+/** Which lexicon the Picker draws its Offer from. Full is the shipped 386k list; Reduced is the
+ *  ~9k common-English list (public/assets/words-common.txt), which is a strict subset of it — see
+ *  tools/build-common-wordlist.mjs for why that subset property is load-bearing. */
+export const DictionaryTier = {
+  Reduced: "reduced",
+  Full: "full",
+} as const;
+export type DictionaryTier = (typeof DictionaryTier)[keyof typeof DictionaryTier];
 
 export type GamePhase = "Setup" | "Tutorial" | "Countdown" | "Round" | "Intermission" | "GameOver";
 
@@ -312,6 +374,20 @@ export interface MatchState {
   bannedLetterHistory: string[];
   /** Words used this whole match (lowercased), forbidden to repeat. */
   usedWords: Set<string>;
+  /** Picker: the current player's Offer — the candidate words they choose from. Empty in
+   *  Classic, and empty outside a Round.
+   *
+   *  Public by design: every player sees the active player's candidates, and turns are
+   *  sequential, so exactly one Offer is on screen at a time. That is what keeps the authority in
+   *  plain broadcast mode with no per-recipient projection. Regenerated once per turn by the
+   *  authoritative side only — a mirror must never generate its own (see match.ts beginEra on why
+   *  no RNG-derived logic may run on a client). A plain string[] is JSON-safe, so this needs no
+   *  serialize.ts handling, unlike `usedWords`. */
+  offer: string[];
+  /** Picker: whether the CURRENT player may still spend Winnower's redraw this turn.
+   *  Published as state because the charge lives in room services, which are not replicated —
+   *  a guest mirror could otherwise only guess, and would offer a button the server refuses. */
+  offerRedrawAvailable: boolean;
   history: Submission[];
   /** Seconds remaining on the active shot clock. */
   clockRemaining: number;
@@ -356,6 +432,8 @@ export function emptyMatchState(settings: AlphaChainSettings): MatchState {
     bannedLetter: "",
     bannedLetterHistory: [],
     usedWords: new Set<string>(),
+    offer: [],
+    offerRedrawAvailable: false,
     history: [],
     clockRemaining: 0,
     clockTotal: 0,
@@ -373,6 +451,14 @@ export function emptyMatchState(settings: AlphaChainSettings): MatchState {
 /** Result of attempting to validate + score a word. */
 export interface SubmitResult {
   accepted: boolean;
-  reason?: "not-a-word" | "already-used" | "wrong-start-letter" | "too-short" | "prism-saved";
+  reason?:
+    | "not-a-word"
+    | "already-used"
+    | "wrong-start-letter"
+    | "too-short"
+    | "prism-saved"
+    /** Picker: the committed word was not in the current Offer. The trust boundary — a client
+     *  cannot commit a word it invented, even a perfectly legal one. */
+    | "not-offered";
   submission?: Submission;
 }

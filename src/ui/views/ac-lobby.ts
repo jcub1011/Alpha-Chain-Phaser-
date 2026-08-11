@@ -5,9 +5,11 @@
 
 import { html, nothing, type PropertyValues, type TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
+import { GameMode } from "../../game/types";
 import type { AlphaChainSettings, BotDifficulty } from "../../game/types";
-import { DEFAULT_SETTINGS, saveSettings } from "../../game/settings";
+import { DEFAULT_SETTINGS, MAX_ERA_STEPPER, saveSettings } from "../../game/settings";
 import { AcElement } from "../app/AcElement";
+import { renderPickerSettings } from "./picker-settings";
 import { RARITY_WEIGHT_BOUNDS, renderRarityWeights } from "./rarity-weights";
 import { SETTING_HINTS } from "./settings-hints";
 
@@ -145,6 +147,27 @@ export class AcLobby extends AcElement {
 
         <div class="ac-panel lobby-panel net-panel">
           <div class="net-settings">
+            <!-- Game Mode leads the list deliberately: Picker is the default, so stored settings
+                 load with it already selected, and Classic has to stay discoverable rather than
+                 buried. The mode-specific rows below follow it so the panel reads top-down. -->
+            ${this.segmented<GameMode>(
+              "Game Mode",
+              d.gameMode,
+              [
+                { value: GameMode.Picker, text: "picker" },
+                { value: GameMode.Classic, text: "classic" },
+              ],
+              (v) => this.set("gameMode", v),
+              SETTING_HINTS.gameMode,
+            )}
+            ${renderPickerSettings(
+              d,
+              this.step.bind(this),
+              this.set.bind(this),
+              this.stepper.bind(this),
+              this.segmented.bind(this),
+              this.toggle.bind(this),
+            )}
             ${this.stepper(
               "Opponents",
               String(d.botCount),
@@ -159,13 +182,15 @@ export class AcLobby extends AcElement {
               (v) => this.set("botDifficulty", v),
               SETTING_HINTS.botDifficulty,
             )}
-            ${this.stepper(
-              "Shot Clock",
-              `${d.shotClockSeconds}s`,
-              () => this.step("shotClockSeconds", -5, 5, 60),
-              () => this.step("shotClockSeconds", 5, 5, 60),
-              SETTING_HINTS.shotClockSeconds,
-            )}
+            ${d.gameMode === GameMode.Classic
+              ? this.stepper(
+                  "Shot Clock",
+                  `${d.shotClockSeconds}s`,
+                  () => this.step("shotClockSeconds", -5, 5, 60),
+                  () => this.step("shotClockSeconds", 5, 5, 60),
+                  SETTING_HINTS.shotClockSeconds,
+                )
+              : nothing}
             ${this.segmented<AlphaChainSettings["banMode"]>(
               "Letter Ban Mode",
               d.banMode,
@@ -198,15 +223,15 @@ export class AcLobby extends AcElement {
             ${this.stepper(
               "Eras",
               String(d.eraCount),
-              () => this.step("eraCount", -1, 1, 50),
-              () => this.step("eraCount", 1, 1, 50),
+              () => this.step("eraCount", -1, 1, MAX_ERA_STEPPER),
+              () => this.step("eraCount", 1, 1, MAX_ERA_STEPPER),
               SETTING_HINTS.eraCount,
             )}
             ${this.stepper(
               "Rounds Per Era",
               String(d.eraInterval),
-              () => this.step("eraInterval", -1, 1, 50),
-              () => this.step("eraInterval", 1, 1, 50),
+              () => this.step("eraInterval", -1, 1, MAX_ERA_STEPPER),
+              () => this.step("eraInterval", 1, 1, MAX_ERA_STEPPER),
               SETTING_HINTS.eraInterval,
             )}
             ${this.stepper(
@@ -292,9 +317,17 @@ export class AcLobby extends AcElement {
         <button class="ac-btn lobby-start" @click=${this.start}>START MATCH</button>
         <button class="lobby-bay" @click=${this.openBay}>Testing Bay</button>
 
+        <!-- Mode-specific, because the two modes ask for genuinely different things: Picker asks
+             you to judge words, Classic asks you to think of them. The succession rule and the
+             joke are common to both. -->
         <p class="lobby-rules">
-          Every word must start with the last letter of the previous word. It sounds simple but
-          don't worry, I've massively overcomplicated it.
+          ${d.gameMode === GameMode.Picker
+            ? html`Every word must start with the last letter of the previous word — but you pick
+              yours from a handful on offer, so it's your engine doing the work, not your spelling.
+              It sounds simple but don't worry, I've massively overcomplicated it.`
+            : html`Every word must start with the last letter of the previous word, and you type it
+              yourself against the clock. It sounds simple but don't worry, I've massively
+              overcomplicated it.`}
         </p>
       </div>
     `;
