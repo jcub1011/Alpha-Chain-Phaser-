@@ -1,6 +1,8 @@
 {
-  "id": "alpha-chain",
+  "$schema": "https://raw.githubusercontent.com/jcub1011/KnockBox-Games-Marketplace/refs/heads/main/schemas/plugin.schema.json",
+  "id": "jcub1011-Alpha-Chain",
   "name": "Alpha Chain",
+  "version": "0.1.0",
   "entry": "index.html",
   "thumbnail": "thumb.svg",
   "maxPlayers": 8,
