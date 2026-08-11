@@ -64,3 +64,11 @@ jobs:
             export/GAME.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Portable catalog registration
+      - name: Sync to Marketplace Catalog
+        if: ${{ !inputs.draft }}
+        uses: jcub1011/KnockBox-Games-Marketplace/.github/actions/sync-catalog@main
+        with:
+          tag: ${{ steps.resolve_tag.outputs.tag }}
+          marketplace-token: ${{ secrets.MARKETPLACE_TOKEN }}
