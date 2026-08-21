@@ -1,105 +1,138 @@
 # Exporting to KnockBox-Games
 
-This game exports as a **drop-in folder** for the [KnockBox-Games](../../KnockBox-Games)
-platform via the platform's shared, engine-agnostic packer
-([`tools/pack-game`](../../KnockBox-Games/tools/pack-game/README.md)). The packer
-validates `GAME.json` against the same rules the server enforces, then assembles the
-folder. The platform discovers games by scanning `games/*/GAME.json` and hot-reloads
-within ~1–2 seconds, so a fresh export appears in the lobby without restarting the server.
+This game exports as a single drop-in **`.kbg` package** for the
+[KnockBox-Games](https://github.com/jcub1011/KnockBox-Games) platform. An operator copies that one
+file into the server's games directory and the server installs it — no unzipping, no CLI on the host,
+no restart. The catalog hot-reloads within ~1–2 seconds.
+
+Two KnockBox pieces are involved, and they are versioned independently of this game:
+
+| Piece | What it is | How this repo gets it |
+| --- | --- | --- |
+| **`knockbox-cli`** | the packer (`knockbox pack`) | a `devDependency` — `npm ci` installs it |
+| **`addons/knockbox/`** | the Phaser client the game bundles | installed by `knockbox addon`, recorded in `knockbox.json` |
+
+Neither is copied by hand any more. See
+[`docs/ADDONS.md`](https://github.com/jcub1011/KnockBox-Games/blob/main/docs/ADDONS.md) upstream.
 
 ## TL;DR
 
-From this repo's root:
-
 ```sh
-npm run export:game:install
+npm run export:game
 ```
 
-That builds the game and writes `alpha-chain/` straight into the sibling
-`../../KnockBox-Games/games` directory. Done — it shows up in the lobby.
+Builds the game and writes `dist-game/jcub1011-Alpha-Chain.kbg`. Copy that file into the server's
+games directory and it installs itself.
+
+To write straight into a local platform checkout instead, point `KNOCKBOX_GAMES_DIR` at its `games/`
+folder and omit `--out`:
+
+```sh
+KNOCKBOX_GAMES_DIR=../../KnockBox-Games/games npx knockbox pack \
+  --build "npm run build" --in dist --manifest export/GAME.json
+```
+
+With neither `--out` nor `KNOCKBOX_GAMES_DIR`, the packer stops and says so rather than guessing —
+it used to resolve a default relative to its own location, which quietly created a stray `games/`
+folder inside whichever project it was installed in.
 
 ## The commands
 
 | Command | What it does |
 | --- | --- |
-| `npm run export:game:install` | Builds, then installs into the platform's `games/alpha-chain/`. Use this to deploy. |
-| `npm run export:game` | Builds, then writes to a local `dist-game/alpha-chain/` for inspection (doesn't touch KnockBox-Games). |
+| `npm run export:game` | Builds, then writes `dist-game/jcub1011-Alpha-Chain.kbg`. |
+| `npx knockbox addon check` | Verifies `addons/knockbox/` matches what was published, and reports available updates. Changes nothing. |
+| `npx knockbox addon update` | Moves the bundled client to a newer version. **Re-export afterwards** — the client is compiled into the build. |
 
-Both scripts delegate to the shared packer:
+The export script is:
 
 ```
-node ../../KnockBox-Games/tools/pack-game/pack-game.mjs --build "npm run build" --in dist --manifest export/GAME.json [--out <dir>]
+knockbox pack --build "npm run build" --in dist --manifest export/GAME.json --out dist-game/
 ```
 
-`export:game:install` omits `--out`, so the packer defaults to the platform's own
-`games/` folder (it locates this relative to the tool, so no `../../` is needed). This
-assumes the two repos sit side by side under `…/source/repos/`. If your checkout layout
-differs, pass an explicit `--out`. The packer wipes any existing `alpha-chain/` target
-before copying, so re-running it cleanly re-exports.
+`--build` runs this repo's own build first (`tsc --noEmit && vite build && vite build --config
+vite.authority.config.ts`), so `dist/` is always fresh. Everything under `--in` goes into the
+package, plus `export/GAME.json` and the thumbnail it names.
 
 ## What gets produced
 
-A self-contained folder whose **name equals the manifest `id`** (`alpha-chain`) — a
-hard requirement of the platform, which serves the folder's contents at
-`/games/alpha-chain/…`:
+A single `jcub1011-Alpha-Chain.kbg` file — a plain ZIP whose payloads are individually
+Brotli-compressed at maximum effort, so the server copies those streams straight into its HTTP
+serving cache instead of re-compressing on every cold boot. `unzip -l` can inspect it.
 
 ```
-alpha-chain/
-├── GAME.json        # manifest (from export/GAME.json)
-├── thumb.svg        # lobby thumbnail (from export/thumb.svg)
+jcub1011-Alpha-Chain.kbg
+├── KBG.json         # package header: formatVersion, id, files[], packedBy
+├── GAME.json        # manifest (from export/GAME.json, plus the SDK stamp below)
+├── thumb.svg        # lobby thumbnail
 ├── index.html       # built entry point
-└── assets/          # hashed JS/CSS bundles, words.txt, glyph SVGs
+├── authority.js     # the server-authority module
+├── words.txt / words-common.txt
+└── assets/          # hashed JS/CSS bundles, glyph SVGs
 ```
 
-The packer runs `vite build` (output → `dist/`), then copies `dist/` plus
-`export/GAME.json` and `export/thumb.svg` into the target folder. `vite.config.ts`
-sets `base: "./"`, so every asset path is relative and works correctly when the game
-is served from the `/games/alpha-chain/` subpath.
+`vite.config.ts` sets `base: "./"`, so every asset path is relative and works when the game is
+served from the `/games/jcub1011-Alpha-Chain/…` subpath.
+
+Packing is slow on purpose — Brotli at maximum effort. Pass `--quality 1` for a fast throwaway
+build; the default is what you want for anything you publish.
 
 ## The manifest
 
-The manifest lives at [`export/GAME.json`](export/GAME.json) and is copied verbatim
-into the export:
-
-```json
-{
-  "id": "alpha-chain",
-  "name": "Alpha Chain",
-  "entry": "index.html",
-  "thumbnail": "thumb.svg",
-  "maxPlayers": 8
-}
-```
+[`export/GAME.json`](export/GAME.json) is copied into the package with one addition (below):
 
 | Field | Meaning |
 | --- | --- |
-| `id` | Unique catalog key **and** URL segment. The export folder name must match this exactly. |
-| `name` | Display name shown in the lobby browser. |
-| `entry` | Relative path to the HTML entry file inside the folder. |
-| `thumbnail` | Relative path to the lobby thumbnail image. |
-| `maxPlayers` | Max players the platform allows into a lobby for this game. |
+| `id` | Unique catalog key **and** URL segment. Names the installed folder. |
+| `name` | Display name in the lobby browser. |
+| `entry` | Relative path to the HTML entry file. |
+| `thumbnail` | Relative path to the lobby thumbnail. |
+| `maxPlayers` | Max players per lobby. |
+| `version` | This game's build label. What the marketplace compares to decide whether an operator's copy is stale. |
+| `serverAuthority` | The module the **server** runs, one sandboxed instance per lobby. |
+| `authorityWords` | Word dictionaries the server loads once and shares across lobbies. |
+| `description`, `tags`, `$schema` | Marketplace catalog fields. |
 
-To change any of these, edit `export/GAME.json` (and `export/thumb.svg` for the
-thumbnail) and re-export.
+### The SDK stamp
+
+The packer reads `knockbox.json` and records the client version the build was made against:
+
+```json
+{ "id": "jcub1011-Alpha-Chain", "…": "…", "sdk": { "phaser": "1.0.0" } }
+```
+
+`export/GAME.json` on disk is **not** modified — the stamp is generated into the package. The server
+never validates it; the admin portal uses it to flag a game still running on an old client. Pass
+`--no-sdk-stamp` to omit it.
 
 ## Multiplayer works out of the box
 
-The KnockBox SDK is **bundled into the build** — there is no external `/knockbox.js`
-tag to add. When the shell embeds the game it passes a lobby ticket in the URL
-fragment; `src/net/launch.ts` detects `#kbTicket=` and `src/net/knockBoxController.ts`
-connects using that ticket and endpoint. Without a ticket the game runs standalone
-(solo-vs-bots), or `?kbLocal=tab` opts into the no-server multi-tab test harness. So
-the exported folder genuinely plays in a lobby — it isn't just a catalog listing.
+The KnockBox client is **bundled into the build** — there is no external `/knockbox.js` tag. When the
+shell embeds the game it passes a lobby ticket in the URL fragment; `src/net/launch.ts` detects
+`#kbTicket=` and `src/net/knockBoxController.ts` connects with it. Without a ticket the game runs
+standalone (solo-vs-bots), and `?kbLocal=tab` opts into the no-server multi-tab harness.
+
+Because the client is bundled, **updating the addon does nothing until you re-export.** That is the
+one ordering rule worth remembering:
+
+```sh
+npx knockbox addon update      # get the new client
+npm run export:game            # actually ship it
+```
 
 ## Verify the export
 
-1. Run `npm run export:game:install`. It should finish with
-   `✓ packed "Alpha Chain" → …\KnockBox-Games\games\alpha-chain`.
-2. Confirm `KnockBox-Games/games/alpha-chain/` contains `GAME.json`, `thumb.svg`,
-   `index.html`, and `assets/`.
-3. Start the host (from the KnockBox-Games repo):
-   `dotnet run --project KnockBox.Server --launch-profile http`. The catalog
-   hot-reloads — no restart needed.
-4. Open the shell (http://localhost:5114), confirm **Alpha Chain** appears in the
-   lobby browser with its thumbnail, create a lobby, and launch. The game should load
-   and run inside the iframe.
+1. `npm run export:game` → `✓ packed "Alpha Chain" → …\dist-game\jcub1011-Alpha-Chain.kbg`
+2. Copy that file into the server's games directory (or use `KNOCKBOX_GAMES_DIR` above).
+3. Start the host: `dotnet run --project KnockBox.Server --launch-profile http`. The catalog
+   hot-reloads — no restart.
+4. Open the shell (http://localhost:5114), confirm **Alpha Chain** appears with its thumbnail,
+   create a lobby, and launch.
+5. Optionally check the admin portal's **Game Catalog** (http://localhost:5116) — the game should
+   show its SDK version, with no "SDK outdated" badge.
+
+## CI
+
+`.github/workflows/export-release.yml` runs `npm ci` then `npm run export:game` and attaches the
+`.kbg` to a GitHub release. `npm ci` is what supplies the packer, so nothing platform-specific has to
+be checked out or vendored for CI to build a package.
