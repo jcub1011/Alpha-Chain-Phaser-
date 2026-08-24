@@ -296,9 +296,18 @@ export class AcWordBuilder extends AcElement {
                   Avoid <strong>${this.bannedLetter.toUpperCase()}</strong>
                 </span>`
               : nothing}
-            ${staged.length > 0
-              ? html`<span class="ac-builder-stat">${staged.length}L · ${vowelCount}V${rareCount > 0 ? ` · ${rareCount} rare` : ""}</span>`
-              : nothing}
+            ${this.feedback
+              ? html`<span class="ac-builder-feedback shake" role="alert" aria-live="assertive">
+                  ${this.feedback}
+                </span>`
+              : html`<span
+                  class="ac-builder-stat ${staged.length > 0 ? "is-visible" : "is-hidden"}"
+                  aria-live="polite"
+                >
+                  ${staged.length > 0
+                    ? `${staged.length}L · ${vowelCount}V${rareCount > 0 ? ` · ${rareCount} rare` : ""}`
+                    : html`&nbsp;`}
+                </span>`}
           </div>
 
           <div class="ac-builder-actions">
@@ -345,7 +354,6 @@ export class AcWordBuilder extends AcElement {
                         aria-label="Remove ${tile.text.toUpperCase()}"
                       >
                         <span class="ac-tile-letter">${tile.text.toUpperCase()}</span>
-                        ${tile.isChunk ? html`<span class="ac-tile-tag">CHUNK</span>` : nothing}
                       </button>
                     `;
                   },
@@ -374,13 +382,6 @@ export class AcWordBuilder extends AcElement {
           </div>
         </section>
 
-        <!-- Feedback & Rejection Prompt -->
-        ${this.feedback
-          ? html`<div class="ac-builder-feedback shake" role="alert">
-              ${this.feedback}
-            </div>`
-          : nothing}
-
         <!-- Tile Rack -->
         <section class="ac-tile-rack" aria-label="Available Tiles">
           <div class="ac-rack-grid">
@@ -407,7 +408,6 @@ export class AcWordBuilder extends AcElement {
                   aria-label="Tile ${tile.text.toUpperCase()}"
                 >
                   <span class="ac-tile-letter">${tile.text.toUpperCase()}</span>
-                  ${tile.isChunk ? html`<span class="ac-tile-tag">CHUNK</span>` : nothing}
                   ${hasBanned ? html`<span class="ac-tile-ban-dot" title="Contains banned letter">!</span>` : nothing}
                 </button>
               `;
