@@ -1063,6 +1063,14 @@ export class MatchController {
   setSelection(playerId: string, word: string): void {
     if (this.state.phase !== "Round" || playerId !== this.current.id) return;
     const chosen = word.trim().toLowerCase();
+    // An empty word is a CLEAR, not a no-op: <ac-word-builder>'s clearStaging and the network's
+    // `clearStaging` intent both stream "" to mean "I unstaged everything". Without this branch
+    // canConstructWordFromTiles refuses the empty target below and the stale selection survives
+    // the rest of the turn — which in Survival is the difference between a no-show and not.
+    if (!chosen) {
+      this.currentSelection = null;
+      return;
+    }
     const inOffer = this.state.offer.includes(chosen);
     const inRack = this.state.rack.length > 0 && canConstructWordFromTiles(chosen, this.state.rack);
     if (!inOffer && !inRack) return;
@@ -1177,32 +1185,47 @@ export class MatchController {
   private pickerTimeoutCurrent(): void {
     const s = this.state;
     const p = this.current;
-    // Decide this BEFORE the random pick, or every timeout would look like a real selection.
-    const noShow = this.currentSelection === null;
-    let chosen = this.currentSelection;
-    if (chosen === null) {
-      if (s.offer.length > 0) {
-        chosen = s.offer[Math.floor(this.rng() * s.offer.length)];
-      } else if (s.rack.length > 0 && this.wordPool) {
-        const subWords = subWordFinder(s.rack, this.wordPool, this.offerIndex, s.requiredLetter);
-        if (subWords.length > 0) {
-          chosen = subWords[Math.floor(this.rng() * subWords.length)];
-        }
-      }
-    }
 
     // No tryClockRescue here, deliberately. Classic offers a held Prism a refill INSTEAD of the
     // penalty; Picker has no penalty to be rescued from, and refilling a turn that always resolves
     // would let a Prism owner stall the table. The Prism's banned-letter half still fires below,
     // via submitWord — which is its primary mode in Picker anyway.
 
-    if (noShow && s.settings.survivalMode) this.pendingNoShowElimination = p.id;
-
-    if (chosen !== null) {
-      const res = this.submitWord(p.id, chosen);
+    // Try what the player actually staged, exactly as Classic's timeoutCurrent tries the draft.
+    // Showing up means producing a word the engine ACCEPTS — NOT merely holding a non-null
+    // selection: the Word Builder streams one on every tile tap (ac-word-builder.streamStaging),
+    // so a two-tile fragment that spells nothing would otherwise read as a real pick and spare a
+    // Survival player who plainly timed out. Anything short of an accepted word falls through to
+    // the no-show below.
+    const staged = this.currentSelection;
+    if (staged) {
+      const res = this.submitWord(p.id, staged);
+      if (res.accepted) return; // a real commit, not a timeout — submitWord already ran endTurn
       // The commit tripped the Prism on a banned letter: word rejected, clock refilled, turn
       // continues — "you picked the poisoned one, here is your Offer back". endTurn was never
       // reached, so the armed no-show is discarded by the next armCurrentTurn.
+      if (res.reason === "prism-saved") return;
+      // Rejected (a fragment, a used word, a Succession break) — an ordinary path, not an error.
+      // The turn resolves as a no-show below, exactly as if nothing had been staged at all.
+    }
+
+    // Past here the player produced nothing committable: this IS a no-show. Armed BEFORE the
+    // random pick, which routes through submitWord → endTurn and applies the deferred flag there.
+    if (s.settings.survivalMode) this.pendingNoShowElimination = p.id;
+
+    // Commit something on their behalf so the chain continues rather than dying on a blank turn.
+    let chosen: string | null = null;
+    if (s.offer.length > 0) {
+      chosen = s.offer[Math.floor(this.rng() * s.offer.length)];
+    } else if (s.rack.length > 0 && this.wordPool) {
+      const subWords = subWordFinder(s.rack, this.wordPool, this.offerIndex, s.requiredLetter);
+      if (subWords.length > 0) {
+        chosen = subWords[Math.floor(this.rng() * subWords.length)];
+      }
+    }
+
+    if (chosen !== null) {
+      const res = this.submitWord(p.id, chosen);
       if (res.reason === "prism-saved") return;
       if (res.accepted) return; // submitWord already ran endTurn
       // Should be unreachable: an offered word satisfies Succession, uniqueness and the

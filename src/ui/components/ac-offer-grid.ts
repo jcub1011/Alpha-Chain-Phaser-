@@ -51,6 +51,8 @@ export class AcOfferGrid extends AcElement {
   @state() private live = false;
   /** The turn is one seat away — used for the same "get ready" affordance Classic shows. */
   @state() private onDeck = false;
+  /** Survival: eliminated. The Offer on screen belongs to whoever is up, not to us. */
+  @state() private isOut = false;
   @state() private selected: string | null = null;
   @state() private requiredLetter = "";
   @state() private bannedLetter = "";
@@ -118,6 +120,7 @@ export class AcOfferGrid extends AcElement {
     this.highlightBans = s.settings.highlightBannedLetters;
     this.requiredLetter = s.requiredLetter;
     this.live = s.phase === "Round" && this.controller.match.current?.id === human;
+    this.isOut = !!s.players.find((p) => p.id === human)?.eliminated;
     this.onDeck = !this.live && this.isOnDeck(human);
     this.canRedraw = this.live && s.offerRedrawAvailable;
   }
@@ -268,17 +271,19 @@ export class AcOfferGrid extends AcElement {
   override render(): TemplateResult {
     const waiting = !this.live;
     return html`
-      <div class="og-wrap ${this.live ? "is-live" : ""}">
+      <div class="og-wrap ${this.live ? "is-live" : ""} ${this.isOut ? "is-out" : ""}">
         <div class="og-head">
           <span class="ac-eyebrow">
-            ${this.live
-              ? this.requiredLetter
-                ? html`pick a word starting with
-                    <b class="og-letter">${this.requiredLetter.toUpperCase()}</b>`
-                : html`pick any word`
-              : this.onDeck
-                ? "you're next"
-                : "waiting…"}
+            ${this.isOut
+              ? "you're out — spectating"
+              : this.live
+                ? this.requiredLetter
+                  ? html`pick a word starting with
+                      <b class="og-letter">${this.requiredLetter.toUpperCase()}</b>`
+                  : html`pick any word`
+                : this.onDeck
+                  ? "you're next"
+                  : "waiting…"}
           </span>
           ${this.feedback ? html`<span class="og-feedback">${this.feedback}</span>` : nothing}
         </div>

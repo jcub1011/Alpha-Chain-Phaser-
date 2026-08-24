@@ -36,6 +36,9 @@ const seeds: PlayerSeed[] = [
 
 const seeds3: PlayerSeed[] = [...seeds, { id: "p3", name: "Bot2", isBot: true }];
 
+/** The Reduced pool as a lookup, for building a rack string the dictionary provably rejects. */
+const REDUCED_SET = new Set(REDUCED.map((w) => w.toLowerCase()));
+
 /** One seat, so every commit re-arms the SAME player — the only way to see a bay set before the
  *  turn arms take effect on that player's own Offer. */
 const solo: PlayerSeed = { id: "p1", name: "You", isBot: false };
@@ -95,6 +98,20 @@ function lastWord(m: MatchController): string | undefined {
 /** Run the shot clock out on the current turn. */
 function runClockOut(m: MatchController): void {
   m.tick(m.state.clockTotal + 0.1);
+}
+
+/** A string constructible from this turn's Tile Rack that is NOT a word — i.e. what
+ *  <ac-word-builder> streams to the engine on every tile tap while you are still mid-build. */
+function rackFragment(m: MatchController): string {
+  const tiles = m.state.rack;
+  for (let i = 0; i < tiles.length; i++) {
+    for (let j = 0; j < tiles.length; j++) {
+      if (i === j) continue;
+      const frag = (tiles[i].text + tiles[j].text).toLowerCase();
+      if (!REDUCED_SET.has(frag)) return frag;
+    }
+  }
+  throw new Error("no non-word rack fragment available");
 }
 
 describe("picker — the Offer", () => {
@@ -264,6 +281,40 @@ describe("picker — timeout", () => {
     expect(p1.eliminated).toBe(true); // Survival keys on the no-show, not the timeout
     expect(offered).toContain(lastWord(m)); // ...and the chain continued
     expect(m.state.requiredLetter).not.toBe("");
+  });
+
+  it("eliminates a builder who only ever staged a fragment, in Survival", () => {
+    /* The regression. <ac-word-builder> streams a selection on EVERY tile tap, so two tiles that
+     * spell nothing used to read as "they picked something" — sparing a Survival player who
+     * plainly ran out of clock. Showing up means producing a word the engine ACCEPTS. */
+    const m = started(makePicker({ survivalMode: true }, REDUCED, seeds3));
+    m.setSelection("p1", rackFragment(m));
+    runClockOut(m);
+    const p1 = m.state.players.find((p) => p.id === "p1")!;
+    expect(p1.eliminated).toBe(true);
+    expect(m.state.requiredLetter).not.toBe(""); // ...and the chain still continued on a real word
+  });
+
+  it("treats a cleared board as a no-show, even after a valid word was staged", () => {
+    /* clearStaging streams "" to mean "I unstaged everything". setSelection used to refuse the
+     * empty target, leaving the stale pick to spare the player. */
+    const m = started(makePicker({ survivalMode: true }, REDUCED, seeds3));
+    m.setSelection("p1", m.state.offer[0]);
+    m.setSelection("p1", "");
+    runClockOut(m);
+    expect(m.state.players.find((p) => p.id === "p1")!.eliminated).toBe(true);
+  });
+
+  it("commits a real word rather than a dead turn when the staged fragment is rejected", () => {
+    // Survival aside: a rejected fragment must fall through to the same random pick a total
+    // no-show gets, not strand the chain on a blank "—" submission.
+    const m = started(makePicker());
+    const frag = rackFragment(m);
+    m.setSelection("p1", frag);
+    runClockOut(m);
+    expect(lastWord(m)).not.toBe("—");
+    expect(lastWord(m)).not.toBe(frag);
+    expect(m.state.players.find((p) => p.id === "p1")!.score).toBeGreaterThan(0);
   });
 
   it("ends the match on the no-show turn when it leaves one player standing", () => {

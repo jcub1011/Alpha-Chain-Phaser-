@@ -247,6 +247,21 @@
 .spot-turn.is-you {
   color: var(--i-primary);
 }
+/* Survival: you are out. Oxide rather than brass — the one place on the stage
+   that says the match has ended FOR YOU while it carries on for everyone else.
+   Still no glow: this is a state, not an event. */
+.spot-turn.is-out {
+  color: var(--state-bad);
+}
+.spot-sub {
+  font-family: var(--font-machine);
+  font-stretch: var(--stretch-machine);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ac-ink-faint);
+}
 
 /* ── The press line (the signature) ────────────────────────────────────────
  * The whole design turns on this moment. The word that was just submitted is a
@@ -1191,6 +1206,17 @@ ac-leaderboard[strip] .lb-row {
   transition: filter 0.25s ease;
 }
 
+/* ── You are out (Survival) ────────────────────────────────────────────────
+ * Darker than "not your turn", and permanent. The distinction matters: idle
+ * says "wait", this says "the machine is not yours again this match". */
+.ac-word-builder.is-out .ac-staging-area,
+.ac-word-builder.is-out .ac-tile-rack {
+  filter: grayscale(1) brightness(0.34);
+}
+.ac-word-builder.is-out {
+  border-color: color-mix(in srgb, var(--state-bad) 45%, var(--ac-border));
+}
+
 /* ── You are next ──────────────────────────────────────────────────────────
  * A plate dropped over the controls. It reads as the machine being locked out
  * rather than as a notification, which is the honest description: the controls
@@ -1240,6 +1266,27 @@ ac-leaderboard[strip] .lb-row {
 .ac-standby.is-shown .ac-standby-plate {
   transform: translateY(0) scale(1);
   transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+/* The eliminated plate. Same casting, struck in oxide — a plate that is never
+   coming back up, as against the brass one that lifts when your turn arrives. */
+.ac-standby-plate.is-out {
+  background: linear-gradient(
+    180deg,
+    var(--state-bad),
+    color-mix(in srgb, var(--state-bad) 72%, #000)
+  );
+  color: var(--ac-stock-100);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    inset 0 -3px 0 color-mix(in srgb, var(--state-bad) 60%, #000),
+    var(--ac-lift-2);
+}
+
+/* Offer grid / Classic entry: the same "out" reading, at their own scale. */
+.og-wrap.is-out,
+.we.is-out {
+  opacity: 0.55;
+  filter: grayscale(0.8);
 }
 
 /* Your turn: the housing is armed. A brass rim, not a bloom. */

@@ -36,6 +36,8 @@ export class AcHud extends AcElement {
   @state() private roundInEra = 0;
   @state() private currentName = "";
   @state() private isHumanTurn = false;
+  /** Survival: the human has been eliminated and is watching the rest play out. */
+  @state() private humanEliminated = false;
   @state() private humanExempt = false;
   @state() private personalBans: { letter: string; cardName: string }[] = [];
   @state() private humanBay: FanCard[] = [];
@@ -70,6 +72,9 @@ export class AcHud extends AcElement {
     this.currentName = cur?.name ?? "";
     this.isHumanTurn = s.phase === "Round" && cur?.id === human;
     const me = s.players.find((p) => p.id === human);
+    // Survival's only real consequence, and until now the only sign of it was a small OUT tag
+    // on the leaderboard — from the stage it just looked like your turn never came round again.
+    this.humanEliminated = !!me?.eliminated;
     this.humanBay = me ? this.projectBay(me) : [];
     this.humanSlots = me?.slots ?? 3;
     // Sort opponents by their (stable) accent index for display, not by array
@@ -205,9 +210,12 @@ export class AcHud extends AcElement {
           </section>
 
           <section class="spotlight">
-            <span class="spot-turn ${this.isHumanTurn ? "is-you" : ""}">
-              ${this.isHumanTurn ? "YOUR TURN" : html`${this.currentName} is playing…`}
-            </span>
+            ${this.humanEliminated
+              ? html`<span class="spot-turn is-out">YOU'RE OUT</span>
+                  <span class="spot-sub">${this.currentName} is playing…</span>`
+              : html`<span class="spot-turn ${this.isHumanTurn ? "is-you" : ""}">
+                  ${this.isHumanTurn ? "YOUR TURN" : html`${this.currentName} is playing…`}
+                </span>`}
           </section>
 
           <ac-engine-bay

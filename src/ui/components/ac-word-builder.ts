@@ -31,6 +31,8 @@ export class AcWordBuilder extends AcElement {
   @state() private stagedTileIds: string[] = [];
   @state() private live = false;
   @state() private onDeck = false;
+  /** Survival: eliminated. The rack still renders, but nothing on it is ours any more. */
+  @state() private isOut = false;
   @state() private requiredLetter = "";
   @state() private bannedLetter = "";
   @state() private feedback = "";
@@ -94,9 +96,12 @@ export class AcWordBuilder extends AcElement {
     const human = this.controller.humanId;
     const isHumanTurn = s.phase === "Round" && s.players[s.currentPlayerIndex]?.id === human;
     this.live = isHumanTurn;
+    this.isOut = !!s.players.find((p) => p.id === human)?.eliminated;
 
     const nextIdx = (s.currentPlayerIndex + 1) % Math.max(1, s.players.length);
-    this.onDeck = s.phase === "Round" && !isHumanTurn && s.players[nextIdx]?.id === human;
+    // An eliminated seat is never on deck — advanceIndex skips it, so promising a turn would lie.
+    this.onDeck =
+      !this.isOut && s.phase === "Round" && !isHumanTurn && s.players[nextIdx]?.id === human;
 
     this.highlightBans = s.settings.highlightBannedLetters;
     this.bannedLetter = s.bannedLetter;
@@ -287,7 +292,7 @@ export class AcWordBuilder extends AcElement {
       <div
         class="ac-word-builder ${this.live ? "is-live" : "is-idle"} ${this.onDeck
           ? "is-ondeck"
-          : ""}"
+          : ""} ${this.isOut ? "is-out" : ""}"
         role="region"
         aria-label="Word Builder"
       >
@@ -349,18 +354,25 @@ export class AcWordBuilder extends AcElement {
                conditionally, because a conditional render is removed from the
                DOM the instant you go live and there is nothing left to animate
                out. -->
-          <div class="ac-standby ${!this.live && this.onDeck ? "is-shown" : ""}" aria-hidden="true">
-            <span class="ac-standby-plate">You're Next</span>
+          <div
+            class="ac-standby ${this.isOut || (!this.live && this.onDeck) ? "is-shown" : ""}"
+            aria-hidden="true"
+          >
+            <span class="ac-standby-plate ${this.isOut ? "is-out" : ""}"
+              >${this.isOut ? "Eliminated" : "You're Next"}</span
+            >
           </div>
           <section class="ac-staging-area" aria-label="Assembled Word">
             <div class="ac-staging-track ${stagedTiles.length === 0 ? "is-empty" : ""}">
               ${stagedTiles.length === 0
                 ? html`<span class="ac-staging-placeholder">
-                    ${this.live
-                      ? "Tap tiles or type to build a word…"
-                      : this.onDeck
-                        ? "You are on deck…"
-                        : "Waiting for turn…"}
+                    ${this.isOut
+                      ? "You timed out — spectating."
+                      : this.live
+                        ? "Tap tiles or type to build a word…"
+                        : this.onDeck
+                          ? "You are on deck…"
+                          : "Waiting for turn…"}
                   </span>`
                 : stagedTiles.map((tile) => {
                     const isStarter =
