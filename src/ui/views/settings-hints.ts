@@ -25,6 +25,17 @@ type GroupedSetting = RarityWeightKey;
 
 /** Section id -> the one explanation shared by every setting in that section. */
 export const SETTING_GROUP_HINTS = {
+  presets:
+    "Start from a ready-made match, then change anything you like. Editing any match rule switches this to Custom.",
+  hostPreferences:
+    "Yours, not the match's — how you like to play rather than how the game is scored. No preset ever changes these.",
+  modeAndWords: "How a word gets into the chain, and which words are available to put there.",
+  matchLength: "How long a match runs, and what can end it early.",
+  bannedLetters:
+    "At each intermission the player in last place bans a letter for everyone next era. These decide what they may pick and how long they get to pick it.",
+  engineCards: "How many modifier cards you are dealt, when, and how long you get to arrange them.",
+  engineBaySlots:
+    "How many cards your engine bay can hold, and how that grows as the match runs on. Anything past the limit has to be cut.",
   rarityWeights:
     "How often each tier is offered, relative to the others — these are weights, not percentages. Set a tier to 0 to drop it from the deal entirely.",
 } as const;

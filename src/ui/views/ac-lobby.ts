@@ -1,19 +1,22 @@
 /*
- * <ac-lobby> — match setup. Edits a working copy of the settings via steppers /
- * a difficulty segment, then emits `ac-start` with the chosen settings.
+ * <ac-lobby> — match setup. Edits a working copy of the settings via the shared preset bar and
+ * settings sections, then emits `ac-start` with the chosen settings.
+ *
+ * The rows themselves live in settings-sections.ts, shared with <ac-net-lobby>. What stays here
+ * is this lobby's own machinery: the draft, persistence, the row primitives it lends the shared
+ * sections, and the solo-only host preferences (bots).
  */
 
 import { html, nothing, type PropertyValues, type TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { GameMode } from "../../game/types";
-import type { AlphaChainSettings, BotDifficulty } from "../../game/types";
-import { DEFAULT_SETTINGS, MAX_ERA_STEPPER, saveSettings } from "../../game/settings";
+import type { AlphaChainSettings } from "../../game/types";
+import { applyPreset, type PresetId } from "../../game/presets";
+import { DEFAULT_SETTINGS, saveSettings } from "../../game/settings";
 import { AcElement } from "../app/AcElement";
-import { renderPickerSettings } from "./picker-settings";
-import { RARITY_WEIGHT_BOUNDS, renderRarityWeights } from "./rarity-weights";
-import { SETTING_HINTS } from "./settings-hints";
-
-const DIFFS: BotDifficulty[] = ["easy", "medium", "hard"];
+import type { SettingControls } from "./setting-controls";
+import { renderSettingsPresets } from "./settings-presets";
+import { renderHostPreferences, renderMatchRules } from "./settings-sections";
 
 @customElement("ac-lobby")
 export class AcLobby extends AcElement {
@@ -39,6 +42,14 @@ export class AcLobby extends AcElement {
 
   private set<K extends keyof AlphaChainSettings>(key: K, value: AlphaChainSettings[K]): void {
     this.draft = { ...this.draft, [key]: value };
+    saveSettings(this.draft);
+  }
+
+  /** Apply a preset's match rules. Rides the same persistence path as a single stepper — the
+   *  only difference is that it writes many keys at once. The host's own preferences survive:
+   *  see applyPreset. */
+  private applyPreset(id: PresetId): void {
+    this.draft = applyPreset(this.draft, id);
     saveSettings(this.draft);
   }
 
@@ -127,17 +138,20 @@ export class AcLobby extends AcElement {
     );
   }
 
-  /** The "Rarity Weights" group — shared with the multiplayer lobby (see rarity-weights.ts). */
-  private rarityWeights(): TemplateResult {
-    return renderRarityWeights(
-      this.draft,
-      (key, delta) => this.step(key, delta, RARITY_WEIGHT_BOUNDS.min, RARITY_WEIGHT_BOUNDS.max),
-      this.stepper.bind(this),
-    );
+  /** The row primitives lent to the shared sections. */
+  private get controls(): SettingControls {
+    return {
+      step: this.step.bind(this),
+      set: this.set.bind(this),
+      stepper: this.stepper.bind(this),
+      segmented: this.segmented.bind(this),
+      toggle: this.toggle.bind(this),
+    };
   }
 
   override render(): TemplateResult {
     const d = this.draft;
+    const c = this.controls;
     return html`
       <div class="lobby">
         <header class="lobby-head">
@@ -147,184 +161,22 @@ export class AcLobby extends AcElement {
 
         <div class="ac-panel lobby-panel net-panel">
           <div class="net-settings">
-            <!-- Game Mode leads the list deliberately: Picker is the default, so stored settings
-                 load with it already selected, and Classic has to stay discoverable rather than
-                 buried. The mode-specific rows below follow it so the panel reads top-down. -->
-            ${this.segmented<GameMode>(
-              "Game Mode",
-              d.gameMode,
-              [
-                { value: GameMode.Picker, text: "picker" },
-                { value: GameMode.Classic, text: "classic" },
-              ],
-              (v) => this.set("gameMode", v),
-              SETTING_HINTS.gameMode,
-            )}
-            ${renderPickerSettings(
-              d,
-              this.step.bind(this),
-              this.set.bind(this),
-              this.stepper.bind(this),
-              this.segmented.bind(this),
-              this.toggle.bind(this),
-            )}
-            ${this.stepper(
-              "Opponents",
-              String(d.botCount),
-              () => this.step("botCount", -1, 1, 5),
-              () => this.step("botCount", 1, 1, 5),
-              SETTING_HINTS.botCount,
-            )}
-            ${this.segmented<BotDifficulty>(
-              "Difficulty",
-              d.botDifficulty,
-              DIFFS.map((diff) => ({ value: diff, text: diff })),
-              (v) => this.set("botDifficulty", v),
-              SETTING_HINTS.botDifficulty,
-            )}
-            ${d.gameMode === GameMode.Classic
-              ? this.stepper(
-                  "Shot Clock",
-                  `${d.shotClockSeconds}s`,
-                  () => this.step("shotClockSeconds", -5, 5, 60),
-                  () => this.step("shotClockSeconds", 5, 5, 60),
-                  SETTING_HINTS.shotClockSeconds,
-                )
-              : nothing}
-            ${this.segmented<AlphaChainSettings["banMode"]>(
-              "Letter Ban Mode",
-              d.banMode,
-              [
-                { value: "All", text: "all" },
-                { value: "VowelsOnly", text: "vowels" },
-                { value: "ConsonantsOnly", text: "conson." },
-              ],
-              (v) => this.set("banMode", v),
-              SETTING_HINTS.banMode,
-            )}
-            ${this.segmented<AlphaChainSettings["banRepeatRule"]>(
-              "Letter Ban Repeats",
-              d.banRepeatRule,
-              [
-                { value: "AllowRepeat", text: "allow" },
-                { value: "NoConsecutive", text: "no consec." },
-                { value: "NoRepeat", text: "never" },
-              ],
-              (v) => this.set("banRepeatRule", v),
-              SETTING_HINTS.banRepeatRule,
-            )}
-            ${this.stepper(
-              "Letter Ban Time",
-              `${d.sniperBanSeconds}s`,
-              () => this.step("sniperBanSeconds", -5, 5, 120),
-              () => this.step("sniperBanSeconds", 5, 5, 120),
-              SETTING_HINTS.sniperBanSeconds,
-            )}
-            ${this.stepper(
-              "Eras",
-              String(d.eraCount),
-              () => this.step("eraCount", -1, 1, MAX_ERA_STEPPER),
-              () => this.step("eraCount", 1, 1, MAX_ERA_STEPPER),
-              SETTING_HINTS.eraCount,
-            )}
-            ${this.stepper(
-              "Rounds Per Era",
-              String(d.eraInterval),
-              () => this.step("eraInterval", -1, 1, MAX_ERA_STEPPER),
-              () => this.step("eraInterval", 1, 1, MAX_ERA_STEPPER),
-              SETTING_HINTS.eraInterval,
-            )}
-            ${this.stepper(
-              "Cards Per Era",
-              String(d.modifiersDealtPerEra),
-              () => this.step("modifiersDealtPerEra", -1, 0, 10),
-              () => this.step("modifiersDealtPerEra", 1, 0, 10),
-              SETTING_HINTS.modifiersDealtPerEra,
-            )}
-            ${this.rarityWeights()}
-            ${this.stepper(
-              "Starting Slots",
-              String(d.modifierSlotsStart),
-              () => this.step("modifierSlotsStart", -1, 1, 20),
-              () => this.step("modifierSlotsStart", 1, 1, 20),
-              SETTING_HINTS.modifierSlotsStart,
-            )}
-            ${this.stepper(
-              "Slots Increase Every",
-              d.slotIncreaseEveryNEras === 0
-                ? "Never"
-                : `${d.slotIncreaseEveryNEras} era${d.slotIncreaseEveryNEras === 1 ? "" : "s"}`,
-              () => this.step("slotIncreaseEveryNEras", -1, 0, 20),
-              () => this.step("slotIncreaseEveryNEras", 1, 0, 20),
-              SETTING_HINTS.slotIncreaseEveryNEras,
-            )}
-            ${this.stepper(
-              "Slots Per Increase",
-              String(d.slotIncreaseAmount),
-              () => this.step("slotIncreaseAmount", -1, 1, 10),
-              () => this.step("slotIncreaseAmount", 1, 1, 10),
-              SETTING_HINTS.slotIncreaseAmount,
-            )}
-            ${this.stepper(
-              "Max Slots",
-              String(d.modifierSlotsMax),
-              () => this.step("modifierSlotsMax", -1, 1, 20),
-              () => this.step("modifierSlotsMax", 1, 1, 20),
-              SETTING_HINTS.modifierSlotsMax,
-            )}
-            ${this.toggle(
-              "Start With Engine Cards",
-              d.dealEngineCardsFirstEra,
-              (v) => this.set("dealEngineCardsFirstEra", v),
-              SETTING_HINTS.dealEngineCardsFirstEra,
-            )}
-            ${this.stepper(
-              "Engine Management Time",
-              `${d.intermissionCardSelectSeconds}s`,
-              () => this.step("intermissionCardSelectSeconds", -10, 10, 180),
-              () => this.step("intermissionCardSelectSeconds", 10, 10, 180),
-              SETTING_HINTS.intermissionCardSelectSeconds,
-            )}
-            ${this.stepper(
-              "Engine Animation Duration",
-              `${d.engineAnimationSeconds.toFixed(1)}s`,
-              () => this.step("engineAnimationSeconds", -0.5, 0.5, 10),
-              () => this.step("engineAnimationSeconds", 0.5, 0.5, 10),
-              SETTING_HINTS.engineAnimationSeconds,
-            )}
-            ${this.stepper(
-              "Countdown",
-              `${d.preRoundCountdownSeconds}s`,
-              () => this.step("preRoundCountdownSeconds", -1, 3, 15),
-              () => this.step("preRoundCountdownSeconds", 1, 3, 15),
-              SETTING_HINTS.preRoundCountdownSeconds,
-            )}
-            ${this.toggle(
-              "Survival Mode",
-              d.survivalMode,
-              (v) => this.set("survivalMode", v),
-              SETTING_HINTS.survivalMode,
-            )}
-            ${this.toggle(
-              "Tutorials",
-              d.enableTutorials,
-              (v) => this.set("enableTutorials", v),
-              SETTING_HINTS.enableTutorials,
-            )}
+            ${renderSettingsPresets(d, this.applyPreset.bind(this))}
+            ${renderHostPreferences(d, c, { bots: true })} ${renderMatchRules(d, c)}
           </div>
         </div>
 
         <button class="ac-btn lobby-start" @click=${this.start}>START MATCH</button>
         <button class="lobby-bay" @click=${this.openBay}>Testing Bay</button>
 
-        <!-- Mode-specific, because the two modes ask for genuinely different things: Picker asks
-             you to judge words, Classic asks you to think of them. The succession rule and the
-             joke are common to both. -->
+        <!-- Mode-specific, because the two modes ask for genuinely different things: Word Builder
+             asks you to assemble a word from what you are dealt, Classic asks you to think of
+             one. The succession rule and the joke are common to both. -->
         <p class="lobby-rules">
           ${d.gameMode === GameMode.Picker
-            ? html`Every word must start with the last letter of the previous word — but you pick
-              yours from a handful on offer, so it's your engine doing the work, not your spelling.
-              It sounds simple but don't worry, I've massively overcomplicated it.`
+            ? html`Every word must start with the last letter of the previous word — but you build
+              yours from a rack of tiles, so it's your engine doing the work, not your spelling. It
+              sounds simple but don't worry, I've massively overcomplicated it.`
             : html`Every word must start with the last letter of the previous word, and you type it
               yourself against the clock. It sounds simple but don't worry, I've massively
               overcomplicated it.`}

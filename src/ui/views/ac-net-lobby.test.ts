@@ -7,15 +7,24 @@
 // gap, and the reason it must stay edge-triggered: a push loops back as a snapshot that
 // re-fires the very callback doing the pushing.
 import { describe, expect, it } from "vitest";
+import { detectPreset, PresetId } from "../../game/presets";
 import { DEFAULT_SETTINGS } from "../../game/settings";
+import { PRESET_LABELS } from "./settings-presets";
 import type { AlphaChainSettings } from "../../game/types";
 import type { ServerController } from "../../net/serverController";
 import "./ac-net-lobby";
 import type { AcNetLobby } from "./ac-net-lobby";
 
 /** The owner's persisted settings — deliberately unlike DEFAULT_SETTINGS, so a test can
- *  tell "the owner published their own choices" from "nobody published anything". */
-const PERSISTED: AlphaChainSettings = { ...DEFAULT_SETTINGS, eraCount: 5, shotClockSeconds: 42 };
+ *  tell "the owner published their own choices" from "nobody published anything". Carries a
+ *  non-default host preference too (see the preset case at the bottom). */
+const PERSISTED: AlphaChainSettings = {
+  ...DEFAULT_SETTINGS,
+  eraCount: 5,
+  shotClockSeconds: 42,
+  hostPlays: false,
+  enableTutorials: false,
+};
 
 /** The slice of ServerController the view reads, with the lobby-change callback exposed
  *  so a test can fire it the way applyServerState/onReady do. */
@@ -93,5 +102,59 @@ describe("<ac-net-lobby> settings publish", () => {
     expect(pushes).toEqual([]); // non-owners never publish
     expect(el.querySelector(".set-readonly-note")).not.toBeNull();
     expect(el.querySelector(".lobby-start")).toBeNull(); // no START MATCH for a non-owner
+  });
+
+  it("publishes a preset's match rules while keeping the owner's own preferences", async () => {
+    const { stub, pushes, fireLobbyChange } = stubController();
+    const el = await mount(stub);
+    stub.isOwner = true;
+    fireLobbyChange();
+    await el.updateComplete;
+
+    const chip = [...el.querySelectorAll<HTMLButtonElement>(".set-presets .seg-btn")].find(
+      (b) => b.textContent?.trim() === PRESET_LABELS[PresetId.QuickMatch],
+    );
+    expect(chip).toBeDefined();
+    chip?.click();
+    await el.updateComplete;
+
+    const sent = pushes[pushes.length - 1];
+    expect(sent.eraCount).toBe(2); // the preset's rules replaced the persisted eraCount: 5
+    expect(sent.dealEngineCardsFirstEra).toBe(true);
+    // ...but the host's own preferences are not the preset's to change.
+    expect(sent.hostPlays).toBe(false);
+    expect(sent.enableTutorials).toBe(false);
+    expect(detectPreset(sent)).toBe(PresetId.QuickMatch);
+  });
+
+  it("reports Custom once the owner edits a rule away from a preset", async () => {
+    const { stub, pushes, fireLobbyChange } = stubController();
+    const el = await mount(stub);
+    stub.isOwner = true;
+    fireLobbyChange();
+    await el.updateComplete;
+
+    const chips = (): HTMLButtonElement[] => [
+      ...el.querySelectorAll<HTMLButtonElement>(".set-presets .seg-btn"),
+    ];
+    chips()
+      .find((b) => b.textContent?.trim() === PRESET_LABELS[PresetId.Marathon])
+      ?.click();
+    await el.updateComplete;
+    expect(
+      chips()
+        .find((b) => b.classList.contains("is-on"))
+        ?.textContent?.trim(),
+    ).toBe(PRESET_LABELS[PresetId.Marathon]);
+
+    // Nudge any match rule and the bar has to stop claiming Marathon.
+    el.querySelector<HTMLButtonElement>('[aria-label="increase Eras"]')?.click();
+    await el.updateComplete;
+    expect(
+      chips()
+        .find((b) => b.classList.contains("is-on"))
+        ?.textContent?.trim(),
+    ).toBe("custom");
+    expect(detectPreset(pushes[pushes.length - 1])).toBeNull();
   });
 });

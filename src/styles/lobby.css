@@ -141,6 +141,56 @@
   grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
   column-gap: var(--sp-4);
 }
+/* Band heading — one level ABOVE .set-subhead. There are three: "Presets", "Host Preferences"
+   and "Match Rules". Bigger, in stock rather than steel, and underlined the full width, so the
+   section headings that follow read as its children rather than as its peers. Without two
+   distinct levels the panel is 8 equal-looking headings and the host/match split — the whole
+   point of the reorganisation, and the boundary a preset respects — stops being visible. */
+.set-head {
+  grid-column: 1 / -1;
+  margin: 1.1rem 0 0.1rem;
+  padding-bottom: 0.3rem;
+  font-family: var(--font-machine);
+  font-stretch: var(--stretch-machine);
+  font-size: 0.9rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ac-stock-200);
+  border-bottom: 1px solid var(--ac-border-strong);
+}
+/* "Presets" opens its block, so it needs no leading gap. */
+.set-head:first-child {
+  margin-top: 0;
+}
+
+/* The preset bar. A flex column rather than a nested grid (compare .set-group): its chips are
+   one wrapping row, not settings rows, so they never want the panel's 220px column tracks. */
+.net-settings .set-presets {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding-bottom: 0.7rem;
+  margin-bottom: 0.2rem;
+  border-bottom: 1px solid var(--ac-border);
+}
+/* Wrap rather than overflow: seven chips do not fit one phone-width row, and .lobby forbids
+   sideways scrolling. */
+.set-presets .seg {
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+/* Sized to their own text (`0 1 auto`), NOT stretched to share the row. Growing them means
+   whichever chip wraps onto the last row inflates to the full panel width on its own — which
+   the "custom" chip does at most widths, and a preset-sized banner reads as a section header
+   rather than as the seventh item in a set. */
+.set-presets .seg-btn {
+  flex: 0 1 auto;
+  text-align: center;
+  padding: 0.45rem 0.9rem;
+}
+
 /* Full-width group heading inside the settings grid (e.g. "Rarity Weights"), so a run of
    related steppers reads as one block instead of loose rows. */
 .set-subhead {
@@ -187,15 +237,19 @@
   font-style: italic;
 }
 /* Disabled controls (guest view) read as inert rather than clickable. Cold and
-   flat rather than faded, matching how .ac-btn handles the same state. */
+   flat rather than faded, matching how .ac-btn handles the same state.
+   aria-disabled gets the same treatment for the preset bar's "custom" chip, which reports
+   state rather than offering an action but must stay in the accessibility tree to do it. */
 .set-btn:disabled,
-.seg-btn:disabled {
+.seg-btn:disabled,
+.seg-btn[aria-disabled="true"] {
   cursor: default;
   background: var(--ac-steel-600);
   color: var(--ac-steel-400);
   box-shadow: var(--ac-lift-0);
 }
-.seg-btn.is-on:disabled {
+.seg-btn.is-on:disabled,
+.seg-btn.is-on[aria-disabled="true"] {
   background: var(--ac-brass-dim);
   color: var(--ac-steel-800);
 }
@@ -293,11 +347,11 @@
     box-shadow 0.1s,
     transform 0.08s;
 }
-.seg-btn:hover:not(:disabled):not(.is-on) {
+.seg-btn:hover:not(:disabled):not([aria-disabled="true"]):not(.is-on) {
   background: linear-gradient(180deg, var(--ac-steel-400), var(--ac-steel-500));
   color: var(--ac-ink);
 }
-.seg-btn:active:not(:disabled) {
+.seg-btn:active:not(:disabled):not([aria-disabled="true"]) {
   transform: translateY(1px);
 }
 .seg-btn.is-on {
