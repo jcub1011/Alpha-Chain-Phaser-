@@ -7,7 +7,7 @@
 import type { AlphaChainSettings } from "../../game/types";
 
 export const SETTING_HINTS: Record<keyof AlphaChainSettings, string> = {
-  gameMode: "Picker: choose a word from the cards you're dealt. Classic: type it yourself.",
+  gameMode: "Word Builder: assemble words from a dealt tile rack. Classic: type words freely.",
   rackSize: "How many tiles are dealt to your rack each turn (6–12).",
   builderShotClockSeconds: "Seconds to assemble and submit a word in Word Builder mode.",
   offerCount: "How many words you get to choose from each turn. Fewer is less to read.",
