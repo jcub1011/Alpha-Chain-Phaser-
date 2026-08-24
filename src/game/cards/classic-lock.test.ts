@@ -224,16 +224,16 @@ const EXPECTED: Record<string, string> = {
   Dividend:
     "chip=+2/card | desc=+2 for each card in your bay. | clock=- | armed=20 | hooks=- | alone=+2:5 +2:8 +2:9 +2:10 +2:12 +2:6 +2:8 +2:8 | full=+2 +2 +2 +2 +2 +2 +2 +2 | glass=+6 | right=+4 | timeout=—",
   Sieve:
-    "chip=6+ only | desc=Your Offer contains only words of 6+ letters. Scores nothing itself. | clock=- | armed=20 | hooks=preference | alone=FX:3 FX:6 FX:7 FX:8 FX:10 FX:4 FX:6 FX:6 | full=FX FX FX FX FX FX FX FX | glass=FX | right=FX | timeout=—",
+    "chip=6+ only | desc=Your Offer contains only words of 6+ letters (seeds of 8+ in Word Builder). Scores nothing itself. | clock=- | armed=20 | hooks=preference | alone=FX:3 FX:6 FX:7 FX:8 FX:10 FX:4 FX:6 FX:6 | full=FX FX FX FX FX FX FX FX | glass=FX | right=FX | timeout=—",
   Winnower:
-    "chip=redraw | desc=Once per turn, redraw your whole Offer for 30% of your shot clock. | clock=- | armed=20 | hooks=preference | alone=FX:3 FX:6 FX:7 FX:8 FX:10 FX:4 FX:6 FX:6 | full=FX FX FX FX FX FX FX FX | glass=FX | right=FX | timeout=—",
+    "chip=redraw | desc=Once per turn, redraw your whole Offer or Tile Rack for 30% of your shot clock. | clock=- | armed=20 | hooks=preference | alone=FX:3 FX:6 FX:7 FX:8 FX:10 FX:4 FX:6 FX:6 | full=FX FX FX FX FX FX FX FX | glass=FX | right=FX | timeout=—",
   WideNet:
-    "chip=+2 / −15% | desc=+2 Offer Cards, and −15% shot clock. More to choose from, less time to choose. | clock=-0.15/0 | armed=17 | hooks=preference | alone=FX:3 FX:6 FX:7 FX:8 FX:10 FX:4 FX:6 FX:6 | full=FX FX FX FX FX FX FX FX | glass=FX | right=FX | timeout=—",
+    "chip=+2 / −15% | desc=+2 Offer/Rack slots, and −15% shot clock. More to choose from, less time to choose. | clock=-0.15/0 | armed=17 | hooks=preference | alone=FX:3 FX:6 FX:7 FX:8 FX:10 FX:4 FX:6 FX:6 | full=FX FX FX FX FX FX FX FX | glass=FX | right=FX | timeout=—",
   TunnelVision:
-    "chip=×1.4 | desc=×1.4 always, but you are offered 2 fewer words. Raw multiplier, less choice. | clock=- | armed=20 | hooks=preference | alone=×1.4:4 ×1.4:8 ×1.4:10 ×1.4:11 ×1.4:14 ×1.4:6 ×1.4:8 ×1.4:8 | full=×1.4 ×1.4 ×1.4 ×1.4 ×1.4 ×1.4 ×1.4 ×1.4 | glass=×2.1 | right=×1.4 | timeout=—",
+    "chip=×1.4 | desc=×1.4 always, but you have 2 fewer Offer/Rack slots. Raw multiplier, less choice. | clock=- | armed=20 | hooks=preference | alone=×1.4:4 ×1.4:8 ×1.4:10 ×1.4:11 ×1.4:14 ×1.4:6 ×1.4:8 ×1.4:8 | full=×1.4 ×1.4 ×1.4 ×1.4 ×1.4 ×1.4 ×1.4 ×1.4 | glass=×2.1 | right=×1.4 | timeout=—",
   Prospector:
-    "chip=1 rare | desc=At least one Offer Card always contains Q, X, Z or J. Scores nothing itself. | clock=- | armed=20 | hooks=preference | alone=FX:3 FX:6 FX:7 FX:8 FX:10 FX:4 FX:6 FX:6 | full=FX FX FX FX FX FX FX FX | glass=FX | right=FX | timeout=—",
-  Tide: "chip=vowels | desc=Your Offer is drawn vowel-heavy wherever the pool allows. Scores nothing itself. | clock=- | armed=20 | hooks=preference | alone=FX:3 FX:6 FX:7 FX:8 FX:10 FX:4 FX:6 FX:6 | full=FX FX FX FX FX FX FX FX | glass=FX | right=FX | timeout=—",
+    "chip=1 rare | desc=Guaranteed at least one rare letter (Q, X, Z, J) in your Offer or Rack. Scores nothing itself. | clock=- | armed=20 | hooks=preference | alone=FX:3 FX:6 FX:7 FX:8 FX:10 FX:4 FX:6 FX:6 | full=FX FX FX FX FX FX FX FX | glass=FX | right=FX | timeout=—",
+  Tide: "chip=vowels | desc=Your Offer or Rack is guaranteed vowel-heavy (>=50% vowels). Scores nothing itself. | clock=- | armed=20 | hooks=preference | alone=FX:3 FX:6 FX:7 FX:8 FX:10 FX:4 FX:6 FX:6 | full=FX FX FX FX FX FX FX FX | glass=FX | right=FX | timeout=—",
   Sentinel:
-    "chip=1 safe | desc=At least one Offer Card is guaranteed free of every letter banned against you. Scores nothing itself. | clock=- | armed=20 | hooks=preference | alone=FX:3 FX:6 FX:7 FX:8 FX:10 FX:4 FX:6 FX:6 | full=FX FX FX FX FX FX FX FX | glass=FX | right=FX | timeout=—",
+    "chip=1 safe | desc=Your Offer or Rack is guaranteed free of every letter banned against you. Scores nothing itself. | clock=- | armed=20 | hooks=preference | alone=FX:3 FX:6 FX:7 FX:8 FX:10 FX:4 FX:6 FX:6 | full=FX FX FX FX FX FX FX FX | glass=FX | right=FX | timeout=—",
 };

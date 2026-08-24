@@ -20,6 +20,7 @@ import { AcElement } from "../app/AcElement";
 import "../components/ac-shot-clock";
 import "../components/ac-word-entry";
 import "../components/ac-offer-grid";
+import "../components/ac-word-builder";
 import "../components/ac-leaderboard";
 import "../components/ac-recent-words";
 import "../components/ac-score-replay";
@@ -223,14 +224,17 @@ export class AcHud extends AcElement {
             <ac-recent-words .controller=${c}></ac-recent-words>
           </section>
 
-          <!-- The single input-surface mount. Picker swaps the whole surface rather than
-               conditionally reshaping one component: typed entry and tap-to-pick share no state,
-               and Classic's walkthrough/behaviour must stay untouched. -->
+          <!-- The single input-surface mount. Picker / Word Builder swaps the surface -->
           ${c.match.state.settings.gameMode === GameMode.Picker
-            ? html`<ac-offer-grid
-                .controller=${c}
-                @ac-offer-preview=${this.onOfferPreview}
-              ></ac-offer-grid>`
+            ? c.match.state.rack.length > 0
+              ? html`<ac-word-builder
+                  .controller=${c}
+                  @ac-offer-preview=${this.onOfferPreview}
+                ></ac-word-builder>`
+              : html`<ac-offer-grid
+                  .controller=${c}
+                  @ac-offer-preview=${this.onOfferPreview}
+                ></ac-offer-grid>`
             : html`<ac-word-entry .controller=${c}></ac-word-entry>`}
 
           <ac-score-replay .controller=${c}></ac-score-replay>

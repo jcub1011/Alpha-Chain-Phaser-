@@ -10,6 +10,7 @@ import {
   BOT_CANDIDATE_COUNT,
   BOT_THINK_SECONDS,
   chooseBotWordScored,
+  chooseBotWordFromRack,
   planBotBay,
 } from "../game/bots";
 import type { Dictionary } from "../game/dictionary";
@@ -165,6 +166,16 @@ export class LocalController implements GameController {
     this.match.redrawOffer(this.humanId);
   }
 
+  redrawRack(): void {
+    this.match.redrawRack(this.humanId);
+  }
+
+  stageTiles(_tileIds: string[], word?: string): void {
+    if (word) {
+      this.match.setSelection(this.humanId, word);
+    }
+  }
+
   destroy(): void {
     this.botCountdown = null;
     this.botPlayerId = null;
@@ -187,16 +198,32 @@ export class LocalController implements GameController {
     const scoreOpts = this.botScoreOpts(player?.slots ?? 0);
     const bay = player?.bay ?? [];
 
-    // Picker: the Offer IS the candidate set, so a bot ranks it through its own bay and commits.
-    // No dictionary walk, and no difficulty-tiered gathering — every player, human or bot, faces
-    // exactly the same five words, which is what makes the mode's skill purely evaluation.
+    // Picker / Word Builder: evaluate candidates through the bot's bay and commit.
     if (this.match.effectiveMode === GameMode.Picker) {
-      const pick = bestScoredCandidate(s.offer, { bay, scoreOpts, bannedLetter: s.bannedLetter });
+      let pick: string | null = null;
+      if (s.rack.length > 0 && this.match.wordPoolInstance) {
+        pick = chooseBotWordFromRack(
+          s.rack,
+          this.match.wordPoolInstance,
+          this.match.offerIndex,
+          {
+            requiredLetter: s.requiredLetter,
+            usedWords: s.usedWords,
+            bannedLetter: s.bannedLetter,
+            difficulty: s.settings.botDifficulty,
+            bay,
+            scoreOpts,
+          },
+        );
+      } else if (s.offer.length > 0) {
+        pick = bestScoredCandidate(s.offer, { bay, scoreOpts, bannedLetter: s.bannedLetter });
+      }
+
       if (pick) {
         log.debug(`bot ${playerId} picks "${pick}"`);
         this.match.commitSelection(playerId, pick);
       } else {
-        // Empty Offer — let the clock run out; the engine's timeout resolves the turn.
+        // Let the clock run out; the engine's timeout resolves the turn.
         log.warn(`bot ${playerId} had nothing to pick from`);
       }
       return;

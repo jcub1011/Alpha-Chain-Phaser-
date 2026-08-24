@@ -97,6 +97,8 @@ function harness(
       return match.commitSelection("you", w);
     },
     redrawOffer: () => match.redrawOffer("you"),
+    redrawRack: () => match.redrawRack("you"),
+    stageTiles: () => {},
     destroy: () => {},
   };
   return { match, controller, calls };

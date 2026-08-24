@@ -43,6 +43,8 @@ function controllerFor(match: MatchController, humanId: string, isOwner: boolean
     reportSelection: () => {},
     commitSelection: () => ({ accepted: false }),
     redrawOffer: () => {},
+    redrawRack: () => {},
+    stageTiles: () => {},
     destroy: () => {},
   };
 }

@@ -29,11 +29,19 @@ export interface PreferenceContext {
 
 export type WordPredicate = (word: string) => boolean;
 
-/** How a card shapes the Offer. Presence of this on a `ModifierCard` is what makes it a Preference
+/** How a card shapes the Offer or Tile Rack. Presence of this on a `ModifierCard` is what makes it a Preference
  *  Card at all. */
 export interface PreferenceSpec {
-  /** Change to the number of Offer Cards (Wide Net +2, Tunnel Vision −2). */
+  /** Change to the number of Offer Cards or Tile slots (Wide Net +2, Tunnel Vision −2). */
   readonly countDelta?: number;
+  /** Sieve: Seed word must be at least 8 letters in Word Builder mode. */
+  readonly minSeedLength?: number;
+  /** Tide: Rack guaranteed >= 50% vowel tiles in Word Builder mode. */
+  readonly highVowelRatio?: boolean;
+  /** Prospector: Rack guaranteed >= 1 rare letter tile (Q, X, Z, J). */
+  readonly guaranteeRare?: boolean;
+  /** Sentinel: Rack guaranteed to contain no banned letters. */
+  readonly excludeBannedLetters?: boolean;
   /** A hard shape constraint on every Offer Card. Filters compose left → right and intersect;
    *  one that would drop the candidate pool below the Offer count is skipped ENTIRELY rather than
    *  partially applied, so the picker can never soft-lock. */
@@ -43,7 +51,7 @@ export interface PreferenceSpec {
   guarantee?(ctx: PreferenceContext): WordPredicate | null;
   /** A soft bias, honoured while the pool allows and then abandoned. Never blocks a full Offer. */
   prefer?(ctx: PreferenceContext): WordPredicate | null;
-  /** Once-per-turn Offer redraw, priced as a fraction of the ARMED clock (Winnower). The price
+  /** Once-per-turn Offer/Rack redraw, priced as a fraction of the ARMED clock (Winnower). The price
    *  is fixed, so it grows harsher as your engine grows and each Offer takes longer to read. */
   readonly redraw?: { readonly clockCostFraction: number };
 }

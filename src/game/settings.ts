@@ -44,6 +44,8 @@ export const RARITY_WEIGHT_KEYS: Record<CardRarity, RarityWeightKey> = {
 export const DEFAULT_SETTINGS: AlphaChainSettings = {
   // Picker is the default mode, not an alternate — it is what a new player meets first.
   gameMode: GameMode.Picker,
+  rackSize: 9,
+  builderShotClockSeconds: 25,
   offerCount: 5,
   offerDictionary: DictionaryTier.Reduced,
   // A genuine playtest question, not a design decision: too generous and turns drag, which is
@@ -170,6 +172,10 @@ const DICTIONARY_TIERS: readonly DictionaryTier[] = Object.values(DictionaryTier
 export const MIN_OFFER_COUNT = 3;
 export const MAX_OFFER_COUNT = 8;
 
+/** Word Builder rack size bounds. */
+export const MIN_BUILDER_RACK_SIZE = 6;
+export const MAX_BUILDER_RACK_SIZE = 12;
+
 /** Upper bound for `eraCount` / `eraInterval`, shared by the persistence validators and both
  *  lobbies' steppers so the editable range and the accepted range cannot drift apart. */
 export const MAX_ERA_STEPPER = 50;
@@ -181,7 +187,7 @@ export const MAX_ERA_STEPPER = 50;
  *  Chrono Syphon), so a site that keeps reading `shotClockSeconds` while Picker arms
  *  `pickerShotClockSeconds` mis-scores silently instead of failing. */
 export function baseShotClockSeconds(s: AlphaChainSettings): number {
-  return s.gameMode === GameMode.Picker ? s.pickerShotClockSeconds : s.shotClockSeconds;
+  return s.gameMode === GameMode.Picker ? (s.builderShotClockSeconds || s.pickerShotClockSeconds) : s.shotClockSeconds;
 }
 
 /** A finite number within [min, max]. Rejects NaN/±Infinity (which are `typeof
@@ -196,6 +202,8 @@ const isBool = (v: unknown): boolean => typeof v === "boolean";
  *  value that fails keeps the default (see loadSettings). */
 const SETTINGS_VALIDATORS: { [K in keyof AlphaChainSettings]: (v: unknown) => boolean } = {
   gameMode: (v) => GAME_MODES.includes(v as GameMode),
+  rackSize: inRange(MIN_BUILDER_RACK_SIZE, MAX_BUILDER_RACK_SIZE),
+  builderShotClockSeconds: inRange(5, 60),
   offerCount: inRange(MIN_OFFER_COUNT, MAX_OFFER_COUNT),
   offerDictionary: (v) => DICTIONARY_TIERS.includes(v as DictionaryTier),
   pickerShotClockSeconds: inRange(5, 60),

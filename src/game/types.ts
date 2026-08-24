@@ -121,13 +121,14 @@ export interface AlphaChainSettings {
    *  selection from a server-generated Offer, removing the recall and typing barriers that
    *  exclude dyslexic and mobile players. Classic is the original typing race. */
   gameMode: GameMode;
+  /** Word Builder: target tile count presented on the player's rack each turn. */
+  rackSize: number;
+  /** Word Builder's shot clock. */
+  builderShotClockSeconds: number;
   /** Picker: how many Offer Cards are presented each turn. Also a cognitive-load dial, not just
    *  a strategic one — fewer cards is less to read under the clock. */
   offerCount: number;
-  /** Picker: which lexicon the Offer is drawn from. Reduced trades variety for decodability
-   *  (a reader recognises CANDLE at a glance and must decode ZYGODACTYL letter by letter, and
-   *  whole-word recognition is exactly what dyslexia impairs). Word *validation* always uses the
-   *  full list regardless — this only chooses the Offer's source. */
+  /** Picker / Word Builder: which lexicon the words/seeds are drawn from. */
   offerDictionary: DictionaryTier;
   /** Picker's shot clock. Distinct from `shotClockSeconds` because the right duration for
    *  reading several words is not the right duration for typing one. */
@@ -236,6 +237,16 @@ export const DictionaryTier = {
 export type DictionaryTier = (typeof DictionaryTier)[keyof typeof DictionaryTier];
 
 export type GamePhase = "Setup" | "Tutorial" | "Countdown" | "Round" | "Intermission" | "GameOver";
+
+/** A single tile in Word Builder Mode (single letter or morpheme chunk). */
+export interface Tile {
+  /** Unique tile identifier within the rack (e.g. "t0", "t1"). */
+  id: string;
+  /** Lowercased text payload (e.g. "c", "re", "ing"). UI renders uppercase. */
+  text: string;
+  /** True if this tile represents a multi-letter chunk/morpheme. */
+  isChunk: boolean;
+}
 
 /** A single card occupying a slot in a player's Engine Bay. */
 export interface BayCard {
@@ -374,6 +385,10 @@ export interface MatchState {
   bannedLetterHistory: string[];
   /** Words used this whole match (lowercased), forbidden to repeat. */
   usedWords: Set<string>;
+  /** Word Builder: the current player's Tile Rack. Empty in Classic and outside a Round. */
+  rack: Tile[];
+  /** Word Builder: whether the CURRENT player may spend Winnower's redraw this turn. */
+  rackRedrawAvailable: boolean;
   /** Picker: the current player's Offer — the candidate words they choose from. Empty in
    *  Classic, and empty outside a Round.
    *
@@ -432,6 +447,8 @@ export function emptyMatchState(settings: AlphaChainSettings): MatchState {
     bannedLetter: "",
     bannedLetterHistory: [],
     usedWords: new Set<string>(),
+    rack: [],
+    rackRedrawAvailable: false,
     offer: [],
     offerRedrawAvailable: false,
     history: [],
@@ -457,8 +474,8 @@ export interface SubmitResult {
     | "wrong-start-letter"
     | "too-short"
     | "prism-saved"
-    /** Picker: the committed word was not in the current Offer. The trust boundary — a client
-     *  cannot commit a word it invented, even a perfectly legal one. */
-    | "not-offered";
+    /** Picker / Word Builder: the committed word was not in the current Offer or constructible from rack. */
+    | "not-offered"
+    | "not-constructible";
   submission?: Submission;
 }

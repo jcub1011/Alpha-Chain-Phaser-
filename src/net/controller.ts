@@ -83,6 +83,10 @@ export interface GameController {
   commitSelection(word?: string): SubmitResult;
   /** Picker: Winnower's once-per-turn Offer redraw, bought with shot clock. */
   redrawOffer(): void;
+  /** Word Builder: Winnower's once-per-turn Tile Rack redraw. */
+  redrawRack(): void;
+  /** Word Builder: stage active tiles and stream drafted word. */
+  stageTiles(tileIds: string[], word?: string): void;
   /** Tear down timers/listeners. */
   destroy(): void;
 }

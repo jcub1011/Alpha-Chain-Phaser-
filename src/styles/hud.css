@@ -1005,3 +1005,306 @@ ac-leaderboard[strip] .lb-row {
     font-size: 0.7rem;
   }
 }
+
+/* ── Word Builder ────────────────────────────────────────────────────────── */
+.ac-word-builder {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: 0.6rem;
+  border: 2px solid var(--ac-border-strong);
+  border-radius: var(--r-md);
+  background: var(--ac-panel-solid);
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+}
+.ac-word-builder.is-live {
+  border-color: var(--ac-amber);
+  box-shadow: var(--ac-glow-amber);
+}
+.ac-word-builder.is-reject {
+  animation: ac-shakeX 0.4s;
+  border-color: var(--ac-danger);
+}
+
+.ac-builder-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  min-height: 1.5rem;
+}
+.ac-builder-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.ac-btn--subtle {
+  padding: 0.25rem 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  border-radius: var(--r-sm);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--ac-border);
+  color: var(--ac-fg);
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    color 0.15s;
+}
+.ac-btn--subtle:hover:not(:disabled) {
+  background: rgba(0, 229, 255, 0.15);
+  border-color: var(--ac-cyan);
+  color: var(--ac-cyan);
+}
+.ac-btn--subtle:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.ac-builder-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.ac-builder-stat {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--ac-cyan);
+  background: rgba(0, 229, 255, 0.08);
+  padding: 0.15rem 0.45rem;
+  border-radius: var(--r-sm);
+}
+.ac-chip--req {
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+.ac-chip--req strong {
+  color: var(--ac-amber);
+  font-size: 1.1em;
+}
+.ac-chip--ban {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--ac-danger);
+}
+.ac-chip--ban strong {
+  color: var(--ac-danger);
+  font-size: 1.1em;
+}
+
+.ac-builder-feedback {
+  color: var(--ac-danger);
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-align: center;
+  padding: 0.2rem 0;
+}
+
+/* Staging / Assembly Area */
+.ac-staging-area {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+.ac-staging-track {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  min-height: 3.8rem;
+  padding: 0.35rem 0.5rem;
+  border: 2px dashed var(--ac-border-strong);
+  border-radius: var(--r-sm);
+  background: rgba(0, 0, 0, 0.25);
+  transition: border-color 0.15s;
+}
+.ac-staging-track.is-empty {
+  justify-content: center;
+}
+.ac-staging-placeholder {
+  font-size: 0.88rem;
+  font-style: italic;
+  opacity: 0.55;
+  text-align: center;
+  user-select: none;
+}
+.ac-staging-actions {
+  display: flex;
+  align-items: stretch;
+  gap: 0.35rem;
+}
+.ac-btn--clear {
+  padding: 0 0.8rem;
+  font-size: 1.1rem;
+  border-radius: var(--r-sm);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--ac-border);
+  color: var(--ac-fg);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.ac-btn--clear:hover:not(:disabled) {
+  background: rgba(255, 79, 163, 0.2);
+  border-color: var(--ac-danger);
+}
+.ac-btn--submit {
+  padding: 0 1.2rem;
+  font-size: 0.95rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  border-radius: var(--r-sm);
+  background: var(--ac-amber);
+  color: #0b0d16;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(255, 179, 0, 0.35);
+  transition: transform 0.1s, box-shadow 0.15s;
+}
+.ac-btn--submit:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(255, 179, 0, 0.5);
+}
+.ac-btn--submit:disabled,
+.ac-btn--clear:disabled {
+  opacity: 0.4;
+  cursor: default;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Tile Rack Grid */
+.ac-tile-rack {
+  margin-top: 0.2rem;
+}
+.ac-rack-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(3.2rem, 1fr));
+  gap: 0.4rem;
+}
+
+/* Individual Tiles */
+.ac-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 3.4rem;
+  padding: 0.3rem 0.25rem;
+  border: 2px solid var(--ac-border-strong);
+  border-radius: var(--r-sm);
+  background: var(--ac-panel);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  user-select: none;
+  box-shadow: 0 3px 0 var(--ac-border-strong);
+  transition:
+    border-color 0.15s,
+    background 0.15s,
+    transform 0.1s,
+    box-shadow 0.1s,
+    opacity 0.15s;
+}
+.ac-tile:hover:not(:disabled) {
+  border-color: var(--ac-cyan);
+  box-shadow: 0 4px 0 var(--ac-cyan);
+  transform: translateY(-2px);
+}
+.ac-tile:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 var(--ac-cyan);
+}
+.ac-tile:disabled {
+  cursor: default;
+}
+.ac-tile.is-staged {
+  opacity: 0.25;
+  box-shadow: none;
+  transform: none;
+  border-style: dashed;
+}
+.ac-tile--staged {
+  border-color: var(--ac-amber);
+  box-shadow: 0 3px 0 rgba(255, 179, 0, 0.4);
+  background: var(--ac-panel-solid);
+}
+.ac-tile--staged:hover:not(:disabled) {
+  border-color: var(--ac-danger);
+  box-shadow: 0 4px 0 var(--ac-danger);
+}
+.ac-tile--chunk {
+  border-color: var(--ac-magenta, #ff4fa3);
+  background: linear-gradient(180deg, var(--ac-panel) 0%, rgba(255, 79, 163, 0.08) 100%);
+}
+.ac-tile--chunk:hover:not(:disabled) {
+  border-color: var(--ac-magenta, #ff4fa3);
+  box-shadow: 0 4px 0 var(--ac-magenta, #ff4fa3);
+}
+.ac-tile-letter {
+  font-size: 1.25rem;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+.ac-tile--chunk .ac-tile-letter {
+  font-size: 1.05rem;
+}
+.ac-tile-tag {
+  font-size: 0.52rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  color: var(--ac-magenta, #ff4fa3);
+  margin-top: 0.15rem;
+}
+.ac-tile.is-starter {
+  border-color: rgba(16, 185, 129, 0.8);
+  background: linear-gradient(180deg, rgba(16, 185, 129, 0.22) 0%, rgba(16, 185, 129, 0.08) 100%);
+  box-shadow: 0 3px 0 rgba(16, 185, 129, 0.45);
+}
+.ac-tile.is-starter .ac-tile-letter {
+  color: #34d399;
+  text-shadow: 0 0 6px rgba(16, 185, 129, 0.35);
+}
+.ac-tile.is-starter:hover:not(:disabled) {
+  border-color: #10b981;
+  box-shadow: 0 4px 0 #10b981;
+  background: linear-gradient(180deg, rgba(16, 185, 129, 0.32) 0%, rgba(16, 185, 129, 0.14) 100%);
+}
+.ac-tile--chunk.is-starter {
+  border-color: #10b981;
+  background: linear-gradient(180deg, rgba(16, 185, 129, 0.24) 0%, rgba(255, 79, 163, 0.1) 100%);
+}
+.ac-tile.is-banned {
+  border-color: var(--ac-danger);
+}
+.ac-tile-ban-dot {
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  font-size: 0.72rem;
+  font-weight: 900;
+  color: var(--ac-danger);
+}
+
+@media (max-width: 30rem) {
+  .ac-rack-grid {
+    grid-template-columns: repeat(auto-fit, minmax(2.6rem, 1fr));
+    gap: 0.3rem;
+  }
+  .ac-tile {
+    min-height: 3rem;
+    padding: 0.2rem;
+  }
+  .ac-tile-letter {
+    font-size: 1.05rem;
+  }
+  .ac-tile--chunk .ac-tile-letter {
+    font-size: 0.9rem;
+  }
+}
+

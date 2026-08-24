@@ -25,6 +25,12 @@ export type Intent =
   | { kind: "selectOffer"; word: string }
   | { kind: "commitSelection"; word: string }
   | { kind: "redrawOffer" } // Winnower: once per turn, buy a fresh Offer with clock
+  /* Word Builder intents */
+  | { kind: "stageTiles"; tileIds: string[]; word?: string }
+  | { kind: "selectTile"; tileId: string; slotIndex?: number }
+  | { kind: "deselectTile"; tileId: string }
+  | { kind: "clearStaging" }
+  | { kind: "redrawRack" } // Winnower: redraw whole Tile Rack for 25% shot clock
   | { kind: "reorderBay"; engine: string[]; discard: string[] }
   | { kind: "lockInOptimize" } // any player locking in fast-forwards the shared optimize dwell
   | { kind: "unlockOptimize" } // a locked-in player re-opening their engine while others finish

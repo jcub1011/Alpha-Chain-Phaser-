@@ -288,6 +288,18 @@ export function createAuthority(kb: Kb) {
             // refused there and drainPatch publishes nothing.
             h.redrawOffer(fromId);
             return drainPatch(false);
+          case "redrawRack":
+            h.redrawRack(fromId);
+            return drainPatch(false);
+          case "stageTiles":
+            if (action.word) h.setSelection(fromId, action.word);
+            return null;
+          case "selectTile":
+          case "deselectTile":
+            return null;
+          case "clearStaging":
+            h.setSelection(fromId, "");
+            return null;
           case "reorderBay":
             if (!inOptimize()) return null;
             h.setPlayerBay(fromId, action.engine, action.discard);

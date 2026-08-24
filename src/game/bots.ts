@@ -10,7 +10,10 @@ import { bubblePreferences, isInertPreference } from "./picker/preference";
 import { scoreWord, type ScoreOptions } from "./scoring";
 import type { Dictionary } from "./dictionary";
 import { shuffle } from "./rng";
-import { CardOp, type BayCard, type BotDifficulty } from "./types";
+import { CardOp, type BayCard, type BotDifficulty, type Tile } from "./types";
+import { subWordFinder } from "./builder/rack";
+import type { WordPool } from "./picker/wordPool";
+import type { PoolIndex } from "./picker/offer";
 
 const LENGTH_BAND: Record<BotDifficulty, [number, number]> = {
   easy: [3, 5],
@@ -190,6 +193,33 @@ export function bestScoredCandidate(
     }
   }
   return best;
+}
+
+/**
+ * Word Builder: gather buildable sub-words from the active Tile Rack and pick the best word
+ * scored through the bot's bay (or a random/short word on easy difficulty).
+ */
+export function chooseBotWordFromRack(
+  rack: readonly Tile[],
+  pool: WordPool,
+  index: PoolIndex,
+  opts: Pick<BotScoredPick, "requiredLetter" | "usedWords" | "bannedLetter" | "difficulty" | "bay" | "scoreOpts">,
+  rng: () => number = Math.random,
+): string | null {
+  const allSubWords = subWordFinder(rack, pool, index, opts.requiredLetter);
+  if (allSubWords.length === 0) return null;
+  const fresh = allSubWords.filter((w) => !opts.usedWords.has(w));
+  const poolToUse = fresh.length > 0 ? fresh : allSubWords;
+
+  // Easy bot: picks shorter or random valid sub-word
+  if (opts.difficulty === "easy") {
+    const shortWords = poolToUse.filter((w) => w.length <= 5);
+    const set = shortWords.length > 0 ? shortWords : poolToUse;
+    return set[Math.floor(rng() * set.length)];
+  }
+
+  // Medium / Hard: evaluate top scored candidates
+  return bestScoredCandidate(poolToUse, opts, rng);
 }
 
 /** Engine-ordering rank: additives left, FX in the middle, multipliers right —

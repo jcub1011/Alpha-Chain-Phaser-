@@ -15,7 +15,7 @@ export const REJECT_REASON: Record<NonNullable<SubmitResult["reason"]>, string> 
   "wrong-start-letter": "Wrong start letter",
   "too-short": "Too short",
   "prism-saved": "The Prism — clock refilled",
-  // Picker only, and only ever from a tampered or stale client: the Offer is the authority on
-  // what is playable, so a word that isn't in it cannot be committed.
+  // Picker / Word Builder only: the Offer / Tile Rack is the authority on what is playable
   "not-offered": "That word isn't on offer",
+  "not-constructible": "Cannot be built from rack",
 };

@@ -6,10 +6,12 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { chooseBotWordScored, planBotBay, type BotScoredPick } from "./bots";
+import { chooseBotWordFromRack, chooseBotWordScored, planBotBay, type BotScoredPick } from "./bots";
 import { Dictionary } from "./dictionary";
-import type { BayCard } from "./types";
+import type { BayCard, Tile } from "./types";
 import { GameMode } from "./types";
+import { buildPoolIndex } from "./picker/offer";
+import { dictionaryWordPool } from "./picker/wordPool";
 
 const scoreOpts = {
   mode: GameMode.Classic,
@@ -89,5 +91,43 @@ describe("planBotBay", () => {
     expect(discard).toHaveLength(1);
     // The inert Architect is the one dropped.
     expect(discard).toEqual(["u1"]);
+  });
+});
+
+describe("chooseBotWordFromRack", () => {
+  const dict = new Dictionary(["action", "act", "cat", "traction", "tract", "ion"]);
+  const pool = dictionaryWordPool(dict);
+  const index = buildPoolIndex(pool);
+
+  const testRack: Tile[] = [
+    { id: "t0", text: "t", isChunk: false },
+    { id: "t1", text: "r", isChunk: false },
+    { id: "t2", text: "a", isChunk: false },
+    { id: "t3", text: "c", isChunk: false },
+    { id: "t4", text: "tion", isChunk: true },
+  ];
+
+  it("selects buildable sub-words respecting the required letter", () => {
+    const word = chooseBotWordFromRack(testRack, pool, index, {
+      ...basePick({ requiredLetter: "t" }),
+    });
+    expect(word).toBe("traction");
+  });
+
+  it("scores candidates through the bot's bay in Word Builder mode", () => {
+    const word = chooseBotWordFromRack(testRack, pool, index, {
+      ...basePick({
+        requiredLetter: "t",
+        bay: [{ id: "Stonemason" }], // rewards 8+ letters: "traction" is 8 letters!
+      }),
+    });
+    expect(word).toBe("traction");
+  });
+
+  it("easy bots pick valid sub-words", () => {
+    const word = chooseBotWordFromRack(testRack, pool, index, {
+      ...basePick({ difficulty: "easy", requiredLetter: "t" }),
+    });
+    expect(["tract", "traction"]).toContain(word);
   });
 });

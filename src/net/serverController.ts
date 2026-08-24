@@ -161,6 +161,14 @@ export class ServerController implements GameController {
     this.dispatch({ kind: "redrawOffer" });
   }
 
+  redrawRack(): void {
+    this.dispatch({ kind: "redrawRack" });
+  }
+
+  stageTiles(tileIds: string[], word?: string): void {
+    this.dispatch({ kind: "stageTiles", tileIds, word });
+  }
+
   destroy(): void {
     this.peer.events.off("ready", this.onReady as never);
     this.peer.events.off("message", this.onMessage as never);

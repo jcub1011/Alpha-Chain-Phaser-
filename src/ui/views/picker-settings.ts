@@ -11,7 +11,12 @@
  */
 
 import { html, nothing, type TemplateResult } from "lit";
-import { MAX_OFFER_COUNT, MIN_OFFER_COUNT } from "../../game/settings";
+import {
+  MAX_BUILDER_RACK_SIZE,
+  MAX_OFFER_COUNT,
+  MIN_BUILDER_RACK_SIZE,
+  MIN_OFFER_COUNT,
+} from "../../game/settings";
 import { DictionaryTier, GameMode } from "../../game/types";
 import type { AlphaChainSettings } from "../../game/types";
 import type { SettingStepper } from "./rarity-weights";
@@ -39,6 +44,8 @@ export type SettingToggle = (
  *  validator comment claims is avoided but `eraCount`/`eraInterval` actually have. */
 export const OFFER_COUNT_BOUNDS = { min: MIN_OFFER_COUNT, max: MAX_OFFER_COUNT } as const;
 
+export const RACK_SIZE_BOUNDS = { min: MIN_BUILDER_RACK_SIZE, max: MAX_BUILDER_RACK_SIZE } as const;
+
 /** Clamp bounds for the pick timer, matching `pickerShotClockSeconds`'s validator exactly. */
 export const PICKER_CLOCK_BOUNDS = { min: 5, max: 60, step: 5 } as const;
 
@@ -62,15 +69,15 @@ export const renderPickerSettings = (
   toggle: SettingToggle,
 ): TemplateResult | typeof nothing => {
   if (draft.gameMode !== GameMode.Picker) return nothing;
-  const { min, max } = OFFER_COUNT_BOUNDS;
+  const rackBounds = RACK_SIZE_BOUNDS;
   const clock = PICKER_CLOCK_BOUNDS;
   return html`
     ${stepper(
-      "Words Offered",
-      String(draft.offerCount),
-      () => step("offerCount", -1, min, max),
-      () => step("offerCount", 1, min, max),
-      SETTING_HINTS.offerCount,
+      "Rack Size",
+      String(draft.rackSize),
+      () => step("rackSize", -1, rackBounds.min, rackBounds.max),
+      () => step("rackSize", 1, rackBounds.min, rackBounds.max),
+      SETTING_HINTS.rackSize,
     )}
     ${segmented<DictionaryTier>(
       "Word List",

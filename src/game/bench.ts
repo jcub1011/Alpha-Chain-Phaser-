@@ -118,8 +118,12 @@ export class BenchScenario {
   get offer(): readonly string[] {
     return this.state.offer;
   }
+  /** Word Builder: this turn's Tile Rack (empty in Classic). */
+  get rack() {
+    return this.state.rack;
+  }
   get canRedraw(): boolean {
-    return this.state.offerRedrawAvailable;
+    return this.state.offerRedrawAvailable || this.state.rackRedrawAvailable;
   }
   get history(): Submission[] {
     return this.state.history;
