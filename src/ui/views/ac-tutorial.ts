@@ -46,7 +46,7 @@ const SCRIPTS: Record<TutorialKind, Script> = {
     title: "Build your word",
     lines: [
       "Assemble words from your tile rack by tapping tiles or typing on your keyboard.",
-      "Green tiles start with the required chain letter. Blue tiles are multi-letter chunks.",
+      "Brass tiles start with the required chain letter. Cool-tinted tiles are multi-letter chunks.",
       "Assembling a word shows which engine cards will fire — submit to lock in your score.",
     ],
   },

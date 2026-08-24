@@ -272,7 +272,7 @@
   opacity: 1;
   padding: var(--sp-2) var(--sp-2) 0.6rem;
   border-radius: var(--r-md);
-  border: 1px solid #000;
+  border: 1px solid var(--ac-rim);
   /* The struck player's colour rides the top edge as a painted band, the way a
      machine bay is marked on a shop floor — not as a wash over the whole panel. */
   border-top: 3px solid var(--sr-accent, var(--i-primary));
@@ -303,13 +303,13 @@
    the thing every die in the line is about to hit. */
 .sr-word {
   padding: 0.18em 0.7em;
-  border: 2px solid #000;
+  border: 1px solid var(--ac-rim);
   border-radius: var(--r-xs);
   background: linear-gradient(180deg, var(--ac-stock-100), var(--ac-stock-200));
   box-shadow:
-    0 2px 0 var(--ac-stock-300),
-    0 3px 0 #000,
-    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    inset 0 -2px 0 var(--ac-stock-300),
+    var(--ac-lift-1);
   font-family: var(--font-machine);
   font-stretch: 125%;
   font-weight: 800;
@@ -523,7 +523,7 @@
     opacity 0.14s ease-in,
     transform 0.14s ease-in;
   padding: 0.4rem 1.3rem;
-  border: 2px solid #000;
+  border: 1px solid var(--ac-rim);
   border-radius: var(--r-sm);
   background: linear-gradient(180deg, var(--ac-brass-lit), var(--ac-brass));
   color: var(--ink-on-brass);
@@ -535,9 +535,9 @@
   text-transform: uppercase;
   white-space: nowrap;
   box-shadow:
-    0 3px 0 var(--ac-brass-dim),
-    0 5px 0 #000,
-    inset 0 1px 0 rgba(255, 255, 255, 0.45);
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    inset 0 -3px 0 var(--ac-brass-dim),
+    var(--ac-lift-2);
   pointer-events: none;
 }
 .we.is-reject {
@@ -1222,7 +1222,7 @@ ac-leaderboard[strip] .lb-row {
   transform: translateY(-9px) scale(0.94);
   transition: transform 0.14s ease-in;
   padding: 0.5rem 1.5rem;
-  border: 2px solid #000;
+  border: 1px solid var(--ac-rim);
   border-radius: var(--r-sm);
   background: linear-gradient(180deg, var(--ac-brass-lit), var(--ac-brass));
   color: var(--ink-on-brass);
@@ -1233,9 +1233,9 @@ ac-leaderboard[strip] .lb-row {
   letter-spacing: 0.12em;
   text-transform: uppercase;
   box-shadow:
-    0 3px 0 var(--ac-brass-dim),
-    0 5px 0 #000,
-    inset 0 1px 0 rgba(255, 255, 255, 0.45);
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    inset 0 -3px 0 var(--ac-brass-dim),
+    var(--ac-lift-2);
 }
 .ac-standby.is-shown .ac-standby-plate {
   transform: translateY(0) scale(1);
@@ -1360,7 +1360,7 @@ ac-leaderboard[strip] .lb-row {
   min-height: 3.15rem;
   height: 3.15rem;
   padding: 0.2rem 0.45rem;
-  border: 1px solid #000;
+  border: 1px solid var(--ac-rim);
   border-radius: var(--r-sm);
   background: var(--ac-well);
   box-shadow:
@@ -1374,8 +1374,15 @@ ac-leaderboard[strip] .lb-row {
 .ac-staging-track.is-empty {
   justify-content: center;
 }
+/* The machine face, not the body face. This sits in the bed, in the exact slot
+   the staged blanks occupy once you start picking — and Classic mode's own
+   placeholder already inherits the machine face from .we-input, so leaving this
+   one on the body face made the two input surfaces disagree. */
 .ac-staging-placeholder {
+  font-family: var(--font-machine);
+  font-stretch: var(--stretch-machine);
   font-size: 0.8rem;
+  font-weight: 500;
   color: var(--ac-steel-400);
   text-align: center;
   user-select: none;
@@ -1405,8 +1412,12 @@ ac-leaderboard[strip] .lb-row {
   gap: 0.35rem;
   padding: 0.35rem;
   border-radius: var(--r-sm);
-  background: var(--ac-steel-800);
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5);
+  /* A step lighter than the panel behind it, on purpose: a blank casts a soft
+     shadow onto the tray, and on a near-black tray that shadow is invisible —
+     which is exactly what made the old hard slab feel necessary. Give the drop
+     something to land on and the blanks read as solid without it. */
+  background: var(--ac-steel-700);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.55);
 }
 
 /* ── A blank of letter stock ───────────────────────────────────────────────
@@ -1430,7 +1441,7 @@ ac-leaderboard[strip] .lb-row {
   min-height: var(--tile-h);
   min-width: var(--tile-w);
   padding: 0 0.5rem;
-  border: 2px solid #000;
+  border: 1px solid var(--ac-rim);
   border-radius: var(--r-sm);
   background: linear-gradient(
     180deg,
@@ -1443,14 +1454,16 @@ ac-leaderboard[strip] .lb-row {
   cursor: pointer;
   user-select: none;
   touch-action: manipulation;
-  /* Two stacked offsets: the cut edge of the stock itself, then the shadow it
-     casts into the tray. The edge is what makes a blank read as a solid object
-     with thickness — a pure black drop on a near-black tray is invisible, and
-     the tiles go flat without it. */
+  /* Thickness lives INSIDE the tile now: a specular lip along the top, the cut
+     edge of the stock along the foot, and a soft warm drop into the tray. This
+     replaces a black outline over a solid `0 5px 0 #000` slab — that slab read
+     as a sticker rather than as metal, and on the largest light surface in the
+     game it was the thing making the tiles look pasted on. The blank still has
+     real thickness; the thickness is just made of stock instead of ink. */
   box-shadow:
-    0 3px 0 var(--ac-stock-300),
-    0 5px 0 #000,
-    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    inset 0 -4px 0 var(--ac-stock-300),
+    var(--ac-lift-1);
   transition:
     background 0.12s,
     transform 0.08s,
@@ -1461,17 +1474,18 @@ ac-leaderboard[strip] .lb-row {
   filter: brightness(1.05);
   transform: translateY(-1px);
   box-shadow:
-    0 3px 0 var(--ac-stock-300),
-    0 6px 0 #000,
-    inset 0 1px 0 rgba(255, 255, 255, 0.55);
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 0 -4px 0 var(--ac-stock-300),
+    var(--ac-lift-2);
 }
-/* Pressed flat into the tray. */
+/* Pressed into the tray: the blank travels down and its cut edge compresses to
+   a single pixel, so the object squashes rather than just sliding. */
 .ac-tile:active:not(:disabled) {
-  transform: translateY(4px);
+  transform: translateY(2px);
   box-shadow:
-    0 1px 0 var(--ac-stock-300),
-    0 1px 0 #000,
-    inset 0 2px 4px rgba(0, 0, 0, 0.35);
+    inset 0 2px 4px rgba(0, 0, 0, 0.35),
+    inset 0 -1px 0 var(--ac-stock-300),
+    var(--ac-lift-0);
 }
 .ac-tile:focus-visible {
   outline: 2px solid var(--ac-brass-lit);
@@ -1502,9 +1516,15 @@ ac-leaderboard[strip] .lb-row {
   );
   color: var(--ink-on-brass);
   box-shadow:
-    0 3px 0 var(--ac-brass-dim),
-    0 5px 0 #000,
-    inset 0 1px 0 rgba(255, 255, 255, 0.45);
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    inset 0 -3px 0 var(--ac-brass-dim),
+    var(--ac-lift-1);
+}
+.ac-tile.is-starter:active:not(:disabled) {
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.3),
+    inset 0 -1px 0 var(--ac-brass-dim),
+    var(--ac-lift-0);
 }
 .ac-tile.is-starter:hover:not(:disabled) {
   filter: brightness(1.06);
@@ -1525,9 +1545,15 @@ ac-leaderboard[strip] .lb-row {
     color-mix(in srgb, var(--ac-stock-300) 70%, var(--ac-accent-clock)) 100%
   );
   box-shadow:
-    0 3px 0 color-mix(in srgb, var(--ac-stock-300) 66%, var(--ac-accent-clock)),
-    0 5px 0 #000,
-    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    inset 0 -4px 0 color-mix(in srgb, var(--ac-stock-300) 66%, var(--ac-accent-clock)),
+    var(--ac-lift-1);
+}
+.ac-tile--chunk:active:not(:disabled) {
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.35),
+    inset 0 -1px 0 color-mix(in srgb, var(--ac-stock-300) 66%, var(--ac-accent-clock)),
+    var(--ac-lift-0);
 }
 .ac-tile--chunk .ac-tile-letter {
   font-size: 1rem;
@@ -1538,9 +1564,9 @@ ac-leaderboard[strip] .lb-row {
 .ac-tile--chunk.is-starter {
   background: linear-gradient(180deg, var(--ac-brass-lit), var(--ac-brass));
   box-shadow:
-    0 3px 0 var(--ac-brass-dim),
-    0 5px 0 #000,
-    inset 0 1px 0 rgba(255, 255, 255, 0.45);
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    inset 0 -3px 0 var(--ac-brass-dim),
+    var(--ac-lift-1);
 }
 
 .ac-tile.is-banned {
@@ -1559,7 +1585,7 @@ ac-leaderboard[strip] .lb-row {
 /* A blank already laid in the bed. Same box as a tray blank by construction —
    only the affordance differs, since clicking this one takes it back out. */
 .ac-tile--staged {
-  border-color: #000;
+  border-color: var(--ac-rim);
 }
 .ac-tile--staged:hover:not(:disabled) {
   border-color: var(--state-bad);
@@ -1581,7 +1607,7 @@ ac-leaderboard[strip] .lb-row {
 .ac-rack-grid .ac-tile.is-staged.is-starter,
 .ac-rack-grid .ac-tile.is-staged.ac-tile--chunk {
   background: var(--ac-well);
-  border-color: rgba(0, 0, 0, 0.55);
+  border-color: var(--ac-rim);
   color: var(--ac-steel-500);
   box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.65);
   transform: none;
@@ -1606,7 +1632,6 @@ ac-leaderboard[strip] .lb-row {
 .ac-btn--subtle {
   padding: 0.2rem 0.55rem;
   font-size: 0.72rem;
-  border-width: 2px;
 }
 .ac-btn--clear,
 .ac-btn--submit {

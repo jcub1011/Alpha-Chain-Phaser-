@@ -164,15 +164,20 @@ ac-app {
 }
 
 /* ── Buttons ───────────────────────────────────────────────────────────────
-   One system. `.ac-btn` is the house 3D press — a brass key with a hard black
-   ink-bite shadow that presses INTO the page rather than floating. The
-   modifiers only ever change fill and ink; geometry, border and the press are
-   never restated, which is what keeps every button in the game feeling like the
-   same physical control.
+   One system. `.ac-btn` is a milled brass key: a warm rim, a lit top edge, the
+   cut edge of the metal along its foot, and a soft warm shadow into the panel
+   under it. The modifiers only ever change fill and ink; geometry, rim and the
+   press are never restated, which is what keeps every button in the game
+   feeling like the same physical control.
 
-   Kept verbatim from the old design: the 3px black border, the --ac-shadow-sm
-   offset, and the translate-based press. That tactility is the "steel" this
-   redesign is built around. */
+   This used to be a 3px pure-black border over a diagonal `3px 3px 0 #000`
+   ink-bite, carried over from the original design. It was the loudest surviving
+   piece of a GRAPHIC idiom inside an otherwise MATERIAL one, and it made the
+   buttons and the letter tiles look like objects from two different games. The
+   press is unchanged in feel and now runs vertically, matching the tiles: a key
+   and a blank are the same kind of part.
+
+   Anything that raises off a surface uses this same rim/lift/inset recipe. */
 .ac-btn {
   appearance: none;
   display: inline-flex;
@@ -180,7 +185,7 @@ ac-app {
   justify-content: center;
   gap: 0.5em;
   padding: 0.7rem 1.3rem;
-  border: 3px solid #000;
+  border: 1px solid var(--ac-rim);
   border-radius: var(--r-sm);
   background: var(--i-primary);
   color: var(--i-primary-ink);
@@ -191,20 +196,32 @@ ac-app {
   letter-spacing: 0.05em;
   text-transform: uppercase;
   cursor: pointer;
-  box-shadow: var(--ac-shadow-sm);
+  /* Specular lip, the cut edge of the brass along the foot, then the drop. */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 -3px 0 var(--ac-brass-dim),
+    var(--ac-lift-1);
   transition:
     transform 0.08s ease,
     box-shadow 0.08s ease,
     filter 0.15s ease;
 }
 .ac-btn:hover:not(:disabled) {
-  transform: translate(-2px, -2px);
-  box-shadow: var(--ac-shadow);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.34),
+    inset 0 -3px 0 var(--ac-brass-dim),
+    var(--ac-lift-2);
   filter: brightness(1.07);
 }
+/* Pressed: the key travels down and the cut edge compresses to almost nothing,
+   so the part visibly squashes rather than just sliding. */
 .ac-btn:active:not(:disabled) {
-  transform: translate(2px, 2px);
-  box-shadow: 1px 1px 0 #000;
+  transform: translateY(2px);
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.3),
+    inset 0 -1px 0 var(--ac-brass-dim),
+    var(--ac-lift-0);
 }
 /* Unpowered, not faded. Dropping the whole key to 50% opacity muddied it
    against the warm ground; keeping it opaque and simply cold reads as a control
@@ -212,7 +229,9 @@ ac-app {
 .ac-btn:disabled {
   background: var(--ac-steel-600);
   color: var(--ac-steel-400);
-  box-shadow: 1px 1px 0 #000;
+  box-shadow:
+    inset 0 -2px 0 var(--ac-steel-700),
+    var(--ac-lift-0);
   transform: none;
   cursor: not-allowed;
 }
@@ -229,13 +248,30 @@ ac-app {
   background: var(--i-primary);
   color: var(--i-primary-ink);
 }
+/* Ghost restates the cut edge in steel rather than brass, so it has to restate
+   hover and active too — the base rules carry a brass foot, and inheriting that
+   would put a brass edge on a steel key. Order matters: hover then active, both
+   at equal specificity, so pressing (which also hovers) lands on active. */
 .ac-btn--ghost {
   background: var(--ac-steel-600);
   color: var(--ac-ink);
-  border-color: #000;
+  box-shadow:
+    inset 0 1px 0 var(--ac-hi),
+    inset 0 -3px 0 var(--ac-steel-700),
+    var(--ac-lift-1);
 }
 .ac-btn--ghost:hover:not(:disabled) {
   background: var(--ac-steel-500);
+  box-shadow:
+    inset 0 1px 0 var(--ac-hi),
+    inset 0 -3px 0 var(--ac-steel-700),
+    var(--ac-lift-2);
+}
+.ac-btn--ghost:active:not(:disabled) {
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.35),
+    inset 0 -1px 0 var(--ac-steel-700),
+    var(--ac-lift-0);
 }
 
 /* ── Overlays (countdown / intermission / game over) ───────────────────── */

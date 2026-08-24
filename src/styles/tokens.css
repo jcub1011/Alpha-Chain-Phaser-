@@ -9,8 +9,9 @@
  *
  *   1. METAL READS THROUGH SPECULAR EDGES, NOT GLOW. An opaque warm panel, a
  *      1px warm highlight along the top, a hairline dark edge along the bottom,
- *      and the hard black offset shadow. That is it. No backdrop-filter, no
- *      translucent glass, no ambient bloom.
+ *      a warm rim, and a soft warm drop. That is it. No backdrop-filter, no
+ *      translucent glass, no ambient bloom — and no hard black outlines or
+ *      zero-blur slabs either; see the note on --ac-rim / --ac-lift-* below.
  *
  *   2. GLOW MEANS HEAT, AND NOTHING ELSE. See the glow policy below — it is a
  *      hard budget, not a suggestion.
@@ -64,7 +65,10 @@
   --ac-steel-600: #332e28; /* raised panel, rail */
   --ac-steel-500: #4a443c; /* machined edge, divider */
   --ac-steel-400: #6e675d; /* strong border */
-  --ac-steel-300: #979083; /* secondary ink on dark */
+  /* Secondary ink. Nudged up from #979083, which measured 4.25:1 on the panel
+     and so missed AA for small text — and this token sets every eyebrow and
+     caption in the game, all of it below the large-text threshold. */
+  --ac-steel-300: #9c9589; /* secondary ink on dark — 4.53:1 on panel */
   --ac-well: #100e0c; /* deepest recess — under the stock tray */
 
   /* ── Milled stock: the light warm mass ─────────────────────────────────
@@ -233,12 +237,34 @@
   --ac-glow-danger: none;
   --ac-glow-amber: none;
 
-  /* ── Hard 3D shadow (house style — kept exactly) ───────────────────────
-     A die block casts a hard shadow. This is the tactility the redesign is
-     built around, so the offsets are unchanged; only the soft drops warmed. */
-  --ac-shadow-sm: 3px 3px 0 #000;
-  --ac-shadow: 5px 5px 0 #000;
-  --ac-shadow-lift: 7px 7px 0 #000;
+  /* ── Raised parts ──────────────────────────────────────────────────────
+     One definition for every object that sits proud of the surface behind it:
+     tiles, buttons, plates, the blank in the score replay.
+
+     This replaces the old --ac-shadow-sm/-/-lift trio (`Npx Npx 0 #000`), a
+     hard black outline plus a solid zero-blur slab. That device was inherited
+     from the original design and kept on purpose, but it is a GRAPHIC idiom
+     sitting inside a MATERIAL one — everything else here is warm hairline rims,
+     specular top edges and soft warm drops — and the two do not mix. On the
+     letter tiles, the largest and lightest surface in the game, the slab read
+     as a sticker pasted onto a machined panel.
+
+     The tactility is not lost, it just moves into the material language:
+
+       --ac-rim      the edge of a part. An EDGE, never an outline: warm and
+                     dark rather than black, so it reads as the side of the
+                     metal catching less light.
+       --ac-lift-*   how far the part stands off its background.
+
+     Thickness is per-element rather than a token, because its colour depends
+     on what the part is made of — see the `inset 0 -3px 0 <shadowed side>`
+     pattern on .ac-tile (stock), .ac-standby-plate (brass) and .sr-word. That
+     inset, under the specular lip, is what keeps a part reading as a solid
+     object once the slab is gone. */
+  --ac-rim: rgba(24, 16, 10, 0.55);
+  --ac-lift-0: 0 1px 2px rgba(6, 4, 2, 0.5);
+  --ac-lift-1: 0 3px 6px rgba(6, 4, 2, 0.66);
+  --ac-lift-2: 0 6px 14px rgba(6, 4, 2, 0.7);
   --ac-drop: 0 18px 40px rgba(8, 5, 3, 0.55);
   --ac-drop-sm: 0 8px 20px rgba(8, 5, 3, 0.46);
 
