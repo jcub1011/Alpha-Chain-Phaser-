@@ -272,7 +272,9 @@ export class AcWordBuilder extends AcElement {
   override render(): TemplateResult {
     const staged = this.stagedWord;
     const tileMap = new Map(this.rack.map((t) => [t.id, t]));
-    const stagedTiles = this.stagedTileIds.map((id) => tileMap.get(id)).filter((t): t is Tile => !!t);
+    const stagedTiles = this.stagedTileIds
+      .map((id) => tileMap.get(id))
+      .filter((t): t is Tile => !!t);
 
     let vowelCount = 0;
     let rareCount = 0;
@@ -282,7 +284,13 @@ export class AcWordBuilder extends AcElement {
     }
 
     return html`
-      <div class="ac-word-builder ${this.live ? "is-live" : "is-idle"}" role="region" aria-label="Word Builder">
+      <div
+        class="ac-word-builder ${this.live ? "is-live" : "is-idle"} ${this.onDeck
+          ? "is-ondeck"
+          : ""}"
+        role="region"
+        aria-label="Word Builder"
+      >
         <!-- Banner / Turn Alert -->
         <header class="ac-builder-header">
           <div class="ac-builder-meta">
@@ -334,21 +342,36 @@ export class AcWordBuilder extends AcElement {
         </header>
 
         <!-- Staging / Assembly Area -->
-        <section class="ac-staging-area" aria-label="Assembled Word">
-          <div class="ac-staging-track ${stagedTiles.length === 0 ? "is-empty" : ""}">
-            ${stagedTiles.length === 0
-              ? html`<span class="ac-staging-placeholder">
-                  ${this.live ? "Tap tiles or type to build a word…" : this.onDeck ? "You are on deck…" : "Waiting for turn…"}
-                </span>`
-              : stagedTiles.map(
-                  (tile) => {
+        <div class="ac-builder-input">
+          <!-- Standby cover. Only while you are next: it blanks the controls you
+               cannot use yet without hiding the letter you need to plan around.
+               Always mounted and toggled by class rather than rendered
+               conditionally, because a conditional render is removed from the
+               DOM the instant you go live and there is nothing left to animate
+               out. -->
+          <div class="ac-standby ${!this.live && this.onDeck ? "is-shown" : ""}" aria-hidden="true">
+            <span class="ac-standby-plate">You're Next</span>
+          </div>
+          <section class="ac-staging-area" aria-label="Assembled Word">
+            <div class="ac-staging-track ${stagedTiles.length === 0 ? "is-empty" : ""}">
+              ${stagedTiles.length === 0
+                ? html`<span class="ac-staging-placeholder">
+                    ${this.live
+                      ? "Tap tiles or type to build a word…"
+                      : this.onDeck
+                        ? "You are on deck…"
+                        : "Waiting for turn…"}
+                  </span>`
+                : stagedTiles.map((tile) => {
                     const isStarter =
                       this.requiredLetter !== "" &&
                       tile.text.toLowerCase().startsWith(this.requiredLetter.toLowerCase());
                     return html`
                       <button
                         type="button"
-                        class="ac-tile ac-tile--staged ${tile.isChunk ? "ac-tile--chunk" : ""} ${isStarter ? "is-starter" : ""}"
+                        class="ac-tile ac-tile--staged ${tile.isChunk
+                          ? "ac-tile--chunk"
+                          : ""} ${isStarter ? "is-starter" : ""}"
                         @click=${() => this.unstageTile(tile.id)}
                         title="Tap to return ${tile.text.toUpperCase()} to rack"
                         aria-label="Remove ${tile.text.toUpperCase()}"
@@ -356,64 +379,70 @@ export class AcWordBuilder extends AcElement {
                         <span class="ac-tile-letter">${tile.text.toUpperCase()}</span>
                       </button>
                     `;
-                  },
-                )}
-          </div>
+                  })}
+            </div>
 
-          <div class="ac-staging-actions">
-            <button
-              type="button"
-              class="ac-btn ac-btn--ghost ac-btn--clear"
-              @click=${this.clearStaging}
-              ?disabled=${!this.live || stagedTiles.length === 0}
-              title="Clear assembled word (Esc)"
-            >
-              ✕
-            </button>
-            <button
-              type="button"
-              class="ac-btn ac-btn--primary ac-btn--submit"
-              @click=${this.commit}
-              ?disabled=${!this.live || stagedTiles.length === 0}
-              title="Submit word (Enter)"
-            >
-              SUBMIT
-            </button>
-          </div>
-        </section>
+            <div class="ac-staging-actions">
+              <button
+                type="button"
+                class="ac-btn ac-btn--ghost ac-btn--clear"
+                @click=${this.clearStaging}
+                ?disabled=${!this.live || stagedTiles.length === 0}
+                title="Clear assembled word (Esc)"
+              >
+                ✕
+              </button>
+              <button
+                type="button"
+                class="ac-btn ac-btn--primary ac-btn--submit"
+                @click=${this.commit}
+                ?disabled=${!this.live || stagedTiles.length === 0}
+                title="Submit word (Enter)"
+              >
+                SUBMIT
+              </button>
+            </div>
+          </section>
 
-        <!-- Tile Rack -->
-        <section class="ac-tile-rack" aria-label="Available Tiles">
-          <div class="ac-rack-grid">
-            ${(this.displayTileIds.length > 0
-              ? this.displayTileIds.map((id) => tileMap.get(id)).filter((t): t is Tile => !!t)
-              : this.rack
-            ).map((tile) => {
-              const isStaged = this.stagedTileIds.includes(tile.id);
-              const hasBanned =
-                this.highlightBans &&
-                this.bannedLetter !== "" &&
-                tile.text.toLowerCase().includes(this.bannedLetter.toLowerCase());
-              const isStarter =
-                this.requiredLetter !== "" &&
-                tile.text.toLowerCase().startsWith(this.requiredLetter.toLowerCase());
+          <!-- Tile Rack -->
+          <section class="ac-tile-rack" aria-label="Available Tiles">
+            <div class="ac-rack-grid">
+              ${(this.displayTileIds.length > 0
+                ? this.displayTileIds.map((id) => tileMap.get(id)).filter((t): t is Tile => !!t)
+                : this.rack
+              ).map((tile) => {
+                const isStaged = this.stagedTileIds.includes(tile.id);
+                const hasBanned =
+                  this.highlightBans &&
+                  this.bannedLetter !== "" &&
+                  tile.text.toLowerCase().includes(this.bannedLetter.toLowerCase());
+                const isStarter =
+                  this.requiredLetter !== "" &&
+                  tile.text.toLowerCase().startsWith(this.requiredLetter.toLowerCase());
 
-              return html`
-                <button
-                  type="button"
-                  class="ac-tile ${tile.isChunk ? "ac-tile--chunk" : ""} ${isStaged ? "is-staged" : ""} ${hasBanned ? "is-banned" : ""} ${isStarter ? "is-starter" : ""}"
-                  ?disabled=${!this.live || isStaged}
-                  @click=${() => this.stageTile(tile.id)}
-                  title=${isStaged ? "In assembled word" : `Use tile ${tile.text.toUpperCase()}${isStarter ? ` (Starts with ${this.requiredLetter.toUpperCase()})` : ""}`}
-                  aria-label="Tile ${tile.text.toUpperCase()}"
-                >
-                  <span class="ac-tile-letter">${tile.text.toUpperCase()}</span>
-                  ${hasBanned ? html`<span class="ac-tile-ban-dot" title="Contains banned letter">!</span>` : nothing}
-                </button>
-              `;
-            })}
-          </div>
-        </section>
+                return html`
+                  <button
+                    type="button"
+                    class="ac-tile ${tile.isChunk ? "ac-tile--chunk" : ""} ${isStaged
+                      ? "is-staged"
+                      : ""} ${hasBanned ? "is-banned" : ""} ${isStarter ? "is-starter" : ""}"
+                    ?disabled=${!this.live || isStaged}
+                    @click=${() => this.stageTile(tile.id)}
+                    title=${isStaged
+                      ? "In assembled word"
+                      : `Use tile ${tile.text.toUpperCase()}${isStarter ? ` (Starts with ${this.requiredLetter.toUpperCase()})` : ""}`}
+                    aria-label="Tile ${tile.text.toUpperCase()}"
+                  >
+                    <span class="ac-tile-letter">${tile.text.toUpperCase()}</span>
+                    ${hasBanned
+                      ? html`<span class="ac-tile-ban-dot" title="Contains banned letter">!</span>`
+                      : nothing}
+                  </button>
+                `;
+              })}
+            </div>
+          </section>
+        </div>
       </div>
     `;
   }

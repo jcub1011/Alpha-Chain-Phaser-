@@ -8,7 +8,7 @@
  */
 
 import Phaser from "phaser";
-import { COLORS } from "../../theme";
+import { COLORS, CONFETTI_TINTS } from "../../theme";
 
 type Emitter = Phaser.GameObjects.Particles.ParticleEmitter;
 
@@ -59,7 +59,7 @@ export class FxScene extends Phaser.Scene {
       scale: { min: 0.6, max: 1.2 },
       rotate: { start: 0, end: 360 },
       lifespan: 2600,
-      tint: [0x00e5ff, 0xff2e8b, 0x14f195, 0xffd23a, 0xb97bff],
+      tint: [...CONFETTI_TINTS],
       emitting: false,
     });
     this.confettiEmitter.setDepth(9);
@@ -74,7 +74,7 @@ export class FxScene extends Phaser.Scene {
       rotate: { start: 0, end: 360 },
       alpha: { start: 1, end: 0 },
       lifespan: { min: 900, max: 1600 },
-      tint: [0x00e5ff, 0xff2e8b, 0x14f195, 0xffd23a, 0xb97bff],
+      tint: [...CONFETTI_TINTS],
       emitting: false,
     });
     this.confettiPop.setDepth(9);
@@ -114,11 +114,13 @@ export class FxScene extends Phaser.Scene {
 
   eruption(x: number, y: number, intensity: number): void {
     const i = Phaser.Math.Clamp(intensity, 0, 1);
-    this.burst.setParticleTint(COLORS.cyan);
+    // Three stages of a strike: the flash of contact, the spray of sparks, then
+    // the metal left glowing. Hot to cooling, never a colour sequence.
+    this.burst.setParticleTint(COLORS.emberHot);
     this.burst.explode(Math.round(40 + i * 80), x, y);
-    this.spark.setParticleTint(COLORS.mint);
+    this.spark.setParticleTint(COLORS.brassLit);
     this.spark.explode(Math.round(30 + i * 70), x, y);
-    this.burst.setParticleTint(COLORS.amber);
+    this.burst.setParticleTint(COLORS.ember);
     this.burst.explode(Math.round(20 + i * 50), x, y);
   }
 

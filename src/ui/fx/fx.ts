@@ -85,7 +85,7 @@ class Fx {
   }
 
   /** Particle burst centered on a screen point or DOM rect. intensity 0..1. */
-  burstAt(target: Rectish | [number, number], intensity = 0.5, color: number = COLORS.cyan): void {
+  burstAt(target: Rectish | [number, number], intensity = 0.5, color: number = COLORS.emberHot): void {
     if (!this.scene || prefersReducedMotion()) return;
     const [x, y] = Array.isArray(target) ? target : this.center(target);
     this.scene.burstAt(x, y, intensity, color);
