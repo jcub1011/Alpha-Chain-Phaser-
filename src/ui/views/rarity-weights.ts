@@ -18,7 +18,7 @@ import {
   totalCardsDealtPerPlayer,
 } from "../../game/settings";
 import { dealPoolCapacity, rarityDealShare } from "../../game/cards/library";
-import { SETTING_HINTS } from "./settings-hints";
+import { SETTING_GROUP_HINTS } from "./settings-hints";
 
 /** Display name per tier. CardRarity's values are lowercase wire strings ("common"), which
  *  the card back renders verbatim; the lobby wants them title-cased. */
@@ -67,6 +67,9 @@ export type SettingStepper = (
  * The whole group is wrapped in `.set-group`, a full-width nested grid: `.set-subhead` spans
  * every column and so opens a row, and without a wrapper the settings that follow the group
  * in render order flow into that same row and read as rarity settings.
+ *
+ * The group's explanation is rendered once as `.set-groupdesc` rather than per row — see the
+ * note in settings-hints.ts for why the four tiers share one.
  */
 export const renderRarityWeights = (
   draft: AlphaChainSettings,
@@ -83,13 +86,16 @@ export const renderRarityWeights = (
   return html`
     <div class="set-group">
       <p class="set-subhead">Rarity Weights</p>
+      <!-- The mechanic is identical for all four tiers, so it is stated once
+           here and the rows carry only their tier name. Each row's value still
+           reports that tier's own share of a draw. -->
+      <p class="set-groupdesc">${SETTING_GROUP_HINTS.rarityWeights}</p>
       ${RARITY_WEIGHT_ROWS.map((r) =>
         stepper(
           r.label,
           rarityWeightValue(draft[r.key], share[r.tier]),
           () => step(r.key, -1),
           () => step(r.key, 1),
-          SETTING_HINTS[r.key],
         ),
       )}
       ${RARITY_WEIGHT_ROWS.every((r) => draft[r.key] <= 0)

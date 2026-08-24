@@ -21,25 +21,28 @@
 .lobby-title {
   margin: 0;
   font-family: var(--font-display);
-  font-weight: 700;
+  font-weight: 800;
   font-size: clamp(2.6rem, 11vw, 4.6rem);
-  letter-spacing: 0.12em;
+  /* Tracking pulled in from 0.12em to match #boot's wordmark — the two are the
+     first and second thing a player sees, and they were set differently. */
+  letter-spacing: 0.02em;
   line-height: 1;
-  color: var(--ac-ink);
-  text-shadow: var(--ac-glow-cyan);
+  color: var(--ac-stock-100);
   animation: ac-rise 0.5s ease-out both;
 }
 .lobby-title span {
-  color: var(--ac-cyan);
+  color: var(--i-primary);
   margin-left: 0.16em;
 }
 .lobby-tag {
   margin: 0.5rem 0 0;
-  font-family: var(--font-mono);
-  letter-spacing: 0.22em;
+  font-family: var(--font-machine);
+  font-stretch: var(--stretch-machine);
+  font-weight: 600;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   font-size: 0.78rem;
-  color: var(--ac-ink-soft);
+  color: var(--ac-steel-300);
 }
 
 .lobby-panel {
@@ -123,7 +126,10 @@
 .set-desc {
   font-size: 0.72rem;
   line-height: 1.4;
-  color: var(--ac-ink-faint);
+  /* --ac-ink-faint is 0.42 alpha and misses AA badly at this size. Every one of
+     these rows is explanatory text a player actually has to read to set the
+     game up, so it uses the secondary-ink token instead. */
+  color: var(--ac-steel-300);
 }
 /* A run of related steppers (e.g. "Rarity Weights") as one self-contained block. The heading
    below spans every column, which opens a row — without this wrapper the settings that follow
@@ -140,46 +146,75 @@
 .set-subhead {
   grid-column: 1 / -1;
   margin: 0.6rem 0 0.1rem;
+  font-family: var(--font-machine);
+  font-stretch: var(--stretch-machine);
   font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--ac-ink-faint);
+  color: var(--ac-steel-300);
 }
-/* Warning under a group whose settings combine into a no-op (all rarity weights 0). */
+/* One explanation for a whole section, sitting under its heading. A run of
+   settings that share a single mechanic states it here once instead of repeating
+   it under every row — which is what the four rarity tiers used to do. Spans all
+   columns, like the heading it follows. */
+.set-groupdesc {
+  grid-column: 1 / -1;
+  margin: 0 0 0.55rem;
+  max-width: 62ch;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--ac-steel-300);
+}
+
+/* Warning under a group whose settings combine into a no-op (all rarity weights 0).
+   Decoupled from --ac-rarity-legendary: borrowing the legendary-card colour for
+   an unrelated warning meant any retune of the rarity ramp silently repainted
+   this, and the two have nothing to do with each other. */
 .set-warn {
   grid-column: 1 / -1;
   margin: 0.2rem 0 0.4rem;
   font-size: 0.72rem;
   line-height: 1.4;
-  color: var(--ac-rarity-legendary);
+  color: var(--state-live);
 }
 /* Read-only banner shown to guests above the host's settings. */
 .set-readonly-note {
   grid-column: 1 / -1;
   margin: 0 0 0.4rem;
   font-size: 0.8rem;
-  color: var(--ac-ink-faint);
+  color: var(--ac-steel-300);
   font-style: italic;
 }
-/* Disabled controls (guest view) read as inert rather than clickable. */
+/* Disabled controls (guest view) read as inert rather than clickable. Cold and
+   flat rather than faded, matching how .ac-btn handles the same state. */
 .set-btn:disabled,
 .seg-btn:disabled {
   cursor: default;
-  opacity: 0.55;
+  background: var(--ac-steel-600);
+  color: var(--ac-steel-400);
+  box-shadow: var(--ac-lift-0);
+}
+.seg-btn.is-on:disabled {
+  background: var(--ac-brass-dim);
+  color: var(--ac-steel-800);
 }
 .set-ctl {
   display: flex;
   align-items: center;
   gap: 0.6rem;
 }
+/* A machine readout: numbers, so machined, and tabular so a stepper does not
+   jitter as the value changes width. */
 .set-value {
   min-width: 3rem;
   text-align: center;
-  font-family: var(--font-mono);
+  font-family: var(--font-machine);
+  font-stretch: var(--stretch-machine);
   font-weight: 800;
+  font-variant-numeric: tabular-nums;
   font-size: 1.1rem;
-  color: var(--ac-cyan);
+  color: var(--i-primary);
 }
 .set-btn {
   appearance: none;
@@ -187,45 +222,91 @@
   height: 2.1rem;
   display: grid;
   place-content: center;
-  border: 1px solid var(--ac-border-strong);
+  /* Small milled keys, same recipe as .ac-btn scaled down: warm rim, lit top
+     edge, cut edge along the foot, soft drop. They are not .ac-btn in the
+     markup, so the recipe is restated rather than inherited. */
+  border: 1px solid var(--ac-rim);
   border-radius: var(--r-xs);
-  background: rgba(255, 255, 255, 0.04);
+  background: linear-gradient(180deg, var(--ac-steel-500), var(--ac-steel-600));
   color: var(--ac-ink);
-  font-size: 1.3rem;
+  font-family: var(--font-machine);
+  font-stretch: var(--stretch-machine);
+  font-size: 1.2rem;
   font-weight: 700;
   line-height: 1;
   cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 var(--ac-hi),
+    inset 0 -2px 0 var(--ac-steel-700),
+    var(--ac-lift-0);
   transition:
     background 0.15s,
-    border-color 0.15s;
+    box-shadow 0.1s,
+    transform 0.08s;
 }
-.set-btn:hover {
-  border-color: var(--ac-cyan);
-  background: color-mix(in srgb, var(--ac-cyan) 14%, transparent);
+.set-btn:hover:not(:disabled) {
+  background: linear-gradient(180deg, var(--ac-steel-400), var(--ac-steel-500));
+  box-shadow:
+    inset 0 1px 0 var(--ac-hi),
+    inset 0 -2px 0 var(--ac-steel-700),
+    var(--ac-lift-1);
+}
+.set-btn:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow:
+    inset 0 2px 3px rgba(0, 0, 0, 0.35),
+    inset 0 -1px 0 var(--ac-steel-700),
+    var(--ac-lift-0);
+}
+.set-btn:focus-visible,
+.seg-btn:focus-visible,
+.lobby-bay:focus-visible {
+  outline: 2px solid var(--ac-brass-lit);
+  outline-offset: 2px;
 }
 
 .seg {
   display: flex;
   gap: 0.25rem;
 }
+/* Segmented options are VALUES, not commands, so they stay in the body face
+   where the machine face is reserved for readouts and controls. Off is a cold
+   steel key; on is the same key cast in brass. */
 .seg-btn {
   appearance: none;
   padding: 0.4rem 0.7rem;
-  border: 1px solid var(--ac-border-strong);
+  border: 1px solid var(--ac-rim);
   border-radius: var(--r-xs);
-  background: rgba(255, 255, 255, 0.04);
+  background: linear-gradient(180deg, var(--ac-steel-500), var(--ac-steel-600));
   color: var(--ac-ink-soft);
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-weight: 600;
   text-transform: capitalize;
   cursor: pointer;
-  transition: all 0.15s;
+  box-shadow:
+    inset 0 1px 0 var(--ac-hi),
+    inset 0 -2px 0 var(--ac-steel-700),
+    var(--ac-lift-0);
+  transition:
+    background 0.15s,
+    color 0.15s,
+    box-shadow 0.1s,
+    transform 0.08s;
+}
+.seg-btn:hover:not(:disabled):not(.is-on) {
+  background: linear-gradient(180deg, var(--ac-steel-400), var(--ac-steel-500));
+  color: var(--ac-ink);
+}
+.seg-btn:active:not(:disabled) {
+  transform: translateY(1px);
 }
 .seg-btn.is-on {
-  background: var(--ac-cyan);
-  border-color: var(--ac-cyan);
-  color: #04121a;
-  box-shadow: var(--ac-glow-cyan);
+  background: linear-gradient(180deg, var(--ac-brass-lit), var(--ac-brass));
+  color: var(--ink-on-brass);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    inset 0 -2px 0 var(--ac-brass-dim),
+    var(--ac-lift-0);
 }
 
 .lobby-start {
@@ -238,23 +319,30 @@
   appearance: none;
   margin-top: -0.4rem;
   padding: 0.5rem 1rem;
-  border: 1px solid var(--ac-border-strong);
+  border: 1px solid var(--ac-rim);
   border-radius: var(--r-xs);
-  background: transparent;
+  background: linear-gradient(180deg, var(--ac-steel-500), var(--ac-steel-600));
   color: var(--ac-ink-soft);
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-weight: 600;
   letter-spacing: 0.04em;
   cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 var(--ac-hi),
+    inset 0 -2px 0 var(--ac-steel-700),
+    var(--ac-lift-0);
   transition:
-    border-color 0.15s,
+    background 0.15s,
     color 0.15s,
-    background 0.15s;
+    box-shadow 0.1s,
+    transform 0.08s;
 }
 .lobby-bay:hover {
-  border-color: var(--ac-cyan);
+  background: linear-gradient(180deg, var(--ac-steel-400), var(--ac-steel-500));
   color: var(--ac-ink);
-  background: color-mix(in srgb, var(--ac-cyan) 12%, transparent);
+}
+.lobby-bay:active {
+  transform: translateY(1px);
 }
 
 .lobby-rules {
@@ -262,5 +350,5 @@
   text-align: center;
   font-size: 0.78rem;
   line-height: 1.5;
-  color: var(--ac-ink-faint);
+  color: var(--ac-steel-300);
 }

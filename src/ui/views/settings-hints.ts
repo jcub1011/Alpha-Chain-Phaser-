@@ -1,12 +1,35 @@
 /*
- * One-line explanations for every host-configurable setting, shown as a hover
- * tooltip (the `title` attribute) on each setting row in both lobbies. Centralized
- * here so the solo and multiplayer lobbies never drift out of sync.
+ * The explanatory copy under every host-configurable setting in both lobbies.
+ * Centralized here so the solo and multiplayer lists never drift out of sync.
+ *
+ * Two kinds:
+ *
+ *   SETTING_HINTS       one line per setting, rendered under that row's label.
+ *   SETTING_GROUP_HINTS one line per SECTION, rendered once under the section
+ *                       heading. For a run of settings that share a single
+ *                       mechanic, the section carries the explanation and the
+ *                       rows carry only their names.
+ *
+ * The rarity weights are why the second kind exists: four rows each repeating
+ * "how often X is offered, relative to the other tiers — not a percentage"
+ * meant the same sentence four times on screen, and the only thing that
+ * actually differed per row was the tier name already in the label. They are
+ * Exclude-d from SETTING_HINTS below rather than left unused, so the exhaustive
+ * Record still forces a hint for every setting that does need its own.
  */
 
-import type { AlphaChainSettings } from "../../game/types";
+import type { AlphaChainSettings, RarityWeightKey } from "../../game/types";
 
-export const SETTING_HINTS: Record<keyof AlphaChainSettings, string> = {
+/** Settings whose explanation lives on their section instead of their row. */
+type GroupedSetting = RarityWeightKey;
+
+/** Section id -> the one explanation shared by every setting in that section. */
+export const SETTING_GROUP_HINTS = {
+  rarityWeights:
+    "How often each tier is offered, relative to the others — these are weights, not percentages. Set a tier to 0 to drop it from the deal entirely.",
+} as const;
+
+export const SETTING_HINTS: Record<Exclude<keyof AlphaChainSettings, GroupedSetting>, string> = {
   gameMode: "Word Builder: assemble words from a dealt tile rack. Classic: type words freely.",
   rackSize: "How many tiles are dealt to your rack each turn (6–12).",
   builderShotClockSeconds: "Seconds to assemble and submit a word in Word Builder mode.",
@@ -27,14 +50,6 @@ export const SETTING_HINTS: Record<keyof AlphaChainSettings, string> = {
   eraCount: "How many eras are in a match.",
   eraInterval: "How many full rounds (one cycle of all players) are in an era.",
   modifiersDealtPerEra: "How many new modifier cards each player is dealt each intermission.",
-  rarityWeightCommon:
-    "How often Common cards are offered, relative to the other tiers — not a percentage. 0 means Commons are never dealt.",
-  rarityWeightUncommon:
-    "How often Uncommon cards are offered, relative to the other tiers — not a percentage. 0 means Uncommons are never dealt.",
-  rarityWeightRare:
-    "How often Rare cards are offered, relative to the other tiers — not a percentage. 0 means Rares are never dealt.",
-  rarityWeightLegendary:
-    "How often Legendary cards are offered, relative to the other tiers — not a percentage. 0 means Legendaries are never dealt.",
   modifierSlotsStart: "How many engine bay slots you have when cards are first dealt.",
   slotIncreaseEveryNEras: "How often engine bay slots increase — every N eras, or never (0).",
   slotIncreaseAmount: "How many engine bay slots are added at each increase.",
