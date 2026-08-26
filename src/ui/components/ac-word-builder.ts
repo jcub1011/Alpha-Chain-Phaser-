@@ -106,7 +106,7 @@ export class AcWordBuilder extends AcElement {
     this.highlightBans = s.settings.highlightBannedLetters;
     this.bannedLetter = s.bannedLetter;
     this.requiredLetter = s.requiredLetter;
-    this.canRedraw = isHumanTurn && (s.rackRedrawAvailable || s.offerRedrawAvailable);
+    this.canRedraw = isHumanTurn && s.rackRedrawAvailable;
 
     // Sync rack content
     if (s.rack && s.rack.length > 0) {
@@ -220,13 +220,11 @@ export class AcWordBuilder extends AcElement {
     if (elapsed >= THROTTLE_MS) {
       this.lastSelectAt = now;
       this.controller.stageTiles(this.stagedTileIds, word);
-      this.controller.reportSelection(word);
     } else {
       this.selectTimer = setTimeout(() => {
         this.lastSelectAt = Date.now();
         this.selectTimer = null;
         this.controller.stageTiles(this.stagedTileIds, word);
-        this.controller.reportSelection(word);
       }, THROTTLE_MS - elapsed);
     }
   }

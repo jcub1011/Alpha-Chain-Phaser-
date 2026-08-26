@@ -88,7 +88,6 @@ export const SETTINGS_PRESETS: readonly { id: PresetId; overrides: PresetOverrid
     overrides: {
       eraCount: 2,
       eraInterval: 3,
-      builderShotClockSeconds: 20,
       pickerShotClockSeconds: 20,
       shotClockSeconds: 15,
       dealEngineCardsFirstEra: true,
@@ -139,7 +138,6 @@ export const SETTINGS_PRESETS: readonly { id: PresetId; overrides: PresetOverrid
     id: PresetId.SuddenDeath,
     overrides: {
       survivalMode: true,
-      builderShotClockSeconds: 15,
       pickerShotClockSeconds: 15,
       shotClockSeconds: 12,
       rackSize: 7,

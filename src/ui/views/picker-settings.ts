@@ -12,21 +12,11 @@
  */
 
 import { html, nothing, type TemplateResult } from "lit";
-import {
-  MAX_BUILDER_RACK_SIZE,
-  MAX_OFFER_COUNT,
-  MIN_BUILDER_RACK_SIZE,
-  MIN_OFFER_COUNT,
-} from "../../game/settings";
+import { MAX_BUILDER_RACK_SIZE, MIN_BUILDER_RACK_SIZE } from "../../game/settings";
 import { DictionaryTier, GameMode } from "../../game/types";
 import type { AlphaChainSettings } from "../../game/types";
 import type { SettingControls } from "./setting-controls";
 import { SETTING_HINTS } from "./settings-hints";
-
-/** Clamp bounds for the Offer-size stepper. Shared with the persistence validator via
- *  settings.ts, so the editable range and the accepted range cannot drift — the bug the
- *  validator comment claims is avoided but `eraCount`/`eraInterval` actually have. */
-export const OFFER_COUNT_BOUNDS = { min: MIN_OFFER_COUNT, max: MAX_OFFER_COUNT } as const;
 
 export const RACK_SIZE_BOUNDS = { min: MIN_BUILDER_RACK_SIZE, max: MAX_BUILDER_RACK_SIZE } as const;
 

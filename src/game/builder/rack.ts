@@ -345,9 +345,17 @@ export function canConstructWordFromTiles(
   for (const t of tileTexts) totalLength += t.length;
   if (target.length > totalLength || target.length === 0) return false;
 
-  // DFS exact cover matching
+  // DFS exact cover matching, memoized on (targetOffset, usedMask). Without the memo, k copies of
+  // one letter make every ordering of those copies a distinct search path to the SAME state, so a
+  // failing target degrades toward O(k!) — and 5-6 identical tiles is reachable, because the vowel
+  // balancer injects random vowels and Tide pushes the rack toward 50% vowels. Memoizing bounds it
+  // at target.length × 2^n states. submitWord runs this on every commit, and subWordFinder on every
+  // candidate that survives the frequency check on a chunked rack.
+  const failed = new Set<number>();
   function match(targetOffset: number, usedMask: number): boolean {
     if (targetOffset === target.length) return true;
+    const key = targetOffset * (1 << tileTexts.length) + usedMask;
+    if (failed.has(key)) return false;
 
     for (let i = 0; i < tileTexts.length; i++) {
       if ((usedMask & (1 << i)) !== 0) continue;
@@ -358,6 +366,7 @@ export function canConstructWordFromTiles(
         }
       }
     }
+    failed.add(key);
     return false;
   }
 
@@ -371,8 +380,15 @@ export function findTileDecomposition(word: string, rack: readonly Tile[]): Tile
   const target = word.toLowerCase();
   const result: Tile[] = [];
 
+  // Memoized on (targetOffset, usedMask), for the same reason canConstructWordFromTiles is: with
+  // duplicate tiles every ordering of the duplicates reaches the same state, so a failing target
+  // degrades toward O(k!). Only FAILURES are cached — a success returns straight out with `result`
+  // holding the decomposition, so a cached success could never be replayed into it anyway.
+  const failed = new Set<number>();
   function match(targetOffset: number, usedMask: number): boolean {
     if (targetOffset === target.length) return true;
+    const key = targetOffset * (1 << rack.length) + usedMask;
+    if (failed.has(key)) return false;
 
     for (let i = 0; i < rack.length; i++) {
       if ((usedMask & (1 << i)) !== 0) continue;
@@ -386,6 +402,7 @@ export function findTileDecomposition(word: string, rack: readonly Tile[]): Tile
         result.pop();
       }
     }
+    failed.add(key);
     return false;
   }
 
@@ -498,6 +515,65 @@ export function subWordFinder(
   }
 
   return found;
+}
+
+/** Below this many buildable-length pool words, a first letter cannot fill varied racks.
+ *
+ *  Measured against the shipped Reduced list (`words-common.txt`): every letter at or above this
+ *  count produced 0.0% of racks with <= 2 buildable words at both rackSize 9 and 7, while the
+ *  letters below it are the entire failure tail — `x` has exactly ONE word in the Reduced list, so
+ *  100% of `x` racks hold a single buildable word, and `z` (13) reaches 62% of racks with <= 2 at
+ *  rackSize 7. The full list's thinnest letter is 519, so it never trips this. */
+const MIN_SUCCESSION_POOL_WORDS = 60;
+
+/** A letter must also hold less than this share of its pool's per-letter average to count as a dead
+ *  end. Guards the absolute floor above against SMALL pools: in a hand-built pool of twenty words
+ *  every letter is under 60, and waiving Succession there would not rescue a turn — it would just
+ *  delete the chain rule. A dead end is a letter that is thin *for its own pool*, not merely thin. */
+const DEAD_END_POOL_SHARE = 0.5;
+
+/**
+ * Whether `letter` has enough pool words to seed a rack a player can actually work with.
+ *
+ * Succession dead ends are a Word Builder-only hazard, and the reason is `subWordFinder`: it only
+ * returns words STARTING with the required letter, so a chain that lands on `x` leaves a rack whose
+ * only buildable word is the Golden Seed itself. On a 25s clock — 15s in Sudden Death — that is a
+ * near-certain timeout, and an elimination in Survival. Classic never calls this: there the player
+ * types freely and a thin letter costs them nothing but difficulty.
+ *
+ * Counted over lengths a rack of `rackSize` could actually spell, so the same letter can support a
+ * 9-tile rack and not a 7-tile one — which is exactly what the measurements show.
+ *
+ * This is the rack-path equivalent of the letter-starvation lookahead the retired Offer generator
+ * carried (picker/offer.ts, "problem 3"). That protection was never ported when racks replaced
+ * Offers, which is why it had to be rebuilt here.
+ */
+export function letterSupportsRack(
+  index: PoolIndex,
+  letter: string,
+  rackSize: number,
+): boolean {
+  if (!letter) return true; // "" is free choice, which is always playable
+  const buildable = (l: string): number => {
+    let n = 0;
+    for (const len of index.lengthsFor(l)) {
+      if (len < 2 || len > rackSize) continue;
+      const r = index.range(l, len);
+      n += r.end - r.start;
+    }
+    return n;
+  };
+
+  const count = buildable(letter.toLowerCase());
+  if (count >= MIN_SUCCESSION_POOL_WORDS) return true;
+
+  // Thin in absolute terms. Only a dead end if it is also thin for this pool — see
+  // DEAD_END_POOL_SHARE. Compared against the per-letter mean over letters that appear at all.
+  const starts = index.startLetters();
+  if (starts.length === 0) return true;
+  let total = 0;
+  for (const l of starts) total += buildable(l);
+  return count >= (total / starts.length) * DEAD_END_POOL_SHARE;
 }
 
 /**

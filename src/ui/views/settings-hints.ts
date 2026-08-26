@@ -43,13 +43,11 @@ export const SETTING_GROUP_HINTS = {
 export const SETTING_HINTS: Record<Exclude<keyof AlphaChainSettings, GroupedSetting>, string> = {
   gameMode: "Word Builder: assemble words from a dealt tile rack. Classic: type words freely.",
   rackSize: "How many tiles are dealt to your rack each turn (6–12).",
-  builderShotClockSeconds: "Seconds to assemble and submit a word in Word Builder mode.",
-  offerCount: "How many words you get to choose from each turn. Fewer is less to read.",
   offerDictionary:
     "Common: ~9,000 everyday words, easier to read at a glance. Full: all 386,000, far more obscure.",
-  pickerShotClockSeconds: "Seconds to pick a word in Picker mode.",
+  pickerShotClockSeconds: "Seconds to build and submit a word from your tile rack.",
   highlightBannedLetters:
-    "Highlight the era's banned letter inside the words you're offered. Off keeps the nasty surprise.",
+    "Highlight the era's banned letter on your tiles. Off keeps the nasty surprise.",
   botCount: "How many AI opponents you play against.",
   botDifficulty: "How well the bots play; their word quality and reaction speed.",
   banMode: "Which letters are eligible to be the era's banned letter.",

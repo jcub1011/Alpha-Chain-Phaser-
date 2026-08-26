@@ -139,7 +139,7 @@ export class ServerController implements GameController {
   reportSelection(word: string): void {
     // Stream the highlighted Offer word so the SERVER clock can commit it on expiry. Without this
     // the authority would see no selection and read every expiry as a no-show — which in Survival
-    // would eliminate a player who had in fact chosen. Throttled by <ac-offer-grid>; the server's
+    // would eliminate a player who had in fact chosen. Throttled by <ac-word-builder>; the server's
     // 1s submit grace is what makes that throttle safe against the buzzer.
     this.dispatch({ kind: "selectOffer", word });
   }
@@ -155,13 +155,9 @@ export class ServerController implements GameController {
     return { accepted: false };
   }
 
-  redrawOffer(): void {
+  redrawRack(): void {
     // The authority re-derives eligibility (turn, charge, card held), so an ineligible redraw
     // costs one refused intent and no broadcast.
-    this.dispatch({ kind: "redrawOffer" });
-  }
-
-  redrawRack(): void {
     this.dispatch({ kind: "redrawRack" });
   }
 

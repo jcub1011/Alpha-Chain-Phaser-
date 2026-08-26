@@ -194,11 +194,11 @@ export class AcSandbox extends AcElement {
           ${b.gameMode === GameMode.Picker
             ? html`<div class="sandbox-offer">
                 <span class="sandbox-turn-label">
-                  Offer for ${currentName}
-                  ${b.offer.length === 0 ? html`<em>— none drawn</em>` : nothing}
+                  Buildable from ${currentName}'s rack
+                  ${b.subWords.length === 0 ? html`<em>— none</em>` : nothing}
                 </span>
                 <div class="sandbox-offer-row">
-                  ${b.offer.map(
+                  ${b.subWords.map(
                     (w) =>
                       html`<button class="chip" @click=${() => this.commit(w)}>
                         ${w}

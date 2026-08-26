@@ -1,6 +1,6 @@
 {
   "name": "alpha-chain-phaser",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "description": "Alpha Chain — a high-velocity word-chain + engine-builder game, ported to Phaser.",

@@ -281,24 +281,22 @@ export function createAuthority(kb: Kb) {
             // drainPatch(false) publishes exactly once per real outcome and nothing for a stray.
             h.commitSelection(fromId, action.word);
             return drainPatch(false);
-          case "redrawOffer":
-            // Mutates state (a new Offer + a shorter clock) and emits turnArmed/clockTick, so
+          case "redrawRack":
+            // Mutates state (a new rack + a shorter clock) and emits turnArmed/clockTick, so
             // unlike selectOffer this one genuinely must broadcast. The engine re-derives
             // eligibility — turn, phase, card held, charge unspent — so a spammed redraw is
             // refused there and drainPatch publishes nothing.
-            h.redrawOffer(fromId);
-            return drainPatch(false);
-          case "redrawRack":
             h.redrawRack(fromId);
             return drainPatch(false);
           case "stageTiles":
-            if (action.word) h.setSelection(fromId, action.word);
+            // The word is forwarded even when EMPTY: "" is how <ac-word-builder> says "I unstaged
+            // everything", and setSelection treats it as a clear. Guarding on truthiness here
+            // would leave the stale pick alive for the rest of the turn — in Survival, the
+            // difference between a no-show and not.
+            h.setSelection(fromId, action.word ?? "");
             return null;
           case "selectTile":
           case "deselectTile":
-            return null;
-          case "clearStaging":
-            h.setSelection(fromId, "");
             return null;
           case "reorderBay":
             if (!inOptimize()) return null;

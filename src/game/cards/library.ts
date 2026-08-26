@@ -921,8 +921,12 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     color: "#74b291",
     family: CardFamily.Utility,
     op: CardOp.Fx,
-    magnitudeText: "6+ only",
-    description: "Your Offer contains only words of 6+ letters (seeds of 8+ in Word Builder). Scores nothing itself.",
+    magnitudeText: "8+ seed",
+    // States the guarantee the engine can actually keep. selectGoldenSeed clamps the floor to
+    // min(minSeedLength, rackSize) because an 8-letter seed cannot be decomposed into a smaller
+    // rack — so with Tunnel Vision, or a lobby rack under 8, the seed is the whole rack instead.
+    description:
+      "Your Tile Rack is seeded from a word of 8+ letters — or your whole rack, when that is shorter. Scores nothing itself.",
     fold: (v) => fx(v),
     // The cost: you can never duck a Banned Letter with a short safe word.
     preference: {
@@ -945,7 +949,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
       family: CardFamily.Utility,
       op: CardOp.Fx,
       magnitudeText: "redraw",
-      description: `Once per turn, redraw your whole Offer or Tile Rack for ${Math.round(t.clockCostFraction * 100)}% of your shot clock.`,
+      description: `Once per turn, redraw your whole Tile Rack for ${Math.round(t.clockCostFraction * 100)}% of your shot clock.`,
       fold: (v) => fx(v),
       roomServices: ["winnowerGuard"],
       // The price is a FIXED fraction, so it grows harsher as your engine grows and each Offer
@@ -962,7 +966,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     family: CardFamily.Clock,
     op: CardOp.Fx,
     magnitudeText: "+2 / −15%",
-    description: "+2 Offer/Rack slots, and −15% shot clock. More to choose from, less time to choose.",
+    description: "+2 Rack tiles, and −15% shot clock. More to build with, less time to build.",
     fold: (v) => fx(v),
     // A genuine ClockModifier, which is why armedClockSeconds keeps the FULL bay even though this
     // card is hidden from bay-size SCORING.
@@ -979,7 +983,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     family: CardFamily.Utility,
     op: CardOp.Multiplicative,
     magnitudeText: "×1.4",
-    description: "×1.4 always, but you have 2 fewer Offer/Rack slots. Raw multiplier, less choice.",
+    description: "×1.4 always, but you have 2 fewer Rack tiles. Raw multiplier, less to build with.",
     fold: (v, c) => mul(v, 1.4 * c.magnification()),
     // The one Preference Card that really scores, so it is placed and counted like any other
     // multiplier rather than bubbling left — see isInertPreference for why that must be so.
@@ -994,7 +998,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     family: CardFamily.Letter,
     op: CardOp.Fx,
     magnitudeText: "1 rare",
-    description: "Guaranteed at least one rare letter (Q, X, Z, J) in your Offer or Rack. Scores nothing itself.",
+    description: "Guaranteed at least one rare letter (Q, X, Z, J) on your Tile Rack. Scores nothing itself.",
     fold: (v) => fx(v),
     // The cost: one of your Offer slots is permanently spent on a word you may not want.
     preference: {
@@ -1011,7 +1015,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     family: CardFamily.Letter,
     op: CardOp.Fx,
     magnitudeText: "vowels",
-    description: "Your Offer or Rack is guaranteed vowel-heavy (>=50% vowels). Scores nothing itself.",
+    description: "Your Tile Rack is guaranteed vowel-heavy (>=50% vowels). Scores nothing itself.",
     fold: (v) => fx(v),
     // A SOFT bias, abandoned when the pool cannot serve it, so it never starves the Offer. The
     // cost is concentration: a narrower draw means more repeats and a thinner ending-letter graph.
@@ -1034,9 +1038,9 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     op: CardOp.Fx,
     magnitudeText: "1 safe",
     description:
-      "Your Offer or Rack is guaranteed free of every letter banned against you. Scores nothing itself.",
+      "Your Tile Rack is guaranteed free of every letter banned against you. Scores nothing itself.",
     fold: (v) => fx(v),
-    // Insurance against the Zero-Point Tax, paid for in slots — and it spends an Offer slot on
+    // Insurance against the Zero-Point Tax, paid for in slots — and it spends a bay slot on
     // safety rather than on ceiling. With no bans in force it guarantees nothing and costs nothing.
     preference: {
       excludeBannedLetters: true,

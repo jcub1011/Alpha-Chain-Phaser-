@@ -10,6 +10,7 @@
  * preset will do to it.
  */
 
+import { html } from "lit";
 import { describe, expect, it } from "vitest";
 import { dealPoolCapacity } from "./cards/library";
 import {
@@ -27,7 +28,9 @@ import {
   sanitizeSettings,
   totalCardsDealtPerPlayer,
 } from "./settings";
-import { HOST_PREFERENCE_KEYS } from "../ui/views/settings-sections";
+import { GameMode } from "./types";
+import type { SettingControls } from "../ui/views/setting-controls";
+import { HOST_PREFERENCE_KEYS, renderMatchRules } from "../ui/views/settings-sections";
 import type { AlphaChainSettings } from "./types";
 
 const ALL_IDS = SETTINGS_PRESETS.map((p) => p.id);
@@ -130,5 +133,55 @@ describe("the host-preference boundary", () => {
     const shown = new Set([...HOST_PREFERENCE_KEYS.solo, ...HOST_PREFERENCE_KEYS.net]);
     expect([...shown].sort()).toEqual(Object.keys(PRESET_EXCLUDED_KEYS).sort());
     expect(PRESET_KEYS.filter((k) => shown.has(k as never))).toEqual([]);
+  });
+
+  it("gives every match rule a row in the panel, and every row a match rule", () => {
+    /* The missing half of the boundary, and the one that actually bit.
+     *
+     * The case above pins that every EXCLUDED key is reachable. Nothing pinned the converse — that
+     * every key a preset OWNS is reachable too — so `offerCount` and `builderShotClockSeconds` both
+     * sat in DEFAULT_SETTINGS, both got written by presets, and neither had a control in either
+     * lobby after the Offer-size stepper became "Rack Size". A host could not see them, could not
+     * change them, and the engine went on reading them: `offerCount` sized an Offer nobody could
+     * look at, and `builderShotClockSeconds` fed bots a clock the match never armed.
+     *
+     * Observed by RENDERING the real band and recording which keys its rows write, rather than by
+     * comparing against a hand-kept list — a second list is just a second thing to drift. */
+    const reachable = new Set<string>();
+    for (const gameMode of [GameMode.Picker, GameMode.Classic]) {
+      const callbacks: (() => void)[] = [];
+      const stub = html`<i></i>`;
+      const probe: SettingControls = {
+        step: (key) => void reachable.add(key as string),
+        set: (key) => void reachable.add(key as string),
+        stepper: (_label, _value, onMinus, onPlus) => {
+          callbacks.push(onMinus, onPlus);
+          return stub;
+        },
+        // Every option, not just the current one: a segmented row whose handler switches on the
+        // value could otherwise write a different key per option.
+        segmented: ((
+          _label: string,
+          _current: string,
+          options: { value: string }[],
+          onPick: (v: string) => void,
+        ) => {
+          for (const o of options) callbacks.push(() => onPick(o.value));
+          return stub;
+        }) as SettingControls["segmented"],
+        toggle: (_label, _on, set) => {
+          callbacks.push(() => set(true));
+          return stub;
+        },
+      };
+      // lit evaluates a template's interpolations eagerly, so the rows are built — and their
+      // handlers captured — by this call alone. No DOM required.
+      renderMatchRules({ ...DEFAULT_SETTINGS, gameMode }, probe);
+      for (const cb of callbacks) cb();
+    }
+
+    // Both modes' rows together, because the mode rows are an either/or.
+    expect(PRESET_KEYS.filter((k) => !reachable.has(k))).toEqual([]);
+    expect([...reachable].filter((k) => !PRESET_KEYS.includes(k as never))).toEqual([]);
   });
 });

@@ -19,7 +19,6 @@ import { AcElement } from "../app/AcElement";
 
 import "../components/ac-shot-clock";
 import "../components/ac-word-entry";
-import "../components/ac-offer-grid";
 import "../components/ac-word-builder";
 import "../components/ac-leaderboard";
 import "../components/ac-recent-words";
@@ -41,7 +40,7 @@ export class AcHud extends AcElement {
   @state() private humanExempt = false;
   @state() private personalBans: { letter: string; cardName: string }[] = [];
   @state() private humanBay: FanCard[] = [];
-  /** Picker: which Offer word is selected, if any. Drives the engine-fire projection below. */
+  /** Word Builder: the word currently staged on the rack, if any. Drives the projection below. */
   @state() private previewWord: string | null = null;
   @state() private humanSlots = 3;
   @state() private opponents: PlayerState[] = [];
@@ -121,7 +120,7 @@ export class AcHud extends AcElement {
     return bay.map((c, i) => ({ ...c, triggered: fired[i]?.triggered === true }));
   }
 
-  /** <ac-offer-grid> publishes the current selection; re-derive the bay projection from it. */
+  /** <ac-word-builder> publishes the staged word; re-derive the bay projection from it. */
   private onOfferPreview = (e: CustomEvent<{ word: string | null }>): void => {
     this.previewWord = e.detail.word;
     this.refresh();
@@ -232,17 +231,14 @@ export class AcHud extends AcElement {
             <ac-recent-words .controller=${c}></ac-recent-words>
           </section>
 
-          <!-- The single input-surface mount. Picker / Word Builder swaps the surface -->
+          <!-- The single input-surface mount. Word Builder is the ONLY Picker surface: mounted
+               unconditionally rather than keyed on rack.length, so Setup/Countdown shows the empty
+               builder instead of swapping a placeholder out from under the player at round start. -->
           ${c.match.state.settings.gameMode === GameMode.Picker
-            ? c.match.state.rack.length > 0
-              ? html`<ac-word-builder
-                  .controller=${c}
-                  @ac-offer-preview=${this.onOfferPreview}
-                ></ac-word-builder>`
-              : html`<ac-offer-grid
-                  .controller=${c}
-                  @ac-offer-preview=${this.onOfferPreview}
-                ></ac-offer-grid>`
+            ? html`<ac-word-builder
+                .controller=${c}
+                @ac-offer-preview=${this.onOfferPreview}
+              ></ac-word-builder>`
             : html`<ac-word-entry .controller=${c}></ac-word-entry>`}
 
           <ac-score-replay .controller=${c}></ac-score-replay>

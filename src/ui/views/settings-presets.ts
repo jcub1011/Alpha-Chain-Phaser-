@@ -81,16 +81,13 @@ export const renderSettingsPresets = (
           `,
         )}
         <!-- State, not a control: there is nothing to apply, because Custom IS whatever the
-             rows currently say. aria-disabled rather than the disabled attribute, so it stays
-             in the accessibility tree — a screen-reader user needs to hear that a preset
-             stopped being active just as much as a sighted one needs to see it. -->
-        <button
-          class="seg-btn ${active === null ? "is-on" : ""}"
-          aria-disabled="true"
-          aria-pressed=${active === null}
-        >
-          custom
-        </button>
+             rows currently say. Deliberately NOT a <button>: one with aria-disabled but no
+             disabled attribute is still focusable and still clickable, so it took a tab stop and
+             did nothing — and kept taking it for a guest while every real control was disabled.
+             A span with role="status" stays in the accessibility tree, which is the point: a
+             screen-reader user needs to hear that a preset stopped being active just as much as a
+             sighted one needs to see it. -->
+        <span class="seg-btn ${active === null ? "is-on" : ""}" role="status">custom</span>
       </div>
       <p class="set-desc">${active === null ? CUSTOM_BLURB : PRESET_BLURBS[active]}</p>
     </div>

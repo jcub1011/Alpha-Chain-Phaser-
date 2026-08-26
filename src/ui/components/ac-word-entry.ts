@@ -14,7 +14,7 @@ import { REJECT_REASON } from "./reject-reasons";
 
 const log = createLogger("input");
 
-// Copy lives in reject-reasons.ts — shared with <ac-offer-grid>, Picker's input surface.
+// Copy lives in reject-reasons.ts — shared with <ac-word-builder>, Word Builder's input surface.
 const REASON = REJECT_REASON;
 
 @customElement("ac-word-entry")

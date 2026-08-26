@@ -2,8 +2,8 @@
   "$schema": "https://raw.githubusercontent.com/jcub1011/KnockBox-Games-Marketplace/refs/heads/main/schemas/plugin.schema.json",
   "id": "jcub1011-Alpha-Chain",
   "name": "Alpha Chain",
-  "description": "A multiplayer, shinitori-esq game about building the most broken word scoring engine.",
-  "version": "0.1.0",
+  "description": "A multiplayer, shiritori-esque game about building the most broken word scoring engine.",
+  "version": "1.0.0",
   "tags": [
     "word-game",
     "party",

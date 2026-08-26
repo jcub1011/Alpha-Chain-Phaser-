@@ -82,7 +82,6 @@ export interface GameController {
   /** Picker: commit the selected Offer word (second tap, or the GO button). */
   commitSelection(word?: string): SubmitResult;
   /** Picker: Winnower's once-per-turn Offer redraw, bought with shot clock. */
-  redrawOffer(): void;
   /** Word Builder: Winnower's once-per-turn Tile Rack redraw. */
   redrawRack(): void;
   /** Word Builder: stage active tiles and stream drafted word. */
