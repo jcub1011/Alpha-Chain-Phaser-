@@ -6,7 +6,6 @@
  */
 
 import {
-  bestScoredCandidate,
   BOT_CANDIDATE_COUNT,
   BOT_THINK_SECONDS,
   chooseBotWordScored,
@@ -16,7 +15,6 @@ import {
 import type { Dictionary } from "../game/dictionary";
 import { MatchController, type PlayerSeed } from "../game/match";
 import { dictionaryWordPool } from "../game/picker/wordPool";
-import { baseShotClockSeconds } from "../game/settings";
 import { DictionaryTier, GameMode } from "../game/types";
 import type { AlphaChainSettings, SubmitResult } from "../game/types";
 import { createLogger } from "../log";
@@ -92,7 +90,9 @@ export class LocalController implements GameController {
       prevWordLength: this.match.lastWordLength,
       clockRemaining: s.clockRemaining,
       clockTotal: s.clockTotal,
-      baseClockSeconds: baseShotClockSeconds(s.settings),
+      // Taken from the match, not the settings: this is the SAME value armCurrentTurn arms the
+      // clock with, so a bot cannot rank clock-scaling cards against a base the scorer never uses.
+      baseClockSeconds: this.match.baseClockSeconds,
       // Whose card values the bot evaluates with. Taken from the match rather than the raw
       // setting, for the same reason baseClockSeconds is: the two must agree, or a bot would
       // rank candidates on curves the scorer will not use.
@@ -162,18 +162,15 @@ export class LocalController implements GameController {
     return this.match.commitSelection(this.humanId, word);
   }
 
-  redrawOffer(): void {
-    this.match.redrawOffer(this.humanId);
-  }
-
   redrawRack(): void {
     this.match.redrawRack(this.humanId);
   }
 
+  /** The word is passed through even when EMPTY: "" is how <ac-word-builder> says "I unstaged
+   *  everything", and setSelection treats it as a clear. Dropping it would leave the stale pick
+   *  alive for the rest of the turn — in Survival, the difference between a no-show and not. */
   stageTiles(_tileIds: string[], word?: string): void {
-    if (word) {
-      this.match.setSelection(this.humanId, word);
-    }
+    this.match.setSelection(this.humanId, word ?? "");
   }
 
   destroy(): void {
@@ -207,7 +204,11 @@ export class LocalController implements GameController {
           this.match.wordPoolInstance,
           this.match.offerIndex,
           {
-            requiredLetter: s.requiredLetter,
+            // Waived on a rack drawn free of the letter (Wildcard / exhausted letter), which the
+            // engine records rather than clearing `requiredLetter`. Filtering by the standing
+            // letter left the bot with no candidates on exactly the turn it was handed a free
+            // rack, so it logged "nothing to pick from" and deliberately timed out.
+            requiredLetter: this.match.successionWaivedThisTurn ? "" : s.requiredLetter,
             usedWords: s.usedWords,
             bannedLetter: s.bannedLetter,
             difficulty: s.settings.botDifficulty,
@@ -215,8 +216,6 @@ export class LocalController implements GameController {
             scoreOpts,
           },
         );
-      } else if (s.offer.length > 0) {
-        pick = bestScoredCandidate(s.offer, { bay, scoreOpts, bannedLetter: s.bannedLetter });
       }
 
       if (pick) {

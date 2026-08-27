@@ -8,8 +8,11 @@ import {
   canConstructWordFromTiles,
   decomposeSeed,
   DEFAULT_RACK_SIZE,
+  effectiveRackSize,
   findTileDecomposition,
   generateRack,
+  MAX_RACK_SIZE,
+  MIN_RACK_SIZE,
   scoreSeedFertility,
   subWordFinder,
   verifyRackDiversity,
@@ -325,5 +328,16 @@ describe("Word Builder — Core Generator & Profiler", () => {
     const avgMs = (t1 - t0) / iterations;
 
     expect(avgMs).toBeLessThan(1.5);
+  });
+});
+
+describe("effectiveRackSize", () => {
+  it("applies the bay slot delta and clamps to the allowable band", () => {
+    expect(effectiveRackSize(9, 0)).toBe(9);
+    expect(effectiveRackSize(9, 2)).toBe(11); // Wide Net
+    expect(effectiveRackSize(9, -2)).toBe(7); // Tunnel Vision
+    expect(effectiveRackSize(9, -6)).toBe(MIN_RACK_SIZE); // three Tunnel Visions stacked
+    expect(effectiveRackSize(9, 6)).toBe(MAX_RACK_SIZE);
+    expect(effectiveRackSize(undefined, undefined)).toBe(DEFAULT_RACK_SIZE);
   });
 });

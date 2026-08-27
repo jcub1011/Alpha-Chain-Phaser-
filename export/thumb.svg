@@ -1,150 +1,259 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 200" role="img" aria-label="Alpha Chain">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#0c1020"/>
-      <stop offset="1" stop-color="#06080f"/>
+    <!-- Background Gunmetal Base -->
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="0.3" y2="1">
+      <stop offset="0%" stop-color="#1c1916"/>
+      <stop offset="50%" stop-color="#14120f"/>
+      <stop offset="100%" stop-color="#0e0c0a"/>
     </linearGradient>
-    <radialGradient id="glowC" cx="0.22" cy="0.28" r="0.5">
-      <stop offset="0" stop-color="#00e5ff" stop-opacity="0.22"/>
-      <stop offset="1" stop-color="#00e5ff" stop-opacity="0"/>
+
+    <!-- Warm Machine Shop Ambient Radial -->
+    <radialGradient id="ambientWarmth" cx="0.5" cy="0.45" r="0.65">
+      <stop offset="0%" stop-color="#3a3228" stop-opacity="0.35"/>
+      <stop offset="55%" stop-color="#26221e" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#14120f" stop-opacity="0"/>
     </radialGradient>
-    <radialGradient id="glowM" cx="0.82" cy="0.85" r="0.55">
-      <stop offset="0" stop-color="#ff2e8b" stop-opacity="0.2"/>
-      <stop offset="1" stop-color="#ff2e8b" stop-opacity="0"/>
-    </radialGradient>
-    <radialGradient id="glowV" cx="0.55" cy="0.3" r="0.45">
-      <stop offset="0" stop-color="#b97bff" stop-opacity="0.16"/>
-      <stop offset="1" stop-color="#b97bff" stop-opacity="0"/>
-    </radialGradient>
-    <linearGradient id="c1" x1="0" y1="0" x2="0.5" y2="1">
-      <stop offset="0" stop-color="#14f195" stop-opacity="0.24"/>
-      <stop offset="0.6" stop-color="#14f195" stop-opacity="0.05"/>
+
+    <!-- Hardened Steel Card Body (Lit from upper-left) -->
+    <linearGradient id="cardBody" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#352f28"/>
+      <stop offset="40%" stop-color="#2a2520"/>
+      <stop offset="100%" stop-color="#1c1916"/>
     </linearGradient>
-    <linearGradient id="c2" x1="0" y1="0" x2="0.5" y2="1">
-      <stop offset="0" stop-color="#2f86e6" stop-opacity="0.24"/>
-      <stop offset="0.6" stop-color="#2f86e6" stop-opacity="0.05"/>
+
+    <!-- Milled Stock (Letter Tiles) -->
+    <linearGradient id="stockFace" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#eae2d2"/>
+      <stop offset="35%" stop-color="#dcd2be"/>
+      <stop offset="100%" stop-color="#c4b9a3"/>
     </linearGradient>
-    <linearGradient id="c3" x1="0" y1="0" x2="0.5" y2="1">
-      <stop offset="0" stop-color="#ffb020" stop-opacity="0.24"/>
-      <stop offset="0.6" stop-color="#ffb020" stop-opacity="0.05"/>
+
+    <!-- Polished Brass (Starter Matrix Tile) -->
+    <linearGradient id="brassFace" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fae09a"/>
+      <stop offset="30%" stop-color="#e0b25c"/>
+      <stop offset="100%" stop-color="#b88530"/>
     </linearGradient>
-    <linearGradient id="c4" x1="0" y1="0" x2="0.5" y2="1">
-      <stop offset="0" stop-color="#e36ec9" stop-opacity="0.24"/>
-      <stop offset="0.6" stop-color="#e36ec9" stop-opacity="0.05"/>
+
+    <!-- Brass Submit Button -->
+    <linearGradient id="btnBrassFace" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f5d588"/>
+      <stop offset="35%" stop-color="#d9a548"/>
+      <stop offset="100%" stop-color="#aa7926"/>
     </linearGradient>
-    <linearGradient id="c5" x1="0" y1="0" x2="0.5" y2="1">
-      <stop offset="0" stop-color="#00e5ff" stop-opacity="0.24"/>
-      <stop offset="0.6" stop-color="#00e5ff" stop-opacity="0.05"/>
-    </linearGradient>
-    <filter id="cardShadow" x="-40%" y="-40%" width="180%" height="180%">
-      <feDropShadow dx="0" dy="4" stdDeviation="3.5" flood-color="#000000" flood-opacity="0.5"/>
+
+    <!-- Card Shadow (Soft warm drop) -->
+    <filter id="cardDrop" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="4" stdDeviation="3.5" flood-color="#060402" flood-opacity="0.75"/>
     </filter>
-    <filter id="cyanGlow" x="-40%" y="-60%" width="180%" height="220%">
-      <feDropShadow dx="0" dy="0" stdDeviation="5" flood-color="#00e5ff" flood-opacity="0.5"/>
+
+    <!-- Tile Shadow -->
+    <filter id="tileDrop" x="-25%" y="-25%" width="150%" height="160%">
+      <feDropShadow dx="0" dy="2.5" stdDeviation="2" flood-color="#040302" flood-opacity="0.7"/>
     </filter>
+
     <style>
-    @font-face {
-      font-family: 'Chakra Petch';
-      font-style: normal;
-      font-weight: 100 900;
-      src: url(data:font/woff2;base64,d09GMgABAAAAAAVoAA4AAAAACsQAAAUSAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGhYbgkgcgRQGYAB0EQgKh0SFHgsqAAE2AiQDTgQgBYQsByAbfwjIBB6+d/u8MxksCauakxrrDgtrDs+M59hroOqpqH6taKGqmp9fmxm8ilUNhRgp6cQ+Dzwdh5jPPEQLbWlLq6LWaUttodZZiddskRTSo/U92I4ATBReIoAGcqLlZJ2JzEdLrFyfZEi2tZSHsdTd2hNADWS+GE2ZDidPMCV9k0IS5L9EB5x4Wv29XIaBD53eT9633is4jr1/vH8Ier+fYvjJeyD6u/eTMB2eb8vTRps+6tg9SDQkgV2MNfATZiDB3cGAFYEYtlycQ+WEvp9Aoz8hBL4y4YC6oNWHjp/AKG6TwSCynEbvJd7HBLyPCXsfM9DbTqFuKeslE2UjKKdXxGNJC51MhlgcuWwhnTUqEgv/bMTM7tkxUmJFMhh/K2indY5iCIJRd4RwYXDYrKPkYlm5Ewl5jqxhrnVxk2hippiIZUG+IkDoCfHEOoubsNinffj/s7BTH8q5lhCXJsTPssLc1sxADENIJKBRtNx3ABoKixWsYT2b2UqKavbtdCeLGKtYz8aWP/Q+8h7yHvTu9+737vPK3r1ew72acddKwvPoL1CUogjyI4GP4RdT4B3W6pX31y1JoS4kyh5Zx/CzSgVVyO8f4vebw0zlN4PBoD/sNwcEm8PKTPtMlTEa9So9qXfV6TW4ZYrFKZJm1zKxVKdjmVhqUq1Vq5/VxVJ9s9xiLBMGSbM5nJJJM71N26rL5jAm/iynNWwTughLfoYhw5qhdM2UerOhBNxINhsdRouyUycvYUYLbZZbFsEl4dI1VECxSpe6ryXQZrA9qn2G2mJs8xnq2kKtUe//Txr0Or1GXyaWGUtYrNc+cfWTV7fMqZ9Qjyof75XPmX/N7/OvOecavSEka0NEy/vS6UePXrlqXybzfN8Vs7L2d7u0g+9pu0ftZ67zuuNU9fVl3AXfP2nn7Se/X+Bm+vqqiJYfPOqoZ4866sHji3be/u1VouW/i86O1OGp3U7xb+Y6rztOQ19fxl3w/fN23n6R3BWlUYMdp45o2T0kcohbcQ+KHOSyouxWXKJld01T8XOi5WPnvS3fOa1y7Ly35NunMdd53XG6Hed1x+kePwl6E8Rif3tv5rdMdur37tHN9m32T1/T+cWX7lOLlr9tupV9vZlX44lU4ifbtX8ielTCHWo/ag91E0cdtZYR5bOT36lzvus86zuV/O7si8onnfONOv+bkzg2es+aa5deuwZsdN6SwcEiyTgCDJIf9ywDBkAM5GGyQoRneVy0vYe705K+++Pm/ot/Cwa0L7USb5zY8lp83v6Zof82/ve0OqA+QBB4SsmT6Xdt+x/9t/H/N9SB53/Ug+UG6sQAkGfikzcQkxcyT24nJpuIyduYJ+8lJoawUs4gJhcRkweIyQrz5JnE5K35YTGtwEi+J0LkfS3GCbDsGzHTAW1FoSCdb49fhcTIftEvtwlG8DvxB3B/D5vGXPbbFDZX2HwsJ2nzYzEb9WOvgW5KlOhjIdOYRpE0Dj30UYJqKsVRZZlKAYcuprGJlawnTjetZHBoZTMdlEjTzRSWUyBLO1V04Fy2X4E8FjOYynRXWIQ1126dtHIEJQp0M1G+ZBHhyJNWz2XC6MstrrBmjNcaJ8E6rHQBq2KMeY2N4kzo45j9QxctgxYzmc4M5osoyTbagbUyfjMOL/XSQfoyiO0QuqmDosFQ7S5yoYueXv4I2ozd0hTIMY0cs/nWaWbQwTQsnwL31AvdE/6bm+LtYeZHGwAAAA==) format('woff2');
-    }
-    @font-face {
-      font-family: 'JetBrains Mono';
-      font-style: normal;
-      font-weight: 100 900;
-      src: url(data:font/woff2;base64,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) format('woff2');
-    }
-      .disp { font-family: 'Chakra Petch','Segoe UI',system-ui,sans-serif; }
-      .mono { font-family: 'JetBrains Mono','Courier New',ui-monospace,monospace; }
+      .font-disp {
+        font-family: "Bricolage Grotesque", "Segoe UI", system-ui, -apple-system, sans-serif;
+      }
+      .font-mach {
+        font-family: "Archivo", "Segoe UI", system-ui, -apple-system, sans-serif;
+      }
     </style>
   </defs>
 
-  <!-- background -->
-  <rect width="300" height="200" fill="url(#bg)"/>
-  <rect width="300" height="200" fill="url(#glowC)"/>
-  <rect width="300" height="200" fill="url(#glowM)"/>
-  <rect width="300" height="200" fill="url(#glowV)"/>
+  <!-- ── 1. Page / Machine Ground ────────────────────────────────────────── -->
+  <rect width="300" height="200" fill="url(#bgGrad)"/>
+  <rect width="300" height="200" fill="url(#ambientWarmth)"/>
 
-  <!-- ALPHA: a row of engine-bay cards -->
-  <!-- card template per family: shadow group -> base panel -> family gradient -> border -> icon + chip -> letter -->
-  <g filter="url(#cardShadow)">
-    <!-- A (Letter / mint) -->
-    <g>
-      <rect x="23" y="20" width="46" height="66" rx="7" fill="#121830"/>
-      <rect x="23" y="20" width="46" height="66" rx="7" fill="url(#c1)"/>
-      <rect x="23.9" y="20.9" width="44.2" height="64.2" rx="6.2" fill="none" stroke="#14f195" stroke-width="1.8"/>
-      <rect x="23.9" y="20.9" width="44.2" height="2.4" fill="#ffffff" opacity="0.08"/>
-      <circle cx="35" cy="34" r="4.2" fill="none" stroke="#14f195" stroke-width="1.4"/>
-      <circle cx="35" cy="34" r="1.1" fill="#14f195"/>
-      <rect x="47" y="29" width="15" height="9.5" rx="2.6" fill="#14f195" fill-opacity="0.16" stroke="#14f195" stroke-opacity="0.55" stroke-width="0.8"/>
-      <text class="mono" x="54.5" y="36" text-anchor="middle" font-size="6.4" font-weight="800" fill="#14f195">x2</text>
-      <text class="disp" x="46" y="74" text-anchor="middle" font-size="32" font-weight="700" fill="#eaf2ff">A</text>
+  <!-- Outer Machined Housing Hairline Rim -->
+  <rect x="0.5" y="0.5" width="299" height="199" fill="none" stroke="rgba(226, 214, 192, 0.08)" stroke-width="1"/>
+  <line x1="1" y1="1" x2="299" y2="1" stroke="rgba(255, 238, 208, 0.12)" stroke-width="1"/>
+
+  <!-- ── 2. Top Deck: 5 Engine Bay Cards ("ALPHA") ──────────────────────── -->
+  <g filter="url(#cardDrop)">
+
+    <!-- Card 1: A (Letter / Verdigris) -->
+    <g transform="translate(20, 16)">
+      <!-- Body -->
+      <rect width="46" height="66" rx="4.5" fill="url(#cardBody)" stroke="rgba(20, 14, 8, 0.85)" stroke-width="1.2"/>
+      <!-- Paint-coded top tooling stripe -->
+      <path d="M 0.6,4.5 A 4.5,4.5 0 0 1 4.5,0.6 L 41.5,0.6 A 4.5,4.5 0 0 1 45.4,4.5 L 45.4,5 L 0.6,5 Z" fill="#5f9e77"/>
+      <!-- Top specular highlight edge -->
+      <line x1="1.5" y1="6" x2="44.5" y2="6" stroke="rgba(255, 238, 208, 0.14)" stroke-width="0.8"/>
+      <!-- Bottom edge shade -->
+      <line x1="1.5" y1="64.5" x2="44.5" y2="64.5" stroke="rgba(0, 0, 0, 0.55)" stroke-width="0.8"/>
+      <!-- Icon: Vanilla / Scoop on cone -->
+      <g transform="translate(5, 8.5)" stroke="#5f9e77" fill="none" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="4.5" cy="3.5" r="2.8"/>
+        <path d="M2.5 5 L4.5 10 L6.5 5"/>
+      </g>
+      <!-- Operator Chip: +1 -->
+      <rect x="23.5" y="8" width="17.5" height="8.5" rx="2" fill="#5f9e77" fill-opacity="0.18" stroke="#5f9e77" stroke-width="0.8"/>
+      <text class="font-mach" x="32.2" y="14.8" text-anchor="middle" font-size="5.8" font-weight="800" fill="#5f9e77">+1</text>
+      <!-- Engraved Glyphs / Letter A -->
+      <text class="font-disp" x="23" y="58" text-anchor="middle" font-size="31" font-weight="800" fill="#f0e9dc">A</text>
     </g>
-    <!-- L (Clock / blue) -->
-    <g>
-      <rect x="75" y="20" width="46" height="66" rx="7" fill="#121830"/>
-      <rect x="75" y="20" width="46" height="66" rx="7" fill="url(#c2)"/>
-      <rect x="75.9" y="20.9" width="44.2" height="64.2" rx="6.2" fill="none" stroke="#2f86e6" stroke-width="1.8"/>
-      <rect x="75.9" y="20.9" width="44.2" height="2.4" fill="#ffffff" opacity="0.08"/>
-      <circle cx="87" cy="34" r="4.2" fill="none" stroke="#2f86e6" stroke-width="1.4"/>
-      <path d="M87 31.4 V34 H89" fill="none" stroke="#2f86e6" stroke-width="1.2" stroke-linecap="round"/>
-      <rect x="99" y="29" width="15" height="9.5" rx="2.6" fill="#2f86e6" fill-opacity="0.16" stroke="#2f86e6" stroke-opacity="0.55" stroke-width="0.8"/>
-      <text class="mono" x="106.5" y="36" text-anchor="middle" font-size="6.4" font-weight="800" fill="#2f86e6">+5</text>
-      <text class="disp" x="98" y="74" text-anchor="middle" font-size="32" font-weight="700" fill="#eaf2ff">L</text>
+
+    <!-- Card 2: L (Clock / Quench Blue) -->
+    <g transform="translate(73, 16)">
+      <!-- Body -->
+      <rect width="46" height="66" rx="4.5" fill="url(#cardBody)" stroke="rgba(20, 14, 8, 0.85)" stroke-width="1.2"/>
+      <!-- Tooling stripe -->
+      <path d="M 0.6,4.5 A 4.5,4.5 0 0 1 4.5,0.6 L 41.5,0.6 A 4.5,4.5 0 0 1 45.4,4.5 L 45.4,5 L 0.6,5 Z" fill="#5d97c0"/>
+      <!-- Specular & Shade -->
+      <line x1="1.5" y1="6" x2="44.5" y2="6" stroke="rgba(255, 238, 208, 0.14)" stroke-width="0.8"/>
+      <line x1="1.5" y1="64.5" x2="44.5" y2="64.5" stroke="rgba(0, 0, 0, 0.55)" stroke-width="0.8"/>
+      <!-- Icon: Clock -->
+      <g transform="translate(5, 8.5)" stroke="#5d97c0" fill="none" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="4.5" cy="4.5" r="3.6"/>
+        <path d="M4.5 2.5 V4.5 H6.5"/>
+      </g>
+      <!-- Operator Chip: x1.5 -->
+      <rect x="21" y="8" width="20" height="8.5" rx="2" fill="#5d97c0" fill-opacity="0.18" stroke="#5d97c0" stroke-width="0.8"/>
+      <text class="font-mach" x="31" y="14.8" text-anchor="middle" font-size="5.6" font-weight="800" fill="#5d97c0">×1.5</text>
+      <!-- Engraved Glyphs / Letter L -->
+      <text class="font-disp" x="23" y="58" text-anchor="middle" font-size="31" font-weight="800" fill="#f0e9dc">L</text>
     </g>
-    <!-- P (Economy / amber) -->
-    <g>
-      <rect x="127" y="20" width="46" height="66" rx="7" fill="#121830"/>
-      <rect x="127" y="20" width="46" height="66" rx="7" fill="url(#c3)"/>
-      <rect x="127.9" y="20.9" width="44.2" height="64.2" rx="6.2" fill="none" stroke="#ffb020" stroke-width="1.8"/>
-      <rect x="127.9" y="20.9" width="44.2" height="2.4" fill="#ffffff" opacity="0.08"/>
-      <circle cx="139" cy="34" r="4.2" fill="none" stroke="#ffb020" stroke-width="1.4"/>
-      <circle cx="139" cy="34" r="1.1" fill="#ffb020"/>
-      <rect x="151" y="29" width="15" height="9.5" rx="2.6" fill="#ffb020" fill-opacity="0.16" stroke="#ffb020" stroke-opacity="0.55" stroke-width="0.8"/>
-      <text class="mono" x="158.5" y="36" text-anchor="middle" font-size="6.4" font-weight="800" fill="#ffb020">x4</text>
-      <text class="disp" x="150" y="74" text-anchor="middle" font-size="32" font-weight="700" fill="#eaf2ff">P</text>
+
+    <!-- Card 3: P (Economy / Straw) -->
+    <g transform="translate(127, 16)">
+      <!-- Body -->
+      <rect width="46" height="66" rx="4.5" fill="url(#cardBody)" stroke="rgba(20, 14, 8, 0.85)" stroke-width="1.2"/>
+      <!-- Tooling stripe -->
+      <path d="M 0.6,4.5 A 4.5,4.5 0 0 1 4.5,0.6 L 41.5,0.6 A 4.5,4.5 0 0 1 45.4,4.5 L 45.4,5 L 0.6,5 Z" fill="#efcf6e"/>
+      <!-- Specular & Shade -->
+      <line x1="1.5" y1="6" x2="44.5" y2="6" stroke="rgba(255, 238, 208, 0.14)" stroke-width="0.8"/>
+      <line x1="1.5" y1="64.5" x2="44.5" y2="64.5" stroke="rgba(0, 0, 0, 0.55)" stroke-width="0.8"/>
+      <!-- Icon: Coin Stack -->
+      <g transform="translate(5, 8.5)" stroke="#efcf6e" fill="none" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+        <ellipse cx="4.5" cy="2.5" rx="3.5" ry="1.4"/>
+        <path d="M1 2.5 V5 C1 6 8 6 8 5 V2.5"/>
+        <path d="M1 5 V7.5 C1 8.5 8 8.5 8 7.5 V5"/>
+      </g>
+      <!-- Operator Chip: x3 -->
+      <rect x="23.5" y="8" width="17.5" height="8.5" rx="2" fill="#efcf6e" fill-opacity="0.18" stroke="#efcf6e" stroke-width="0.8"/>
+      <text class="font-mach" x="32.2" y="14.8" text-anchor="middle" font-size="5.8" font-weight="800" fill="#efcf6e">×3</text>
+      <!-- Engraved Glyphs / Letter P -->
+      <text class="font-disp" x="23" y="58" text-anchor="middle" font-size="31" font-weight="800" fill="#f0e9dc">P</text>
     </g>
-    <!-- H (Utility / orchid) -->
-    <g>
-      <rect x="179" y="20" width="46" height="66" rx="7" fill="#121830"/>
-      <rect x="179" y="20" width="46" height="66" rx="7" fill="url(#c4)"/>
-      <rect x="179.9" y="20.9" width="44.2" height="64.2" rx="6.2" fill="none" stroke="#e36ec9" stroke-width="1.8"/>
-      <rect x="179.9" y="20.9" width="44.2" height="2.4" fill="#ffffff" opacity="0.08"/>
-      <circle cx="191" cy="34" r="4.2" fill="none" stroke="#e36ec9" stroke-width="1.4"/>
-      <path d="M188.6 34 H193.4 M191 31.6 V36.4" stroke="#e36ec9" stroke-width="1.2" stroke-linecap="round"/>
-      <rect x="203" y="29" width="15" height="9.5" rx="2.6" fill="#e36ec9" fill-opacity="0.16" stroke="#e36ec9" stroke-opacity="0.55" stroke-width="0.8"/>
-      <text class="mono" x="210.5" y="36" text-anchor="middle" font-size="6.4" font-weight="800" fill="#e36ec9">+3</text>
-      <text class="disp" x="202" y="74" text-anchor="middle" font-size="32" font-weight="700" fill="#eaf2ff">H</text>
+
+    <!-- Card 4: H (Utility / Oxblood) -->
+    <g transform="translate(181, 16)">
+      <!-- Body -->
+      <rect width="46" height="66" rx="4.5" fill="url(#cardBody)" stroke="rgba(20, 14, 8, 0.85)" stroke-width="1.2"/>
+      <!-- Tooling stripe -->
+      <path d="M 0.6,4.5 A 4.5,4.5 0 0 1 4.5,0.6 L 41.5,0.6 A 4.5,4.5 0 0 1 45.4,4.5 L 45.4,5 L 0.6,5 Z" fill="#8b4254"/>
+      <!-- Specular & Shade -->
+      <line x1="1.5" y1="6" x2="44.5" y2="6" stroke="rgba(255, 238, 208, 0.14)" stroke-width="0.8"/>
+      <line x1="1.5" y1="64.5" x2="44.5" y2="64.5" stroke="rgba(0, 0, 0, 0.55)" stroke-width="0.8"/>
+      <!-- Icon: Vault / Brick safe -->
+      <g transform="translate(5, 8.5)" stroke="#8b4254" fill="none" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="0.8" y="1" width="7.4" height="7" rx="1"/>
+        <circle cx="4.5" cy="4.5" r="1.8"/>
+      </g>
+      <!-- Operator Chip: +5 -->
+      <rect x="23.5" y="8" width="17.5" height="8.5" rx="2" fill="#8b4254" fill-opacity="0.18" stroke="#8b4254" stroke-width="0.8"/>
+      <text class="font-mach" x="32.2" y="14.8" text-anchor="middle" font-size="5.8" font-weight="800" fill="#c47a8c">+5</text>
+      <!-- Engraved Glyphs / Letter H -->
+      <text class="font-disp" x="23" y="58" text-anchor="middle" font-size="31" font-weight="800" fill="#f0e9dc">H</text>
     </g>
-    <!-- A (Spark / cyan) -->
-    <g>
-      <rect x="231" y="20" width="46" height="66" rx="7" fill="#121830"/>
-      <rect x="231" y="20" width="46" height="66" rx="7" fill="url(#c5)"/>
-      <rect x="231.9" y="20.9" width="44.2" height="64.2" rx="6.2" fill="none" stroke="#00e5ff" stroke-width="1.8"/>
-      <rect x="231.9" y="20.9" width="44.2" height="2.4" fill="#ffffff" opacity="0.08"/>
-      <circle cx="243" cy="34" r="4.2" fill="none" stroke="#00e5ff" stroke-width="1.4"/>
-      <circle cx="243" cy="34" r="1.1" fill="#00e5ff"/>
-      <rect x="255" y="29" width="15" height="9.5" rx="2.6" fill="#00e5ff" fill-opacity="0.16" stroke="#00e5ff" stroke-opacity="0.55" stroke-width="0.8"/>
-      <text class="mono" x="262.5" y="36" text-anchor="middle" font-size="6.4" font-weight="800" fill="#00e5ff">x2</text>
-      <text class="disp" x="254" y="74" text-anchor="middle" font-size="32" font-weight="700" fill="#eaf2ff">A</text>
+
+    <!-- Card 5: A (Action / Brass Anchor) -->
+    <g transform="translate(234, 16)">
+      <!-- Body -->
+      <rect width="46" height="66" rx="4.5" fill="url(#cardBody)" stroke="rgba(20, 14, 8, 0.85)" stroke-width="1.2"/>
+      <!-- Tooling stripe -->
+      <path d="M 0.6,4.5 A 4.5,4.5 0 0 1 4.5,0.6 L 41.5,0.6 A 4.5,4.5 0 0 1 45.4,4.5 L 45.4,5 L 0.6,5 Z" fill="#c08f3c"/>
+      <!-- Specular & Shade -->
+      <line x1="1.5" y1="6" x2="44.5" y2="6" stroke="rgba(255, 238, 208, 0.14)" stroke-width="0.8"/>
+      <line x1="1.5" y1="64.5" x2="44.5" y2="64.5" stroke="rgba(0, 0, 0, 0.55)" stroke-width="0.8"/>
+      <!-- Icon: Anchor -->
+      <g transform="translate(5, 8.5)" stroke="#c08f3c" fill="none" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="4.5" cy="2" r="1.1"/>
+        <line x1="4.5" y1="3.1" x2="4.5" y2="8.2"/>
+        <line x1="2.5" y1="4.6" x2="6.5" y2="4.6"/>
+        <path d="M1.5 5.5 C1.5 8.5 7.5 8.5 7.5 5.5"/>
+      </g>
+      <!-- Operator Chip: +10 -->
+      <rect x="21" y="8" width="20" height="8.5" rx="2" fill="#c08f3c" fill-opacity="0.18" stroke="#c08f3c" stroke-width="0.8"/>
+      <text class="font-mach" x="31" y="14.8" text-anchor="middle" font-size="5.6" font-weight="800" fill="#e0b25c">+10</text>
+      <!-- Engraved Glyphs / Letter A -->
+      <text class="font-disp" x="23" y="58" text-anchor="middle" font-size="31" font-weight="800" fill="#f0e9dc">A</text>
     </g>
+
   </g>
 
-  <!-- CHAIN: the live word-entry bar -->
-  <g filter="url(#cyanGlow)">
-    <rect x="23" y="104" width="254" height="46" rx="11" fill="#121830" stroke="#00e5ff" stroke-width="2"/>
-  </g>
-  <!-- prefix badge (required start letter) -->
-  <rect x="31" y="112" width="30" height="30" rx="7" fill="#00e5ff" fill-opacity="0.16"/>
-  <text class="mono" x="46" y="133" text-anchor="middle" font-size="18" font-weight="800" fill="#00e5ff">C</text>
-  <!-- typed word -->
-  <text class="mono" x="143" y="135" text-anchor="middle" font-size="25" font-weight="700" letter-spacing="4" fill="#eaf2ff">CHAIN</text>
-  <!-- GO button -->
-  <rect x="225" y="114" width="44" height="32" rx="7" fill="#000000"/>
-  <rect x="222" y="111" width="44" height="32" rx="7" fill="#00e5ff" stroke="#000000" stroke-width="3"/>
-  <text class="disp" x="244" y="132" text-anchor="middle" font-size="14" font-weight="700" letter-spacing="1" fill="#04121a">GO</text>
+  <!-- ── 3. Bottom Composing Stick: Word Builder Track ("CHAIN") ────────── -->
 
-  <!-- tagline -->
-  <text class="disp" x="150" y="176" text-anchor="middle" font-size="9.5" font-weight="600" letter-spacing="2.4" fill="#8aa0c0">WORD CHAIN · ENGINE BUILDER</text>
+  <!-- Recessed Steel Bed (The Staging Well) -->
+  <g>
+    <rect x="20" y="96" width="260" height="52" rx="5.5" fill="#100e0c" stroke="rgba(226, 214, 192, 0.12)" stroke-width="1"/>
+    <!-- Cavity inner drop shade -->
+    <rect x="21" y="97" width="258" height="3" fill="#050403" opacity="0.75"/>
+    <line x1="21" y1="147.5" x2="279" y2="147.5" stroke="rgba(255, 238, 208, 0.06)" stroke-width="1"/>
+  </g>
+
+  <!-- Tiles & Submit Button Group with Tile Drops -->
+  <g filter="url(#tileDrop)">
+
+    <!-- TILE 1: Lead Succession Tile "C" (Polished Brass Matrix) -->
+    <g transform="translate(27, 103)">
+      <!-- Face -->
+      <rect width="32" height="38" rx="3.5" fill="url(#brassFace)" stroke="rgba(24, 16, 10, 0.75)" stroke-width="0.9"/>
+      <!-- Top Specular Edge -->
+      <line x1="1" y1="1" x2="31" y2="1" stroke="rgba(255, 255, 255, 0.6)" stroke-width="0.9"/>
+      <!-- Machined Bottom Foot / Bevel -->
+      <path d="M 0.5,34.5 L 0.5,34.5 A 3.5,3.5 0 0 0 3.5,37.5 L 28.5,37.5 A 3.5,3.5 0 0 0 31.5,34.5 L 31.5,34.5 Z" fill="#8a6a2e"/>
+      <!-- Incised Letter "C" -->
+      <text class="font-mach" x="16" y="27" text-anchor="middle" font-size="20" font-weight="900" fill="#1a1408">C</text>
+    </g>
+
+    <!-- TILE 2: "H" (Milled Stock Tile) -->
+    <g transform="translate(64, 103)">
+      <rect width="32" height="38" rx="3.5" fill="url(#stockFace)" stroke="rgba(24, 16, 10, 0.65)" stroke-width="0.9"/>
+      <line x1="1" y1="1" x2="31" y2="1" stroke="rgba(255, 255, 255, 0.65)" stroke-width="0.9"/>
+      <path d="M 0.5,34.5 L 0.5,34.5 A 3.5,3.5 0 0 0 3.5,37.5 L 28.5,37.5 A 3.5,3.5 0 0 0 31.5,34.5 L 31.5,34.5 Z" fill="#a89d87"/>
+      <text class="font-mach" x="16" y="27" text-anchor="middle" font-size="20" font-weight="900" fill="#191512">H</text>
+    </g>
+
+    <!-- TILE 3: "A" (Milled Stock Tile) -->
+    <g transform="translate(101, 103)">
+      <rect width="32" height="38" rx="3.5" fill="url(#stockFace)" stroke="rgba(24, 16, 10, 0.65)" stroke-width="0.9"/>
+      <line x1="1" y1="1" x2="31" y2="1" stroke="rgba(255, 255, 255, 0.65)" stroke-width="0.9"/>
+      <path d="M 0.5,34.5 L 0.5,34.5 A 3.5,3.5 0 0 0 3.5,37.5 L 28.5,37.5 A 3.5,3.5 0 0 0 31.5,34.5 L 31.5,34.5 Z" fill="#a89d87"/>
+      <text class="font-mach" x="16" y="27" text-anchor="middle" font-size="20" font-weight="900" fill="#191512">A</text>
+    </g>
+
+    <!-- TILE 4: "I" (Milled Stock Tile) -->
+    <g transform="translate(138, 103)">
+      <rect width="32" height="38" rx="3.5" fill="url(#stockFace)" stroke="rgba(24, 16, 10, 0.65)" stroke-width="0.9"/>
+      <line x1="1" y1="1" x2="31" y2="1" stroke="rgba(255, 255, 255, 0.65)" stroke-width="0.9"/>
+      <path d="M 0.5,34.5 L 0.5,34.5 A 3.5,3.5 0 0 0 3.5,37.5 L 28.5,37.5 A 3.5,3.5 0 0 0 31.5,34.5 L 31.5,34.5 Z" fill="#a89d87"/>
+      <text class="font-mach" x="16" y="27" text-anchor="middle" font-size="20" font-weight="900" fill="#191512">I</text>
+    </g>
+
+    <!-- TILE 5: "N" (Milled Stock Tile) -->
+    <g transform="translate(175, 103)">
+      <rect width="32" height="38" rx="3.5" fill="url(#stockFace)" stroke="rgba(24, 16, 10, 0.65)" stroke-width="0.9"/>
+      <line x1="1" y1="1" x2="31" y2="1" stroke="rgba(255, 255, 255, 0.65)" stroke-width="0.9"/>
+      <path d="M 0.5,34.5 L 0.5,34.5 A 3.5,3.5 0 0 0 3.5,37.5 L 28.5,37.5 A 3.5,3.5 0 0 0 31.5,34.5 L 31.5,34.5 Z" fill="#a89d87"/>
+      <text class="font-mach" x="16" y="27" text-anchor="middle" font-size="20" font-weight="900" fill="#191512">N</text>
+    </g>
+
+    <!-- SUBMIT Button (Tactile Brass Stamp) -->
+    <g transform="translate(213, 103)">
+      <rect width="60" height="38" rx="3.5" fill="url(#btnBrassFace)" stroke="rgba(24, 16, 10, 0.75)" stroke-width="0.9"/>
+      <!-- Top specular edge -->
+      <line x1="1" y1="1" x2="59" y2="1" stroke="rgba(255, 255, 255, 0.65)" stroke-width="0.9"/>
+      <!-- Bottom cut foot -->
+      <path d="M 0.5,34.5 L 0.5,34.5 A 3.5,3.5 0 0 0 3.5,37.5 L 56.5,37.5 A 3.5,3.5 0 0 0 59.5,34.5 L 59.5,34.5 Z" fill="#8a6a2e"/>
+      <!-- Submit Text -->
+      <text class="font-mach" x="30" y="25" text-anchor="middle" font-size="11.5" font-weight="900" letter-spacing="0.08em" fill="#1a1408">SUBMIT</text>
+    </g>
+
+  </g>
+
+  <!-- ── 4. Tagline / Metadata ──────────────────────────────────────────── -->
+  <text class="font-mach" x="150" y="176" text-anchor="middle" font-size="8.8" font-weight="700" letter-spacing="0.24em" fill="#9c9589">WORD CHAIN <tspan fill="#c08f3c">·</tspan> ENGINE BUILDER</text>
 </svg>

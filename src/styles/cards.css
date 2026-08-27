@@ -20,24 +20,25 @@ ac-engine-bay[mini] {
   gap: var(--sp-2);
 }
 .bay-flow {
-  font-family: var(--font-mono);
+  font-family: var(--font-machine);
+  font-stretch: var(--stretch-machine);
   font-size: 0.6rem;
-  letter-spacing: 0.08em;
-  color: var(--ac-ink-faint);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--ac-steel-400);
   white-space: nowrap;
 }
 /* Live running total shown in an opponent bay's head while its engine replays. */
 .bay-total {
-  font-family: var(--font-mono);
+  font-family: var(--font-machine);
+  font-stretch: var(--stretch-machine);
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   font-size: 0.95rem;
-  color: var(--ac-mint);
-  text-shadow: var(--ac-glow-mint);
+  color: var(--ac-brass-lit);
 }
 .bay-total.is-taxed {
-  color: var(--ac-danger);
-  text-shadow: var(--ac-glow-danger);
+  color: var(--state-bad);
 }
 /* ── Card fan ──────────────────────────────────────────────────────────────
    Shared by <ac-card-fan> and the score-replay theater (<ac-score-replay>'s
@@ -75,9 +76,7 @@ ac-card-fan {
     transform: translateY(-12px);
   }
   .card-fan ac-card:hover .gc {
-    box-shadow:
-      var(--ac-drop),
-      0 0 22px color-mix(in srgb, var(--gc-accent) 50%, transparent);
+    box-shadow: var(--ac-drop), var(--ac-edge);
   }
 }
 .card-fan ac-card[revealed] {
@@ -91,8 +90,16 @@ ac-card-fan {
   width: var(--gc-w);
   height: var(--gc-h);
   border-radius: var(--r-md);
-  border: 1.5px dashed var(--ac-ink-ghost);
-  background: rgba(255, 255, 255, 0.015);
+  /* An empty socket milled into the bay — recessed, not a dashed placeholder.
+     Deliberately only a step darker than the bay rather than pure black: three
+     unfilled slots sit at the top of the HUD for the whole first round, and at
+     full depth they read as holes punched in the page and pull the eye away
+     from the tiles, which are what you are supposed to be looking at. */
+  border: 1px solid rgba(0, 0, 0, 0.7);
+  background: var(--ac-steel-800);
+  box-shadow:
+    inset 0 2px 6px rgba(0, 0, 0, 0.45),
+    inset 0 -1px 0 var(--ac-hi);
 }
 /* Per-card chip revealed only while its card is lifted (e.g. word-history deltas).
    pointer-events:none so the mouse stays on the card underneath. */
@@ -148,26 +155,29 @@ ac-card[flipped] .gc-flip {
   padding: calc(var(--gc-h) * 0.05) calc(var(--gc-w) * 0.06);
   /* The border color is indirected through --gc-border so state rules ([triggered],
      rarity tiers) can repaint the ring without restating the whole border shorthand. */
-  --gc-border: var(--gc-accent);
-  border: 2.5px solid var(--gc-border);
+  --gc-border: #000;
+  border: 2px solid var(--gc-border);
   border-radius: var(--r-md);
   overflow: hidden;
   /* Scopes the rarity shine's `screen` blend (see .gc-front::after) to the card, so
      it lightens the face and never the table behind it. */
   isolation: isolate;
   backface-visibility: hidden;
-  /* A directional tint in the card's own color over an opaque panel fill. */
+  /* A die block: hardened steel, lit from the upper left, with the card's own
+     identity colour as a faint heat-tint in the metal rather than a wash of
+     coloured plastic over it. The face stays DARK deliberately — the rarity
+     foil band below blends with `screen`, which needs a dark ground to read at
+     all, and a die is dark hardened steel anyway. The bright milled stock in
+     this design belongs to the letter tiles: the thing being struck. */
   background-image:
     linear-gradient(
       157deg,
-      color-mix(in srgb, var(--gc-card-color, var(--gc-accent)) 22%, transparent),
-      color-mix(in srgb, var(--gc-card-color, var(--gc-accent)) 5%, transparent) 60%
+      color-mix(in srgb, var(--gc-card-color, var(--gc-accent)) 16%, transparent),
+      transparent 62%
     ),
-    linear-gradient(var(--ac-panel-solid) 0 0);
+    linear-gradient(178deg, var(--ac-steel-600), var(--ac-steel-800) 78%);
   background-repeat: no-repeat;
-  box-shadow:
-    var(--ac-drop-sm),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  box-shadow: var(--ac-drop-sm), var(--ac-edge);
   transition:
     box-shadow 0.16s ease,
     filter 0.16s ease;
@@ -199,6 +209,20 @@ ac-card[flipped] .gc-flip {
 }
 .gc-front {
   gap: calc(var(--gc-h) * 0.03);
+}
+/* Paint-coded tooling. The family colour is a painted band across the head of
+   the block rather than a ring around the whole card: it reads at a glance in a
+   fanned bay where a full border gets buried under the next card, and it leaves
+   the card's own edge free to stay black so the block still looks like metal. */
+.gc::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 5px;
+  background: var(--gc-accent);
+  z-index: 2;
 }
 /* Faint full-bleed glyph behind the content for silhouette recognition.
    .gc has `isolation: isolate`, so z-index:-1 stays behind the in-flow content
@@ -243,7 +267,8 @@ ac-card[flipped] .gc-flip {
 .gc-chip {
   padding: 0.08em 0.42em;
   border-radius: 0.35rem;
-  font-family: var(--font-mono);
+  font-family: var(--font-machine);
+  font-stretch: var(--stretch-machine);
   font-weight: 800;
   font-size: calc(var(--gc-w) * 0.094);
   letter-spacing: 0.03em;
@@ -256,7 +281,7 @@ ac-card[flipped] .gc-flip {
 }
 .gc-name {
   font-family: var(--font-display);
-  font-weight: 700;
+  font-weight: 800;
   font-size: calc(var(--gc-w) * 0.131);
   line-height: 1.05;
   letter-spacing: 0.01em;
@@ -309,9 +334,7 @@ ac-card[flipped] .gc-flip {
     transform: translateY(-5px);
   }
   ac-engine-bay ac-card:not([mini]):hover .gc {
-    box-shadow:
-      var(--ac-drop),
-      0 0 22px color-mix(in srgb, var(--gc-accent) 45%, transparent);
+    box-shadow: var(--ac-drop), var(--ac-edge);
   }
 }
 
@@ -322,12 +345,16 @@ ac-card[dimmed] .gc {
 ac-card[triggered]:not([flipped]) .gc-flip {
   transform: translateY(-10px) scale(1.05);
 }
+/* GLOW SITE 2 of 4 (see the policy in tokens.css). The die is coming down. This
+   is the only place a card is ever lit, it lasts exactly as long as the strike,
+   and the heat is the point: you can follow which die is landing without
+   reading a word of it. */
 ac-card[triggered] .gc {
-  box-shadow:
-    var(--ac-drop),
-    0 0 30px color-mix(in srgb, var(--gc-accent) 80%, transparent);
-  /* The border is a background layer now (see .gc), so brighten its paint. */
-  --gc-border: color-mix(in srgb, var(--gc-accent) 100%, #fff 25%);
+  box-shadow: var(--ac-drop), var(--ac-heat-2);
+  --gc-border: var(--ac-ember);
+}
+ac-card[triggered] .gc::before {
+  background: var(--ac-ember-hot);
 }
 
 /* Mini cards (opponent bays, sandbox, the engine-replay piles) keep the full
@@ -534,7 +561,8 @@ ac-card[mini] .gc-front::after {
 /* Back-face rarity label: a small uppercase tag above the rules text. */
 .gc-rarity-label {
   align-self: flex-start;
-  font-family: var(--font-mono);
+  font-family: var(--font-machine);
+  font-stretch: var(--stretch-machine);
   font-weight: 800;
   font-size: calc(var(--gc-w) * 0.082);
   letter-spacing: 0.12em;

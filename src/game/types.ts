@@ -123,11 +123,6 @@ export interface AlphaChainSettings {
   gameMode: GameMode;
   /** Word Builder: target tile count presented on the player's rack each turn. */
   rackSize: number;
-  /** Word Builder's shot clock. */
-  builderShotClockSeconds: number;
-  /** Picker: how many Offer Cards are presented each turn. Also a cognitive-load dial, not just
-   *  a strategic one — fewer cards is less to read under the clock. */
-  offerCount: number;
   /** Picker / Word Builder: which lexicon the words/seeds are drawn from. */
   offerDictionary: DictionaryTier;
   /** Picker's shot clock. Distinct from `shotClockSeconds` because the right duration for
@@ -385,24 +380,20 @@ export interface MatchState {
   bannedLetterHistory: string[];
   /** Words used this whole match (lowercased), forbidden to repeat. */
   usedWords: Set<string>;
-  /** Word Builder: the current player's Tile Rack. Empty in Classic and outside a Round. */
-  rack: Tile[];
-  /** Word Builder: whether the CURRENT player may spend Winnower's redraw this turn. */
-  rackRedrawAvailable: boolean;
-  /** Picker: the current player's Offer — the candidate words they choose from. Empty in
-   *  Classic, and empty outside a Round.
+  /** Word Builder: the current player's Tile Rack. Empty in Classic, and cleared when a turn ends
+   *  or the phase leaves Round, so no surface can render last turn's tiles as live.
    *
-   *  Public by design: every player sees the active player's candidates, and turns are
-   *  sequential, so exactly one Offer is on screen at a time. That is what keeps the authority in
-   *  plain broadcast mode with no per-recipient projection. Regenerated once per turn by the
-   *  authoritative side only — a mirror must never generate its own (see match.ts beginEra on why
-   *  no RNG-derived logic may run on a client). A plain string[] is JSON-safe, so this needs no
-   *  serialize.ts handling, unlike `usedWords`. */
-  offer: string[];
-  /** Picker: whether the CURRENT player may still spend Winnower's redraw this turn.
+   *  Public by design: every player sees the active player's tiles, and turns are sequential, so
+   *  exactly one rack is on screen at a time. That is what keeps the authority in plain broadcast
+   *  mode with no per-recipient projection. Regenerated once per turn by the authoritative side
+   *  only — a mirror must never generate its own (see match.ts beginEra on why no RNG-derived logic
+   *  may run on a client). Tiles are plain JSON, so this needs no serialize.ts handling, unlike
+   *  `usedWords`. */
+  rack: Tile[];
+  /** Word Builder: whether the CURRENT player may spend Winnower's redraw this turn.
    *  Published as state because the charge lives in room services, which are not replicated —
    *  a guest mirror could otherwise only guess, and would offer a button the server refuses. */
-  offerRedrawAvailable: boolean;
+  rackRedrawAvailable: boolean;
   history: Submission[];
   /** Seconds remaining on the active shot clock. */
   clockRemaining: number;
@@ -449,8 +440,6 @@ export function emptyMatchState(settings: AlphaChainSettings): MatchState {
     usedWords: new Set<string>(),
     rack: [],
     rackRedrawAvailable: false,
-    offer: [],
-    offerRedrawAvailable: false,
     history: [],
     clockRemaining: 0,
     clockTotal: 0,
@@ -474,8 +463,7 @@ export interface SubmitResult {
     | "wrong-start-letter"
     | "too-short"
     | "prism-saved"
-    /** Picker / Word Builder: the committed word was not in the current Offer or constructible from rack. */
-    | "not-offered"
+    /** Word Builder: the committed word cannot be spelled from the current Tile Rack. */
     | "not-constructible";
   submission?: Submission;
 }

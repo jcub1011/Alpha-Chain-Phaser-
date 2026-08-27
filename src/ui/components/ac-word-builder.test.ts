@@ -4,6 +4,7 @@
 
 import { beforeEach, describe, expect, it } from "vitest";
 import { Dictionary } from "../../game/dictionary";
+import { canConstructWordFromTiles } from "../../game/builder/rack";
 import { MatchController, type PlayerSeed } from "../../game/match";
 import { dictionaryWordPool } from "../../game/picker/wordPool";
 import { DEFAULT_SETTINGS } from "../../game/settings";
@@ -78,10 +79,6 @@ function harness(
       calls.commits.push(w);
       return match.commitSelection("you", w);
     },
-    redrawOffer: () => {
-      calls.redraws++;
-      match.redrawOffer("you");
-    },
     redrawRack: () => {
       calls.redraws++;
       match.redrawRack("you");
@@ -111,6 +108,14 @@ const submitBtn = (el: AcWordBuilder): HTMLButtonElement =>
   el.querySelector(".ac-btn--submit") as HTMLButtonElement;
 const clearBtn = (el: AcWordBuilder): HTMLButtonElement =>
   el.querySelector(".ac-btn--clear") as HTMLButtonElement;
+
+/** A word this turn's rack can actually build — the only kind the engine will now accept, since
+ *  Word Builder is the sole Picker surface and there is no Offer to borrow a word from. */
+const firstRackWord = (match: MatchController): string => {
+  const word = WORDS.find((w) => canConstructWordFromTiles(w, match.state.rack));
+  if (!word) throw new Error("rack cannot build any fixture word");
+  return word;
+};
 
 describe("<ac-word-builder>", () => {
   beforeEach(() => {
@@ -214,8 +219,8 @@ describe("<ac-word-builder>", () => {
 
   it("disables staging and submission when not the human player's turn", async () => {
     const { match, controller } = harness();
-    // Advance turn to bot
-    match.submitWord("you", match.state.offer[0] || "cat");
+    // Advance turn to bot with a word this turn's rack can actually build.
+    match.commitSelection("you", firstRackWord(match));
     const el = await mount(controller);
 
     expect(match.current.id).toBe("bot1");

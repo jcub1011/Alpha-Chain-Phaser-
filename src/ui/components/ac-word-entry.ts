@@ -14,7 +14,7 @@ import { REJECT_REASON } from "./reject-reasons";
 
 const log = createLogger("input");
 
-// Copy lives in reject-reasons.ts — shared with <ac-offer-grid>, Picker's input surface.
+// Copy lives in reject-reasons.ts — shared with <ac-word-builder>, Word Builder's input surface.
 const REASON = REJECT_REASON;
 
 @customElement("ac-word-entry")
@@ -24,6 +24,8 @@ export class AcWordEntry extends AcElement {
   @state() private live = false;
   /** The turn is one seat away — the player before us (in shuffled order) is up. */
   @state() private onDeck = false;
+  /** Survival: eliminated. The box stays mounted but is never ours again. */
+  @state() private isOut = false;
   @state() private requiredLetter = "";
   @state() private feedback = "";
   /** Blindfold: mask the player's own glyphs as they type. */
@@ -58,6 +60,7 @@ export class AcWordEntry extends AcElement {
       this.listen(e, "turnArmed", ({ requiredLetter }) => {
         this.requiredLetter = requiredLetter;
         this.live = this.controller.match.current?.id === human;
+        this.isOut = this.isEliminated(human);
         this.onDeck = !this.live && this.isOnDeck(human);
         this.feedback = "";
         this.hideInput = this.controller.match.hidesInput(human);
@@ -77,6 +80,8 @@ export class AcWordEntry extends AcElement {
       });
       this.listen(e, "timeout", ({ playerId }) => {
         this.live = false;
+        // Survival eliminates on the timeout itself, a beat before the next turnArmed.
+        this.isOut = this.isEliminated(human);
         // Clear the box even when the auto-submit was rejected (garbage) or empty,
         // so no stale text survives into our next turn.
         if (playerId === human && this.input) this.input.value = "";
@@ -90,10 +95,16 @@ export class AcWordEntry extends AcElement {
       const s = this.controller.match.state;
       this.requiredLetter = s.requiredLetter;
       this.live = s.phase === "Round" && this.controller.match.current?.id === human;
+      this.isOut = this.isEliminated(human);
       this.onDeck = !this.live && this.isOnDeck(human);
       this.hideInput = this.controller.match.hidesInput(human);
       if (this.live) this.wantFocus = true;
     }
+  }
+
+  /** Whether the human is out of the match (Survival). */
+  private isEliminated(human: string): boolean {
+    return !!this.controller.match.state.players.find((p) => p.id === human)?.eliminated;
   }
 
   /** Whether the human is up immediately after the current player. Mirrors
@@ -195,7 +206,11 @@ export class AcWordEntry extends AcElement {
   override render(): TemplateResult {
     const free = !this.requiredLetter;
     return html`
-      <div class="we ${this.live ? "is-live" : ""} ${this.onDeck ? "is-ondeck" : ""}">
+      <div
+        class="we ${this.live ? "is-live" : ""} ${this.onDeck ? "is-ondeck" : ""} ${this.isOut
+          ? "is-out"
+          : ""}"
+      >
         <span class="we-prefix ${free ? "is-free" : ""}">
           ${free ? "∗" : this.requiredLetter.toUpperCase()}
         </span>
@@ -207,11 +222,13 @@ export class AcWordEntry extends AcElement {
           autocapitalize="off"
           autocorrect="off"
           spellcheck="false"
-          placeholder=${this.live
-            ? "type a word…"
-            : this.onDeck
-              ? "get ready — you're up next…"
-              : "waiting…"}
+          placeholder=${this.isOut
+            ? "you timed out — spectating…"
+            : this.live
+              ? "type a word…"
+              : this.onDeck
+                ? "get ready — you're up next…"
+                : "waiting…"}
           ?disabled=${!this.live}
           @keydown=${this.onKey}
           @input=${this.onInput}

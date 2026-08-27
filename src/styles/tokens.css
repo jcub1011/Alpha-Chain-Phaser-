@@ -1,82 +1,300 @@
 /*
- * Alpha Chain — design tokens (neon-noir esports, elevated).
- * Ported + extended from the Blazor `alpha-chain-theme.css`. The canonical
- * source of color for the DOM lives here; the Phaser FX layer mirrors the few
- * colors it needs as 0xRRGGBB numbers in src/theme.ts.
+ * Alpha Chain — design tokens. "Hot Metal".
+ *
+ * The house aesthetic is a warm press shop, not a neon arcade. You assemble a
+ * blank out of letter stock and your engine is a line of dies that strike it,
+ * so the material vocabulary is warm gunmetal, milled stock, brass — and heat.
+ *
+ * Two rules carry the whole look:
+ *
+ *   1. METAL READS THROUGH SPECULAR EDGES, NOT GLOW. An opaque warm panel, a
+ *      1px warm highlight along the top, a hairline dark edge along the bottom,
+ *      a warm rim, and a soft warm drop. That is it. No backdrop-filter, no
+ *      translucent glass, no ambient bloom — and no hard black outlines or
+ *      zero-blur slabs either; see the note on --ac-rim / --ac-lift-* below.
+ *
+ *   2. GLOW MEANS HEAT, AND NOTHING ELSE. See the glow policy below — it is a
+ *      hard budget, not a suggestion.
+ *
+ * The canonical source of color for the DOM lives here; the Phaser FX layer
+ * mirrors the few colors it needs as 0xRRGGBB numbers in src/theme.ts. Nothing
+ * enforces that mirror, so change both together.
  */
+
+/* ── Fonts ───────────────────────────────────────────────────────────────
+   Self-hosted, NOT loaded from the Google Fonts CDN. The game ships as a
+   self-contained .kbg to an operator-run KnockBox host (see EXPORT.md) —
+   frequently a LAN box with no egress — and vite.config.ts sets base: "./"
+   precisely so every asset path stays relative. An absolute https:// font URL
+   would be the one thing in the build that violates that, and when it fails
+   the whole UI silently falls back to system-ui with no tabular figures,
+   which wrecks every score readout in the game.
+
+   Both are variable fonts, latin subset, ~220 KB total. Living in src/assets/
+   rather than public/ means Vite resolves and content-hashes these URLs, so
+   they survive being served from the /games/<id>/ subpath.
+
+   Archivo carries a WIDTH axis (62–125), which is why one file covers both the
+   body role and the wide "machine" role used for every numeral. */
+@font-face {
+  font-family: "Archivo";
+  src: url("../assets/fonts/archivo-var-latin.woff2") format("woff2");
+  font-weight: 400 900;
+  font-stretch: 62% 125%;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Bricolage Grotesque";
+  src: url("../assets/fonts/bricolage-var-latin.woff2") format("woff2");
+  font-weight: 300 800;
+  font-stretch: 75% 100%;
+  font-style: normal;
+  font-display: swap;
+}
 
 :root {
   color-scheme: dark;
 
-  /* ── Surfaces ─────────────────────────────────────────────────────── */
-  --ac-bg-0: #06080f;
-  --ac-bg-1: #0c1020;
-  --ac-bg-2: #141a30;
-  --ac-panel: rgba(18, 24, 44, 0.66);
-  --ac-panel-2: rgba(24, 31, 56, 0.78);
-  --ac-panel-solid: #121830;
-  --ac-border: rgba(255, 255, 255, 0.08);
-  --ac-border-strong: rgba(255, 255, 255, 0.18);
-  --ac-hi: rgba(255, 255, 255, 0.06); /* inner top highlight */
+  /* ── Steel: the warm gunmetal structure ────────────────────────────────
+     Low-chroma WARM gray. These must not drift toward chocolate — the moment
+     they read as wood or leather the "steel" is gone. */
+  --ac-steel-900: #14120f; /* page ground */
+  --ac-steel-800: #1c1916; /* recessed wells, input beds */
+  --ac-steel-700: #26221e; /* panel face */
+  --ac-steel-600: #332e28; /* raised panel, rail */
+  --ac-steel-500: #4a443c; /* machined edge, divider */
+  --ac-steel-400: #6e675d; /* strong border */
+  /* Secondary ink. Nudged up from #979083, which measured 4.25:1 on the panel
+     and so missed AA for small text — and this token sets every eyebrow and
+     caption in the game, all of it below the large-text threshold. */
+  --ac-steel-300: #9c9589; /* secondary ink on dark — 4.53:1 on panel */
+  --ac-well: #100e0c; /* deepest recess — under the stock tray */
 
-  --ac-ink: #eaf2ff;
-  --ac-ink-soft: rgba(234, 242, 255, 0.64);
-  --ac-ink-faint: rgba(234, 242, 255, 0.4);
-  --ac-ink-ghost: rgba(234, 242, 255, 0.16);
+  /* ── Milled stock: the light warm mass ─────────────────────────────────
+     Tile and card faces. Load-bearing: these big warm masses are what keep the
+     UI from collapsing into "near-black plus one accent". */
+  --ac-stock-100: #dcd2be; /* bright milled face */
+  --ac-stock-200: #c4b9a3; /* shadowed side of stock */
+  --ac-stock-300: #a89d87; /* stock in shadow / disabled */
 
-  /* ── Accents ──────────────────────────────────────────────────────── */
-  --ac-cyan: #00e5ff;
-  --ac-magenta: #ff2e8b;
-  --ac-violet: #b97bff;
-  --ac-amber: #ffb020;
-  --ac-danger: #ff3b5c;
-  --ac-mint: #14f195;
-  --ac-go: var(--ac-cyan);
+  /* ── Accents ───────────────────────────────────────────────────────────── */
+  --ac-brass: #c08f3c; /* primary: active borders, engraving, required letter */
+  --ac-brass-dim: #8a6a2e;
+  --ac-brass-lit: #e0b25c;
+  --ac-copper: #a9603a; /* secondary */
+  --ac-oxide: #a33a2a; /* danger — rust, not red alert */
+  --ac-patina: #5f9e77; /* positive — verdigris on copper */
 
-  /* ── Card-family accents (color-blind separated: hue + lightness) ──── */
-  --ac-accent-letter: #14f195; /* mint  — word/letter scoring */
-  --ac-accent-clock: #2f86e6; /* blue  — shot-clock */
-  --ac-accent-economy: #ffb020; /* amber — points/economy/aggression */
-  --ac-accent-utility: #e36ec9; /* orchid — utility/defensive */
-  --ac-accent-neutral: #8aa0b3; /* slate — inert/unknown */
+  /* Heat. The ONLY hues allowed to glow. */
+  --ac-ember: #e1552a;
+  --ac-ember-hot: #f4a23c;
 
-  /* ── Card rarity tiers (loot palette; distinct hues from the family accents
-        so the rarity gem/glow reads separately from the family border) ──── */
-  --ac-rarity-common: #9aa7b5; /* slate-gray */
-  --ac-rarity-uncommon: #3ad07a; /* green */
-  --ac-rarity-rare: #b97bff; /* violet */
-  --ac-rarity-legendary: #ffcf4d; /* gold */
+  /* ── Surfaces (semantic; mapped onto the steel scale) ───────────────────
+     Note these are OPAQUE now. `.ac-panel` used to be a translucent navy with
+     backdrop-filter: blur(10px); frosted glass reads as a screenshot of a
+     design tool, not as a machine housing. */
+  --ac-bg-0: var(--ac-steel-900);
+  --ac-bg-1: var(--ac-steel-800);
+  --ac-bg-2: var(--ac-steel-700);
+  --ac-panel: var(--ac-steel-700);
+  --ac-panel-2: var(--ac-steel-600);
+  --ac-panel-solid: var(--ac-steel-800);
 
-  /* ── Player accent rotation (assigned by turn-order index) ─────────── */
-  --ac-p1: #00e5ff;
-  --ac-p2: #ff2e8b;
-  --ac-p3: #b97bff;
-  --ac-p4: #ffd23a;
-  --ac-p5: #14f195;
-  --ac-p6: #ff8a3d;
+  --ac-border: rgba(226, 214, 192, 0.1);
+  --ac-border-strong: rgba(226, 214, 192, 0.22);
+  --ac-hi: rgba(255, 238, 208, 0.085); /* specular top edge */
+  --ac-lo: rgba(0, 0, 0, 0.45); /* dark bottom edge */
 
-  /* ── Glows + hard 3D shadow (house style) ──────────────────────────── */
-  --ac-glow-cyan: 0 0 22px rgba(0, 229, 255, 0.45);
-  --ac-glow-mag: 0 0 22px rgba(255, 46, 139, 0.45);
-  --ac-glow-mint: 0 0 22px rgba(20, 241, 149, 0.5);
-  --ac-glow-danger: 0 0 22px rgba(255, 59, 92, 0.5);
-  --ac-glow-amber: 0 0 22px rgba(255, 176, 32, 0.5);
-  --ac-shadow-sm: 3px 3px 0 #000;
-  --ac-shadow: 5px 5px 0 #000;
-  --ac-shadow-lift: 7px 7px 0 #000;
-  --ac-drop: 0 18px 40px rgba(0, 0, 0, 0.5);
-  --ac-drop-sm: 0 8px 20px rgba(0, 0, 0, 0.42);
+  /* The metal edge, as one reusable pair. Anything that should read as a milled
+     face gets this instead of a glow. */
+  --ac-edge: inset 0 1px 0 var(--ac-hi), inset 0 -1px 0 var(--ac-lo);
 
-  /* ── Type ──────────────────────────────────────────────────────────── */
-  --font-display: "Chakra Petch", "Segoe UI", system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", "Courier New", ui-monospace, monospace;
+  --ac-ink: #f0e9dc; /* warm off-white on dark */
+  --ac-ink-soft: rgba(240, 233, 220, 0.66);
+  --ac-ink-faint: rgba(240, 233, 220, 0.42);
+  --ac-ink-ghost: rgba(240, 233, 220, 0.16);
+  --ac-ink-dark: #191512; /* engraved letter / text on milled stock */
 
-  /* ── Radius + spacing scale ────────────────────────────────────────── */
-  --r-xs: 0.4rem;
-  --r-sm: 0.6rem;
-  --r-md: 0.85rem;
-  --r-lg: 1.1rem;
-  --r-xl: 1.5rem;
+  /* ── Roles ─────────────────────────────────────────────────────────────
+     What the surface sheets should actually consume. The old palette was named
+     by hue but used by role — `--ac-cyan` had 68 call sites and meant
+     "primary / interactive / you / go" — which is exactly why re-skinning it
+     looked like a 4,576-line job and why cyan kept coming back. Name the job,
+     and a re-skin is a handful of lines. */
+  --i-primary: var(--ac-brass);
+  --i-primary-ink: #1a1408; /* ink on a brass fill */
+  --i-hover: var(--ac-brass-lit);
+
+  --state-live: var(--ac-brass-lit); /* armed / your turn / selected */
+  --state-good: var(--ac-patina); /* a gain */
+  --state-bad: var(--ac-oxide); /* a loss, a rejection */
+  --state-cost: var(--ac-copper); /* pay-to-use, redraws */
+  --state-inert: var(--ac-steel-400); /* disabled, spent, out */
+
+  --ink-on-brass: #1a1408;
+  --ink-on-stock: var(--ac-ink-dark);
+  --ink-on-ember: #1d0d05;
+
+  /* ── Legacy hue aliases — DEPRECATED ───────────────────────────────────
+     Each maps a hue-named token onto the role it was actually playing, so
+     every un-migrated sheet keeps rendering sanely. New code uses the role.
+     Migrate call sites per surface and delete these once
+     `grep -rn 'var(--ac-cyan' src/` comes back empty. */
+  --ac-cyan: var(--i-primary);
+  --ac-magenta: var(--state-cost);
+  --ac-violet: #7c6ca6;
+  --ac-amber: var(--state-live);
+  --ac-danger: var(--state-bad);
+  --ac-mint: var(--state-good);
+  --ac-go: var(--i-primary);
+
+  /* ── Card-family accents: paint-coded tooling ──────────────────────────
+     A machine shop paint-codes its tooling, which is exactly the job here —
+     and a paint stripe survives being small and peripheral in a way a tinted
+     glow does not.
+
+     The L* values are the design, not a by-product: 38 / 50 / 60 / 72 / 84, an
+     evenly spaced ramp with roughly 12 points between neighbours. A first warm
+     pass at this set put `letter` and `neutral` four points apart and they
+     collapsed to an RGB distance of 10 under deuteranopia — indistinguishable.
+     Hue is what a warm palette has least of to spend, so lightness carries the
+     separation and the two historically confusable pairs (green/grey and
+     green/plum) sit at opposite ends of the ramp on purpose.
+
+     Verified with protan/deutan/tritan simulation: worst-case pair distance 40.
+     Re-run that check before changing any value here. */
+  --ac-accent-utility: #8b4254; /* oxblood — utility/defensive     L* 38 */
+  --ac-accent-neutral: #7e7669; /* warm slate — inert/unknown      L* 50 */
+  --ac-accent-clock: #5d97c0; /* quench blue — shot-clock        L* 60 */
+  --ac-accent-letter: #7cbf98; /* verdigris — word/letter scoring L* 72 */
+  --ac-accent-economy: #efcf6e; /* straw — points/economy/aggression L* 84 */
+
+  /* ── Card rarity tiers: steel temper colors ────────────────────────────
+     The colors steel actually turns as you heat it — bronze, purple, straw.
+     They ramp monotonically in brightness (48 / 61 / 70 / 84), which is what
+     the rarity shine rides on: see the long note in cards.css, hue alone
+     collapses under protanopia so brightness and width carry the signal. The
+     ramp direction matters as much as the values — rarer must always be
+     brighter, or the shine tiers stop reading as tiers. */
+  --ac-rarity-common: #777168; /* plain steel — never shines  L* 48 */
+  --ac-rarity-uncommon: #c08856; /* bronze temper               L* 61 */
+  --ac-rarity-rare: #bea0d0; /* purple temper               L* 70 */
+  --ac-rarity-legendary: #f2ce65; /* bright straw                L* 84 */
+
+  /* ── Player accent rotation (assigned by turn-order index) ─────────────
+     Six warm hues that all stay distinguishable is more than this palette can
+     honestly carry on hue alone, so this set is also built as an L* ramp with
+     ~10 points between neighbours. It is consumed almost entirely as a 3–5px
+     left border and a 16–20% background tint — the hardest possible place to
+     tell six colours apart — so the separation has to be structural.
+
+     Verified under protan/deutan/tritan: worst-case pair distance 50. */
+  --ac-p5: #753d61; /* plum         L* 34 */
+  --ac-p2: #b44e30; /* vermilion    L* 46 */
+  --ac-p4: #4d8dba; /* quench blue  L* 56 */
+  --ac-p3: #53b283; /* verdigris    L* 66 */
+  --ac-p1: #e5c890; /* brass        L* 82 */
+  --ac-p6: #eae8e3; /* bone         L* 92 */
+
+  /* ── Card operator colors ──────────────────────────────────────────────
+     Previously referenced by ac-card.ts but never defined, so every card chip
+     silently fell back to inheriting. Matched to the glyph SVGs in
+     public/assets/. */
+  --ac-additive: var(--ac-patina);
+  --ac-multiplicative: var(--ac-accent-clock);
+  --ac-action: var(--ac-brass);
+
+  /* Also referenced-but-undefined before now. */
+  --ac-fg: var(--ac-ink);
+  --ac-accent-mint: var(--ac-accent-letter);
+  --ac-accent-cyan: var(--ac-brass);
+
+  /* ── GLOW POLICY ───────────────────────────────────────────────────────
+     Glow is a budget of four sites. It always means "this metal is being
+     worked right now", which is why it is warm, why it escalates, and why it
+     cools back down:
+
+       1. the shot clock in its final seconds     (steel heating up)
+       2. ac-card[triggered] during the replay    (the die is striking)
+       3. the running + final score number        (the piece coming out hot)
+       4. the leaderboard score-pop delta         (same beat, in the rail)
+
+     Nothing else. Buttons, titles, borders, hover, selection, tiles and
+     eyebrows express state with brass, the specular edge, the hard shadow and
+     paint stripes — never with light.
+
+     The five --ac-glow-* tokens below are RETIRED. They resolve to `none` so
+     that the ~29 legacy call sites across the un-migrated surface sheets go
+     quiet on their own rather than glowing in a new color. Do not add new uses;
+     delete each one as its surface gets its pass. */
+  --ac-heat-1: 0 0 10px rgba(225, 85, 42, 0.35);
+  --ac-heat-2: 0 0 26px rgba(244, 162, 60, 0.55);
+
+  --ac-glow-cyan: none;
+  --ac-glow-mag: none;
+  --ac-glow-mint: none;
+  --ac-glow-danger: none;
+  --ac-glow-amber: none;
+
+  /* ── Raised parts ──────────────────────────────────────────────────────
+     One definition for every object that sits proud of the surface behind it:
+     tiles, buttons, plates, the blank in the score replay.
+
+     This replaces the old --ac-shadow-sm/-/-lift trio (`Npx Npx 0 #000`), a
+     hard black outline plus a solid zero-blur slab. That device was inherited
+     from the original design and kept on purpose, but it is a GRAPHIC idiom
+     sitting inside a MATERIAL one — everything else here is warm hairline rims,
+     specular top edges and soft warm drops — and the two do not mix. On the
+     letter tiles, the largest and lightest surface in the game, the slab read
+     as a sticker pasted onto a machined panel.
+
+     The tactility is not lost, it just moves into the material language:
+
+       --ac-rim      the edge of a part. An EDGE, never an outline: warm and
+                     dark rather than black, so it reads as the side of the
+                     metal catching less light.
+       --ac-lift-*   how far the part stands off its background.
+
+     Thickness is per-element rather than a token, because its colour depends
+     on what the part is made of — see the `inset 0 -3px 0 <shadowed side>`
+     pattern on .ac-tile (stock), .ac-standby-plate (brass) and .sr-word. That
+     inset, under the specular lip, is what keeps a part reading as a solid
+     object once the slab is gone. */
+  --ac-rim: rgba(24, 16, 10, 0.55);
+  --ac-lift-0: 0 1px 2px rgba(6, 4, 2, 0.5);
+  --ac-lift-1: 0 3px 6px rgba(6, 4, 2, 0.66);
+  --ac-lift-2: 0 6px 14px rgba(6, 4, 2, 0.7);
+  --ac-drop: 0 18px 40px rgba(8, 5, 3, 0.55);
+  --ac-drop-sm: 0 8px 20px rgba(8, 5, 3, 0.46);
+
+  /* ── Type ──────────────────────────────────────────────────────────────
+     Words get character; numbers get machined. The display face is a little
+     irregular and warm because it sets the words the players make; the machine
+     face is a wide, exact grotesque because it sets what the machine reports.
+     All sans-serif, both self-hosted variable fonts (see base.css @font-face).
+
+     --font-machine is Archivo on its WIDTH axis — pair it with
+     `font-stretch: var(--stretch-machine)` at the call site, since font-stretch
+     cannot ride along inside a font-family token. */
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Archivo", "Segoe UI", system-ui, sans-serif;
+  --font-machine: "Archivo", "Segoe UI", system-ui, sans-serif;
+  --stretch-machine: 112%;
+  /* Deprecated alias — the old monospace role. Wide-tracked uppercase mono on
+     every label was the loudest generic tell in the old design; the machine
+     face does that job now with actual width instead of tracking. */
+  --font-mono: var(--font-machine);
+
+  /* ── Radius: machined, not soft ────────────────────────────────────────
+     Pulled in hard from the old 0.4–1.5rem. Milled parts have small radii and
+     chamfers; generous rounding reads as a web card, not a machine part. */
+  --r-xs: 0.15rem;
+  --r-sm: 0.25rem;
+  --r-md: 0.4rem;
+  --r-lg: 0.55rem;
+  --r-xl: 0.75rem;
+
   --sp-1: 0.35rem;
   --sp-2: 0.6rem;
   --sp-3: 0.9rem;
@@ -104,12 +322,10 @@
     opacity: 1;
   }
 }
-/* Leaderboard score-pop: a punchy scale-overshoot in, then float up and fade. */
 /* Leaderboard score change — kept fully inside the row so the standings' own
- * overflow-y scroll can't clip it: the whole row background flashes (::after) then
- * fades back to its original colour, the score number bumps, and the signed delta
- * fades in/out in place. --pop-color (set per row) drives all three mint (gain) or
- * danger (loss). */
+ * overflow-y scroll cannot clip it: the whole row background flashes (::after)
+ * then fades back to its original colour, the score number bumps, and the
+ * signed delta fades in/out in place. --pop-color drives all three. */
 @keyframes ac-lb-flash {
   0% {
     opacity: 0;
@@ -133,8 +349,8 @@
   }
 }
 /* Delta fades in then out in place (centred over the row) — no vertical travel.
- * translate(-50%, -50%) is held constant so only opacity/scale animate; the scale
- * tops out at 1 so the number never grows past the normal score size. */
+ * translate(-50%, -50%) is held constant so only opacity/scale animate; the
+ * scale tops out at 1 so the number never grows past the normal score size. */
 @keyframes ac-lb-pop {
   0% {
     opacity: 0;
@@ -161,33 +377,6 @@
   100% {
     transform: translateY(0);
     opacity: 1;
-  }
-}
-@keyframes ac-ring-pulse {
-  0%,
-  100% {
-    filter: drop-shadow(0 0 4px currentColor);
-  }
-  50% {
-    filter: drop-shadow(0 0 14px currentColor);
-  }
-}
-@keyframes ac-drift-a {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-  50% {
-    transform: translate3d(6vw, -4vh, 0) scale(1.12);
-  }
-}
-@keyframes ac-drift-b {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0) scale(1.05);
-  }
-  50% {
-    transform: translate3d(-5vw, 5vh, 0) scale(0.95);
   }
 }
 @keyframes ac-shimmer {
@@ -219,7 +408,6 @@
 @keyframes ac-overlay-in {
   0% {
     opacity: 0;
-    backdrop-filter: blur(0);
   }
   100% {
     opacity: 1;

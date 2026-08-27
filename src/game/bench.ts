@@ -11,6 +11,7 @@
  * from the accessors here and calls the editors after each interaction.
  */
 
+import { subWordFinder } from "./builder/rack";
 import type { Dictionary } from "./dictionary";
 import { dictionaryWordPool } from "./picker/wordPool";
 import { MatchController, type PlayerSeed } from "./match";
@@ -114,16 +115,27 @@ export class BenchScenario {
   get gameMode(): GameMode {
     return this.mode;
   }
-  /** Picker: this turn's Offer (empty in Classic). */
-  get offer(): readonly string[] {
-    return this.state.offer;
-  }
   /** Word Builder: this turn's Tile Rack (empty in Classic). */
   get rack() {
     return this.state.rack;
   }
+  /** Word Builder: words buildable from this turn's rack — what the sandbox offers as one-click
+   *  commits, replacing the retired Offer chips. Capped because a fertile rack yields hundreds.
+   *
+   *  Keyed on `successionWaivedThisTurn`, not the raw letter: a Wildcard rack is drawn free of
+   *  `requiredLetter` while the letter still stands, so filtering by it would report "none" on
+   *  precisely the turn the rack is most fertile. */
+  get subWords(): string[] {
+    const pool = this.controller.wordPoolInstance;
+    if (!pool || this.state.rack.length === 0) return [];
+    const letter = this.controller.successionWaivedThisTurn ? "" : this.state.requiredLetter;
+    return subWordFinder(this.state.rack, pool, this.controller.offerIndex, letter, {
+      usedWords: this.state.usedWords,
+      maxResults: 24,
+    });
+  }
   get canRedraw(): boolean {
-    return this.state.offerRedrawAvailable || this.state.rackRedrawAvailable;
+    return this.state.rackRedrawAvailable;
   }
   get history(): Submission[] {
     return this.state.history;
@@ -207,7 +219,7 @@ export class BenchScenario {
 
   /** Picker: spend Winnower's redraw for the current player, if they hold one. */
   redraw(): boolean {
-    return this.controller.redrawOffer(this.currentPlayerId);
+    return this.controller.redrawRack(this.currentPlayerId);
   }
 
   /** Re-arm the current turn so a bay edit is reflected in a freshly drawn Offer. Editing the bay

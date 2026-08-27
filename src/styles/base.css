@@ -1,7 +1,6 @@
 /*
- * Base: reset, the full-viewport app shell, the drifting ambient background,
- * the FX canvas overlay, shared scrollbars, panels/buttons, and the first-paint
- * loading screen.
+ * Base: reset, the full-viewport app shell, the machined ground, the FX canvas
+ * overlay, shared scrollbars, panels/buttons, and the first-paint loading screen.
  */
 
 *,
@@ -17,7 +16,11 @@ body {
   height: 100%;
   background: var(--ac-bg-0);
   color: var(--ac-ink);
-  font-family: var(--font-display);
+  /* The body face, not the display face. One characterful face setting every
+     glyph from a 10px chip to a 4.6rem title is a large part of why the old UI
+     read as templated; the display face is now spent deliberately, on headings
+     and the words the players make. */
+  font-family: var(--font-body);
   -webkit-tap-highlight-color: transparent;
   -webkit-text-size-adjust: 100%;
   overscroll-behavior: none;
@@ -36,36 +39,30 @@ textarea {
 
 body {
   overflow: hidden;
-  /* Deep navy base with two pinned glows; an animated layer drifts over it. */
+  /* A warm vignette over the gunmetal ground: light falling from above onto a
+     machine, dark pooling at the floor. Static on purpose — the two drifting
+     cyan/magenta nebula blobs that used to live here were the loudest generic
+     tell in the whole app. Ambient motion behind a game that already has a
+     shot clock is noise, not atmosphere. */
   background:
-    radial-gradient(120% 80% at 50% -10%, #0d1430 0%, transparent 55%),
-    radial-gradient(100% 100% at 50% 120%, #0a0e22 0%, transparent 60%), var(--ac-bg-0);
+    radial-gradient(130% 90% at 50% -10%, rgba(255, 224, 180, 0.05), transparent 58%),
+    radial-gradient(110% 100% at 50% 118%, rgba(0, 0, 0, 0.55), transparent 62%), var(--ac-bg-0);
 }
 
-/* Drifting nebula — two slow blobs, behind everything. */
-body::before,
-body::after {
+/* Machined grain — a fine diagonal brushing over the ground. Barely visible by
+   design: it should register as "this surface has a texture", never as stripes.
+   Fixed and click-through, behind everything. */
+body::before {
   content: "";
   position: fixed;
+  inset: 0;
   z-index: -1;
-  width: 70vmax;
-  height: 70vmax;
-  border-radius: 50%;
-  filter: blur(80px);
-  opacity: 0.5;
   pointer-events: none;
-}
-body::before {
-  left: -22vmax;
-  bottom: -26vmax;
-  background: radial-gradient(circle, rgba(0, 229, 255, 0.42), transparent 65%);
-  animation: ac-drift-a 26s ease-in-out infinite;
-}
-body::after {
-  right: -24vmax;
-  top: -28vmax;
-  background: radial-gradient(circle, rgba(255, 46, 139, 0.34), transparent 65%);
-  animation: ac-drift-b 32s ease-in-out infinite;
+  background-image: repeating-linear-gradient(
+    115deg,
+    rgba(255, 240, 214, 0.017) 0 1px,
+    transparent 1px 5px
+  );
 }
 
 /* Phaser FX canvas overlay — above the UI, click-through. */
@@ -121,46 +118,66 @@ ac-app {
 /* ── Shared scrollbars ─────────────────────────────────────────────────── */
 * {
   scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--ac-cyan) 45%, transparent) transparent;
+  scrollbar-color: var(--ac-steel-500) transparent;
 }
 *::-webkit-scrollbar {
   width: 9px;
   height: 9px;
 }
 *::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--ac-cyan) 38%, transparent);
+  background: var(--ac-steel-500);
   border-radius: 99px;
 }
 *::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in srgb, var(--ac-cyan) 60%, transparent);
+  background: var(--ac-steel-400);
 }
 *::-webkit-scrollbar-track {
   background: transparent;
 }
 
 /* ── Reusable primitives ───────────────────────────────────────────────── */
+
+/* A machine housing: opaque, lit from above, with a hairline dark edge at the
+   bottom. The old panel was translucent navy behind backdrop-filter: blur(10px)
+   — frosted glass reads as a design tool, not as a machined part, and it forced
+   a compositor pass on every scroll frame because the leaderboard rail is
+   position: sticky. */
 .ac-panel {
   position: relative;
-  background: var(--ac-panel);
+  background: linear-gradient(178deg, var(--ac-steel-600), var(--ac-steel-700) 62%);
   border: 1px solid var(--ac-border);
   border-radius: var(--r-lg);
-  box-shadow:
-    var(--ac-drop-sm),
-    inset 0 1px 0 var(--ac-hi);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  box-shadow: var(--ac-drop-sm), var(--ac-edge);
 }
 
+/* Stamped nameplate. Width does the work that letter-spacing used to: the old
+   0.24em tracking on a monospace face is the single most recognisable "generic
+   dashboard" signature there is. */
 .ac-eyebrow {
-  font-family: var(--font-mono);
-  font-size: 0.66rem;
+  font-family: var(--font-machine);
+  font-stretch: var(--stretch-machine);
+  font-size: 0.68rem;
   font-weight: 700;
-  letter-spacing: 0.24em;
+  letter-spacing: 0.09em;
   text-transform: uppercase;
-  color: var(--ac-ink-faint);
+  color: var(--ac-steel-300);
 }
 
-/* The signature 3D press button. */
+/* ── Buttons ───────────────────────────────────────────────────────────────
+   One system. `.ac-btn` is a milled brass key: a warm rim, a lit top edge, the
+   cut edge of the metal along its foot, and a soft warm shadow into the panel
+   under it. The modifiers only ever change fill and ink; geometry, rim and the
+   press are never restated, which is what keeps every button in the game
+   feeling like the same physical control.
+
+   This used to be a 3px pure-black border over a diagonal `3px 3px 0 #000`
+   ink-bite, carried over from the original design. It was the loudest surviving
+   piece of a GRAPHIC idiom inside an otherwise MATERIAL one, and it made the
+   buttons and the letter tiles look like objects from two different games. The
+   press is unchanged in feel and now runs vertically, matching the tiles: a key
+   and a blank are the same kind of part.
+
+   Anything that raises off a surface uses this same rim/lift/inset recipe. */
 .ac-btn {
   appearance: none;
   display: inline-flex;
@@ -168,50 +185,93 @@ ac-app {
   justify-content: center;
   gap: 0.5em;
   padding: 0.7rem 1.3rem;
-  border: 3px solid #000;
+  border: 1px solid var(--ac-rim);
   border-radius: var(--r-sm);
-  background: var(--ac-cyan);
-  color: #04121a;
-  font-family: var(--font-display);
+  background: var(--i-primary);
+  color: var(--i-primary-ink);
+  font-family: var(--font-machine);
+  font-stretch: var(--stretch-machine);
   font-size: 1rem;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   cursor: pointer;
-  box-shadow: var(--ac-shadow-sm);
+  /* Specular lip, the cut edge of the brass along the foot, then the drop. */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 -3px 0 var(--ac-brass-dim),
+    var(--ac-lift-1);
   transition:
     transform 0.08s ease,
     box-shadow 0.08s ease,
     filter 0.15s ease;
 }
 .ac-btn:hover:not(:disabled) {
-  transform: translate(-2px, -2px);
-  box-shadow: var(--ac-shadow);
-  filter: brightness(1.06);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.34),
+    inset 0 -3px 0 var(--ac-brass-dim),
+    var(--ac-lift-2);
+  filter: brightness(1.07);
 }
+/* Pressed: the key travels down and the cut edge compresses to almost nothing,
+   so the part visibly squashes rather than just sliding. */
 .ac-btn:active:not(:disabled) {
-  transform: translate(2px, 2px);
-  box-shadow: 1px 1px 0 #000;
+  transform: translateY(2px);
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.3),
+    inset 0 -1px 0 var(--ac-brass-dim),
+    var(--ac-lift-0);
 }
+/* Unpowered, not faded. Dropping the whole key to 50% opacity muddied it
+   against the warm ground; keeping it opaque and simply cold reads as a control
+   that is present but not live, which is what it is. */
 .ac-btn:disabled {
-  opacity: 0.45;
+  background: var(--ac-steel-600);
+  color: var(--ac-steel-400);
+  box-shadow:
+    inset 0 -2px 0 var(--ac-steel-700),
+    var(--ac-lift-0);
+  transform: none;
   cursor: not-allowed;
 }
-.ac-btn-ghost {
-  background: transparent;
-  border-color: var(--ac-border-strong);
+.ac-btn:focus-visible {
+  outline: 2px solid var(--ac-brass-lit);
+  outline-offset: 3px;
+}
+
+/* The markup has been asking for these two since the tile picker landed; until
+   now neither had a rule anywhere, so both silently rendered as the base brass
+   key. (The old .ac-btn-ghost / .ac-btn-magenta used single dashes and matched
+   no markup at all — deleted.) */
+.ac-btn--primary {
+  background: var(--i-primary);
+  color: var(--i-primary-ink);
+}
+/* Ghost restates the cut edge in steel rather than brass, so it has to restate
+   hover and active too — the base rules carry a brass foot, and inheriting that
+   would put a brass edge on a steel key. Order matters: hover then active, both
+   at equal specificity, so pressing (which also hovers) lands on active. */
+.ac-btn--ghost {
+  background: var(--ac-steel-600);
   color: var(--ac-ink);
-  box-shadow: none;
+  box-shadow:
+    inset 0 1px 0 var(--ac-hi),
+    inset 0 -3px 0 var(--ac-steel-700),
+    var(--ac-lift-1);
 }
-.ac-btn-ghost:hover:not(:disabled) {
-  transform: none;
-  box-shadow: none;
-  border-color: var(--ac-cyan);
-  background: color-mix(in srgb, var(--ac-cyan) 12%, transparent);
+.ac-btn--ghost:hover:not(:disabled) {
+  background: var(--ac-steel-500);
+  box-shadow:
+    inset 0 1px 0 var(--ac-hi),
+    inset 0 -3px 0 var(--ac-steel-700),
+    var(--ac-lift-2);
 }
-.ac-btn-magenta {
-  background: var(--ac-magenta);
-  color: #1a0410;
+.ac-btn--ghost:active:not(:disabled) {
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.35),
+    inset 0 -1px 0 var(--ac-steel-700),
+    var(--ac-lift-0);
 }
 
 /* ── Overlays (countdown / intermission / game over) ───────────────────── */
@@ -224,33 +284,38 @@ ac-app {
   justify-items: center;
   gap: var(--sp-3);
   padding: var(--sp-4);
-  background: rgb(4, 6, 14);
+  background: var(--ac-well);
   animation: ac-overlay-in 0.3s ease both;
 }
 
-/* Countdown. */
+/* Countdown. The big number is struck out of milled stock — no glow. Heat is
+   reserved for metal actually being worked (see the policy in tokens.css), and
+   a countdown is the moment before the work starts. */
 .cd-era {
-  font-family: var(--font-mono);
-  letter-spacing: 0.3em;
-  color: var(--ac-cyan);
-  text-shadow: var(--ac-glow-cyan);
+  font-family: var(--font-machine);
+  font-stretch: var(--stretch-machine);
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ac-brass);
   font-size: 0.9rem;
 }
 .cd-num {
-  font-family: var(--font-display);
-  font-weight: 700;
+  font-family: var(--font-machine);
+  font-stretch: 125%;
+  font-weight: 800;
   font-size: clamp(6rem, 26vw, 12rem);
   line-height: 0.9;
-  color: var(--ac-ink);
-  text-shadow: var(--ac-glow-cyan);
+  font-variant-numeric: tabular-nums;
+  color: var(--ac-stock-100);
   animation: ac-num-bump 0.5s ease-out;
 }
 .cd-ready {
   font-family: var(--font-display);
   font-weight: 700;
-  letter-spacing: 0.4em;
+  letter-spacing: 0.34em;
   text-transform: uppercase;
-  color: var(--ac-ink-soft);
+  color: var(--ac-steel-300);
 }
 .cd-ban {
   display: flex;
@@ -259,17 +324,17 @@ ac-app {
   gap: 0.3rem;
   margin-top: var(--sp-3);
   padding: var(--sp-3) var(--sp-4);
-  border: 1px solid color-mix(in srgb, var(--ac-danger) 40%, transparent);
+  border: 1px solid color-mix(in srgb, var(--state-bad) 45%, transparent);
   border-radius: var(--r-md);
-  background: color-mix(in srgb, var(--ac-danger) 8%, transparent);
+  background: color-mix(in srgb, var(--state-bad) 10%, transparent);
 }
 .cd-ban-letter {
-  font-family: var(--font-mono);
+  font-family: var(--font-machine);
+  font-stretch: 125%;
   font-weight: 800;
   font-size: 2.6rem;
   line-height: 1;
-  color: var(--ac-danger);
-  text-shadow: var(--ac-glow-danger);
+  color: var(--state-bad);
 }
 
 /* ── First-paint loading screen ────────────────────────────────────────── */
@@ -290,29 +355,31 @@ ac-app {
 }
 .boot-mark {
   font-family: var(--font-display);
-  font-weight: 700;
+  font-weight: 800;
   font-size: clamp(2.2rem, 9vw, 3.6rem);
-  letter-spacing: 0.18em;
-  color: var(--ac-ink);
-  text-shadow: var(--ac-glow-cyan);
+  letter-spacing: 0.02em;
+  color: var(--ac-stock-100);
 }
 .boot-mark span {
-  color: var(--ac-cyan);
+  color: var(--ac-brass);
   margin-left: 0.18em;
 }
 .boot-sub {
-  font-family: var(--font-mono);
+  font-family: var(--font-machine);
+  font-stretch: var(--stretch-machine);
   font-size: 0.78rem;
-  letter-spacing: 0.2em;
+  font-weight: 600;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--ac-ink-soft);
+  color: var(--ac-steel-300);
 }
 .boot-bar {
   position: relative;
   width: min(60vw, 320px);
   height: 6px;
   border-radius: 99px;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--ac-steel-800);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.6);
   overflow: hidden;
 }
 .boot-bar i {
@@ -320,7 +387,6 @@ ac-app {
   inset: 0 auto 0 0;
   width: 40%;
   border-radius: 99px;
-  background: linear-gradient(90deg, transparent, var(--ac-cyan), transparent);
-  box-shadow: var(--ac-glow-cyan);
+  background: linear-gradient(90deg, transparent, var(--ac-brass), transparent);
   animation: ac-shimmer 1.1s ease-in-out infinite;
 }

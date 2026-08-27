@@ -19,7 +19,6 @@ import { AcElement } from "../app/AcElement";
 
 import "../components/ac-shot-clock";
 import "../components/ac-word-entry";
-import "../components/ac-offer-grid";
 import "../components/ac-word-builder";
 import "../components/ac-leaderboard";
 import "../components/ac-recent-words";
@@ -36,10 +35,12 @@ export class AcHud extends AcElement {
   @state() private roundInEra = 0;
   @state() private currentName = "";
   @state() private isHumanTurn = false;
+  /** Survival: the human has been eliminated and is watching the rest play out. */
+  @state() private humanEliminated = false;
   @state() private humanExempt = false;
   @state() private personalBans: { letter: string; cardName: string }[] = [];
   @state() private humanBay: FanCard[] = [];
-  /** Picker: which Offer word is selected, if any. Drives the engine-fire projection below. */
+  /** Word Builder: the word currently staged on the rack, if any. Drives the projection below. */
   @state() private previewWord: string | null = null;
   @state() private humanSlots = 3;
   @state() private opponents: PlayerState[] = [];
@@ -70,6 +71,9 @@ export class AcHud extends AcElement {
     this.currentName = cur?.name ?? "";
     this.isHumanTurn = s.phase === "Round" && cur?.id === human;
     const me = s.players.find((p) => p.id === human);
+    // Survival's only real consequence, and until now the only sign of it was a small OUT tag
+    // on the leaderboard — from the stage it just looked like your turn never came round again.
+    this.humanEliminated = !!me?.eliminated;
     this.humanBay = me ? this.projectBay(me) : [];
     this.humanSlots = me?.slots ?? 3;
     // Sort opponents by their (stable) accent index for display, not by array
@@ -116,7 +120,7 @@ export class AcHud extends AcElement {
     return bay.map((c, i) => ({ ...c, triggered: fired[i]?.triggered === true }));
   }
 
-  /** <ac-offer-grid> publishes the current selection; re-derive the bay projection from it. */
+  /** <ac-word-builder> publishes the staged word; re-derive the bay projection from it. */
   private onOfferPreview = (e: CustomEvent<{ word: string | null }>): void => {
     this.previewWord = e.detail.word;
     this.refresh();
@@ -205,9 +209,12 @@ export class AcHud extends AcElement {
           </section>
 
           <section class="spotlight">
-            <span class="spot-turn ${this.isHumanTurn ? "is-you" : ""}">
-              ${this.isHumanTurn ? "YOUR TURN" : html`${this.currentName} is playing…`}
-            </span>
+            ${this.humanEliminated
+              ? html`<span class="spot-turn is-out">YOU'RE OUT</span>
+                  <span class="spot-sub">${this.currentName} is playing…</span>`
+              : html`<span class="spot-turn ${this.isHumanTurn ? "is-you" : ""}">
+                  ${this.isHumanTurn ? "YOUR TURN" : html`${this.currentName} is playing…`}
+                </span>`}
           </section>
 
           <ac-engine-bay
@@ -224,17 +231,14 @@ export class AcHud extends AcElement {
             <ac-recent-words .controller=${c}></ac-recent-words>
           </section>
 
-          <!-- The single input-surface mount. Picker / Word Builder swaps the surface -->
+          <!-- The single input-surface mount. Word Builder is the ONLY Picker surface: mounted
+               unconditionally rather than keyed on rack.length, so Setup/Countdown shows the empty
+               builder instead of swapping a placeholder out from under the player at round start. -->
           ${c.match.state.settings.gameMode === GameMode.Picker
-            ? c.match.state.rack.length > 0
-              ? html`<ac-word-builder
-                  .controller=${c}
-                  @ac-offer-preview=${this.onOfferPreview}
-                ></ac-word-builder>`
-              : html`<ac-offer-grid
-                  .controller=${c}
-                  @ac-offer-preview=${this.onOfferPreview}
-                ></ac-offer-grid>`
+            ? html`<ac-word-builder
+                .controller=${c}
+                @ac-offer-preview=${this.onOfferPreview}
+              ></ac-word-builder>`
             : html`<ac-word-entry .controller=${c}></ac-word-entry>`}
 
           <ac-score-replay .controller=${c}></ac-score-replay>
