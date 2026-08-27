@@ -1,6 +1,27 @@
 /*
  * The Word Picker — generates the Offer (the candidate words shown to the active player).
  *
+ * ─────────────────────────────────────────────────────────────────────────────────────────────
+ * RETIRED, NOT LIVE. Word Builder is the only Picker surface as of 1.0, and it seeds racks from
+ * `buildPoolIndex` / `PoolIndex` directly — see builder/rack.ts. Nothing in the shipped game calls
+ * `generateOffer`, and `MatchState` no longer carries an `offer` field at all.
+ *
+ * What is still LIVE in this file: `buildPoolIndex`, `PoolIndex`, `MIN_OFFER_LENGTH`,
+ * `MAX_OFFER_LENGTH` and `LENGTH_BANDS`. The rack generator depends on all of them.
+ *
+ * What is DEAD: `generateOffer`, `OfferRequest`, `OfferResult` and their helpers, together with
+ * `buildOfferShaping` / `OfferShaping` / `OfferFilter` / `NO_SHAPING` in ./preference and the
+ * `filter` field on PreferenceSpec (only Sieve sets one). They are retained because
+ * offer.test.ts and preference.test.ts still exercise them and they cannot execute in a match;
+ * they are NOT a seam anyone should build on without reading match.ts first.
+ *
+ * One thing WAS lost when the rack path replaced this one, and has since been restored elsewhere:
+ * problem 3 below — the letter-starvation lookahead. The rack generator never ported it, so a
+ * chain landing on `x` produced a rack whose only buildable word was its own Golden Seed. That
+ * protection now lives in `letterSupportsRack` (builder/rack.ts), consulted by
+ * `MatchController.nextRequiredLetter`, and covers the rack path the same way this covered Offers.
+ * ─────────────────────────────────────────────────────────────────────────────────────────────
+ *
  * PURITY IS A BUILD CONSTRAINT, not a preference. This module is bundled into authority.js and
  * executed in the server's Jint sandbox, which has no `Date`, no `fetch` and no DOM, and where
  * `npm run build:authority` rejects any import. So: no I/O, no ambient time, RNG injected.

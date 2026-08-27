@@ -40,21 +40,22 @@ const SCRIPTS: Record<TutorialKind, Script> = {
       "Time out and you lose points — and in Survival mode, your spot.",
     ],
   },
-  // ── Picker's pre-game pair. Classic's two above are left exactly as they were. ──
+  // ── Word Builder's pre-game pair. Classic's two above are left exactly as they were. ──
   offer: {
-    eyebrow: "how to play · the offer",
-    title: "Pick your word",
+    eyebrow: "how to play · word builder",
+    title: "Build your word",
     lines: [
-      "Each turn you're offered a few words. Tap one to select it, tap again to play it.",
-      "Selecting shows which of your engine cards would fire — the score itself stays hidden.",
+      "Assemble words from your tile rack by tapping tiles or typing on your keyboard.",
+      "Brass tiles start with the required chain letter. Cool-tinted tiles are multi-letter chunks.",
+      "Assembling a word shows which engine cards will fire — submit to lock in your score.",
     ],
   },
   pickerTimeout: {
     eyebrow: "how to play · the shot clock",
-    title: "The clock plays your pick",
+    title: "The clock plays your word",
     lines: [
-      "Run out of time and your selected word is played for you. You lose no points for it.",
-      "Pick nothing at all and one is chosen at random — and in Survival mode, that costs you your spot.",
+      "When the shot clock expires, any valid word you've assembled is submitted automatically.",
+      "If nothing valid is staged, a word is built for you without penalty — but in Survival mode, that costs you your spot.",
     ],
   },
   engine: {
@@ -172,22 +173,26 @@ export class AcTutorial extends AcElement {
           </div>
         </div>`;
       case "offer":
-        // Three Offer Cards with the middle one selected: the two-stage tap, the shape
-        // annotations, and the engine lighting up — the three things the page is teaching.
-        return html`<div class="tut-stage tut-offer">
-          <div class="tut-offer-row">
-            ${[
-              { w: "CANDLE", tag: "6L 2v", on: false },
-              { w: "CRISP", tag: "5L 1v", on: true },
-              { w: "CAVE", tag: "4L 2v", on: false },
-            ].map(
-              (c, i) => html`
-                <span class="tut-ocard ${c.on ? "is-picked" : ""}" style="--i:${i}">
-                  <span class="tut-oword">${c.w}</span>
-                  <span class="tut-otag">${c.tag}</span>
-                </span>
-              `,
-            )}
+        // Word Builder rack & assembly area demo:
+        // Staged word [T] [R] [A] [I] [N] in staging track,
+        // tile rack below with starter, single, and chunk tiles, plus active engine bay.
+        return html`<div class="tut-stage tut-builder">
+          <div class="tut-builder-track">
+            <span class="tut-btile is-starter is-staged">T</span>
+            <span class="tut-btile is-staged">R</span>
+            <span class="tut-btile is-staged">A</span>
+            <span class="tut-btile is-staged">I</span>
+            <span class="tut-btile is-staged">N</span>
+          </div>
+          <div class="tut-builder-rack">
+            <span class="tut-btile is-starter is-dim">T</span>
+            <span class="tut-btile is-dim">R</span>
+            <span class="tut-btile is-dim">A</span>
+            <span class="tut-btile is-dim">I</span>
+            <span class="tut-btile is-dim">N</span>
+            <span class="tut-btile is-chunk">ING</span>
+            <span class="tut-btile">E</span>
+            <span class="tut-btile">D</span>
           </div>
           <div class="tut-offer-bay" aria-hidden="true">
             <span class="tut-ecard is-add" style="--i:0">+5</span>
@@ -196,8 +201,8 @@ export class AcTutorial extends AcElement {
           </div>
         </div>`;
       case "pickerTimeout":
-        // The same clock as Classic's page, with the opposite outcome: your pick resolves, and
-        // the penalty slot reads "no penalty" rather than −10.
+        // The same clock as Classic's page, with Word Builder outcome: your assembled word
+        // resolves with no penalty rather than −10.
         return html`<div class="tut-stage tut-timeout">
           <div class="tut-clock">
             <svg viewBox="0 0 64 64" aria-hidden="true">
@@ -207,7 +212,7 @@ export class AcTutorial extends AcElement {
             <span class="tut-clock-ico">⏱</span>
           </div>
           <div class="tut-timeout-out">
-            <span class="tut-stamp is-safe">YOUR PICK PLAYS</span>
+            <span class="tut-stamp is-safe">YOUR WORD PLAYS</span>
             <span class="tut-penalty is-safe">−0</span>
           </div>
         </div>`;

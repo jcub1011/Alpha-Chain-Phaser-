@@ -6,10 +6,12 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { chooseBotWordScored, planBotBay, type BotScoredPick } from "./bots";
+import { chooseBotWordFromRack, chooseBotWordScored, planBotBay, type BotScoredPick } from "./bots";
 import { Dictionary } from "./dictionary";
-import type { BayCard } from "./types";
+import type { BayCard, Tile } from "./types";
 import { GameMode } from "./types";
+import { buildPoolIndex } from "./picker/offer";
+import { dictionaryWordPool } from "./picker/wordPool";
 
 const scoreOpts = {
   mode: GameMode.Classic,
@@ -89,5 +91,69 @@ describe("planBotBay", () => {
     expect(discard).toHaveLength(1);
     // The inert Architect is the one dropped.
     expect(discard).toEqual(["u1"]);
+  });
+});
+
+describe("chooseBotWordFromRack", () => {
+  const dict = new Dictionary(["action", "act", "cat", "traction", "tract", "ion"]);
+  const pool = dictionaryWordPool(dict);
+  const index = buildPoolIndex(pool);
+
+  const testRack: Tile[] = [
+    { id: "t0", text: "t", isChunk: false },
+    { id: "t1", text: "r", isChunk: false },
+    { id: "t2", text: "a", isChunk: false },
+    { id: "t3", text: "c", isChunk: false },
+    { id: "t4", text: "tion", isChunk: true },
+  ];
+
+  it("selects buildable sub-words respecting the required letter", () => {
+    const word = chooseBotWordFromRack(testRack, pool, index, {
+      ...basePick({ requiredLetter: "t" }),
+    });
+    expect(word).toBe("traction");
+  });
+
+  it("scores candidates through the bot's bay in Word Builder mode", () => {
+    const word = chooseBotWordFromRack(testRack, pool, index, {
+      ...basePick({
+        requiredLetter: "t",
+        bay: [{ id: "Stonemason" }], // rewards 8+ letters: "traction" is 8 letters!
+      }),
+    });
+    expect(word).toBe("traction");
+  });
+
+  it("easy bots pick valid sub-words", () => {
+    const word = chooseBotWordFromRack(testRack, pool, index, {
+      ...basePick({ difficulty: "easy", requiredLetter: "t" }),
+    });
+    expect(["tract", "traction"]).toContain(word);
+  });
+
+  // "action" = a + c + tion and "act" = a + c + t, so this letter has two buildable words to choose
+  // between — unlike "t", where only "traction" is buildable ("tract" would need a second t).
+  it("never picks a word that has already been played", () => {
+    const word = chooseBotWordFromRack(testRack, pool, index, {
+      ...basePick({ requiredLetter: "a", usedWords: new Set(["action"]) }),
+    });
+    expect(word).toBe("act");
+  });
+
+  it("stands down instead of repeating a word when everything buildable is used", () => {
+    /* Falling back to the used set made the bot commit a word submitWord rejects as already-used,
+     * which spends its one action, runs the clock out into a dead turn, and in Survival eliminates
+     * it — with a rejection flash on the way past. Returning null reaches the same resolved turn
+     * quietly, which is what the engine's own no-show auto-pick already does. */
+    for (const difficulty of ["easy", "medium", "hard"] as const) {
+      const word = chooseBotWordFromRack(testRack, pool, index, {
+        ...basePick({
+          difficulty,
+          requiredLetter: "a",
+          usedWords: new Set(["action", "act"]),
+        }),
+      });
+      expect(word).toBeNull();
+    }
   });
 });

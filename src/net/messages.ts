@@ -16,15 +16,18 @@ export type Intent =
   | { kind: "setSettings"; settings: AlphaChainSettings } // owner edits the pre-match lobby settings
   | { kind: "submit"; word: string }
   | { kind: "draftWord"; word: string } // current player's in-progress word, for timeout auto-submit
-  /* Picker's twin of draftWord/submit. BOTH carry the word rather than an Offer index: the
-   * authority would resolve an index against ITS Offer, so a client whose Offer was regenerated
-   * between render and tap would silently commit a word the player never saw (real once The
-   * Winnower redraws mid-turn), whereas a stale word just fails the membership check. Because the
-   * commit is self-contained, a throttled or dropped select can never produce a wrong commit — the
-   * select exists only so a clock expiry commits the right word instead of reading a no-show. */
-  | { kind: "selectOffer"; word: string }
+  /* Carries the word rather than an Offer index or tile ids: the authority would resolve an index
+   * against ITS rack, so a client whose rack was regenerated between render and tap would silently
+   * commit a word the player never saw (real once The Winnower redraws mid-turn), whereas a stale
+   * word just fails the constructibility check. Because the commit is self-contained, a throttled or
+   * dropped stage can never produce a wrong commit — staging exists only so a clock expiry commits
+   * the right word instead of reading a no-show. */
   | { kind: "commitSelection"; word: string }
-  | { kind: "redrawOffer" } // Winnower: once per turn, buy a fresh Offer with clock
+  /* Word Builder: stage the active tiles and stream the drafted word. The only staging intent —
+   * per-tile selectTile/deselectTile were declared here and given handlers by the authority but were
+   * never dispatched by any client, so they were wire surface that looked supported and was not. */
+  | { kind: "stageTiles"; tileIds: string[]; word?: string }
+  | { kind: "redrawRack" } // Winnower: redraw whole Tile Rack for 25% shot clock
   | { kind: "reorderBay"; engine: string[]; discard: string[] }
   | { kind: "lockInOptimize" } // any player locking in fast-forwards the shared optimize dwell
   | { kind: "unlockOptimize" } // a locked-in player re-opening their engine while others finish

@@ -4,8 +4,8 @@
  *
  * Lives here as a free function rather than a method on either lobby: <ac-lobby> and
  * <ac-net-lobby> render an identical group, and a copy in each is exactly how the solo and
- * multiplayer settings lists drift apart. Each lobby passes its OWN `stepper`, so the
- * multiplayer copy still inherits the guest read-only disabling.
+ * multiplayer settings lists drift apart. Each lobby passes its OWN `stepper` (see
+ * SettingControls), so the multiplayer copy still inherits the guest read-only disabling.
  */
 
 import { html, nothing, type TemplateResult } from "lit";
@@ -18,7 +18,8 @@ import {
   totalCardsDealtPerPlayer,
 } from "../../game/settings";
 import { dealPoolCapacity, rarityDealShare } from "../../game/cards/library";
-import { SETTING_HINTS } from "./settings-hints";
+import type { SettingControls } from "./setting-controls";
+import { SETTING_GROUP_HINTS } from "./settings-hints";
 
 /** Display name per tier. CardRarity's values are lowercase wire strings ("common"), which
  *  the card back renders verbatim; the lobby wants them title-cased. */
@@ -50,28 +51,20 @@ export const rarityWeightValue = (weight: number, share: number): string => {
   return `${weight} (${pct === 0 ? "<1" : pct}%)`;
 };
 
-/** A lobby's stepper renderer (both lobbies expose this shape; the multiplayer one also
- *  disables its buttons for guests). */
-export type SettingStepper = (
-  label: string,
-  value: string,
-  onMinus: () => void,
-  onPlus: () => void,
-  hint?: string,
-) => TemplateResult;
-
 /**
- * Render the rarity group for a lobby. `step` applies a delta to one weight key (the caller
- * owns the clamp bounds it shares with every other stepper).
+ * Render the rarity group for a lobby. The clamp bounds live here beside the rows they bound,
+ * rather than at the call site, so the two lobbies cannot pass different ones.
  *
  * The whole group is wrapped in `.set-group`, a full-width nested grid: `.set-subhead` spans
  * every column and so opens a row, and without a wrapper the settings that follow the group
  * in render order flow into that same row and read as rarity settings.
+ *
+ * The group's explanation is rendered once as `.set-groupdesc` rather than per row — see the
+ * note in settings-hints.ts for why the four tiers share one.
  */
 export const renderRarityWeights = (
   draft: AlphaChainSettings,
-  step: (key: RarityWeightKey, delta: number) => void,
-  stepper: SettingStepper,
+  c: SettingControls,
 ): TemplateResult => {
   const weights = rarityDealWeights(draft);
   // Both reads are MODE-SCOPED, and must stay that way: the dealer filters the pool by
@@ -83,13 +76,16 @@ export const renderRarityWeights = (
   return html`
     <div class="set-group">
       <p class="set-subhead">Rarity Weights</p>
+      <!-- The mechanic is identical for all four tiers, so it is stated once
+           here and the rows carry only their tier name. Each row's value still
+           reports that tier's own share of a draw. -->
+      <p class="set-groupdesc">${SETTING_GROUP_HINTS.rarityWeights}</p>
       ${RARITY_WEIGHT_ROWS.map((r) =>
-        stepper(
+        c.stepper(
           r.label,
           rarityWeightValue(draft[r.key], share[r.tier]),
-          () => step(r.key, -1),
-          () => step(r.key, 1),
-          SETTING_HINTS[r.key],
+          () => c.step(r.key, -1, RARITY_WEIGHT_BOUNDS.min, RARITY_WEIGHT_BOUNDS.max),
+          () => c.step(r.key, 1, RARITY_WEIGHT_BOUNDS.min, RARITY_WEIGHT_BOUNDS.max),
         ),
       )}
       ${RARITY_WEIGHT_ROWS.every((r) => draft[r.key] <= 0)
@@ -105,6 +101,6 @@ export const renderRarityWeights = (
 };
 
 /** The clamp bounds every rarity stepper shares: 0 (tier disabled) up to the persistence
- *  validator's ceiling. Re-exported so a lobby's `step` call doesn't have to import it
- *  from the engine separately. */
+ *  validator's ceiling. Applied by `renderRarityWeights` itself — exported for tests and for
+ *  anything else that needs the editable range without re-deriving it. */
 export const RARITY_WEIGHT_BOUNDS = { min: 0, max: MAX_RARITY_DEAL_WEIGHT } as const;

@@ -229,6 +229,40 @@ describe("MatchController", () => {
   });
 });
 
+describe("MatchController — Survival (the Sudden Death preset)", () => {
+  const survival = (): MatchController => {
+    const m = makeMatch({ preRoundCountdownSeconds: 3, eraInterval: 4, survivalMode: true });
+    m.start();
+    m.tick(3); // burn the countdown → p1's turn armed
+    return m;
+  };
+
+  it("eliminates a player who lets the clock run out on an empty box", () => {
+    const m = survival();
+    expect(m.current.id).toBe("p1");
+    m.tick(m.state.clockTotal + 1); // no draft → a real timeout
+    expect(m.state.players.find((p) => p.id === "p1")!.eliminated).toBe(true);
+    expect(m.state.phase).toBe("GameOver"); // one survivor left, so the match stops here
+  });
+
+  it("spares a player whose drafted word auto-submits at the buzzer", () => {
+    // The clock expiring is not itself fatal: producing a word the engine accepts is showing up.
+    const m = survival();
+    m.setDraft("p1", "cat");
+    m.tick(m.state.clockTotal + 1);
+    const p1 = m.state.players.find((p) => p.id === "p1")!;
+    expect(p1.eliminated).toBe(false);
+    expect(p1.score).toBeGreaterThan(0);
+  });
+
+  it("eliminates a player whose drafted word is rejected at the buzzer", () => {
+    const m = survival();
+    m.setDraft("p1", "zzzz"); // not in WORDS → the auto-submit fails, so it is a real timeout
+    m.tick(m.state.clockTotal + 1);
+    expect(m.state.players.find((p) => p.id === "p1")!.eliminated).toBe(true);
+  });
+});
+
 describe("MatchController — dropPlayer (mid-match departure)", () => {
   let m: MatchController;
   beforeEach(() => {

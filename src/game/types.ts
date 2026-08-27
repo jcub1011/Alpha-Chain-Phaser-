@@ -121,13 +121,9 @@ export interface AlphaChainSettings {
    *  selection from a server-generated Offer, removing the recall and typing barriers that
    *  exclude dyslexic and mobile players. Classic is the original typing race. */
   gameMode: GameMode;
-  /** Picker: how many Offer Cards are presented each turn. Also a cognitive-load dial, not just
-   *  a strategic one — fewer cards is less to read under the clock. */
-  offerCount: number;
-  /** Picker: which lexicon the Offer is drawn from. Reduced trades variety for decodability
-   *  (a reader recognises CANDLE at a glance and must decode ZYGODACTYL letter by letter, and
-   *  whole-word recognition is exactly what dyslexia impairs). Word *validation* always uses the
-   *  full list regardless — this only chooses the Offer's source. */
+  /** Word Builder: target tile count presented on the player's rack each turn. */
+  rackSize: number;
+  /** Picker / Word Builder: which lexicon the words/seeds are drawn from. */
   offerDictionary: DictionaryTier;
   /** Picker's shot clock. Distinct from `shotClockSeconds` because the right duration for
    *  reading several words is not the right duration for typing one. */
@@ -236,6 +232,16 @@ export const DictionaryTier = {
 export type DictionaryTier = (typeof DictionaryTier)[keyof typeof DictionaryTier];
 
 export type GamePhase = "Setup" | "Tutorial" | "Countdown" | "Round" | "Intermission" | "GameOver";
+
+/** A single tile in Word Builder Mode (single letter or morpheme chunk). */
+export interface Tile {
+  /** Unique tile identifier within the rack (e.g. "t0", "t1"). */
+  id: string;
+  /** Lowercased text payload (e.g. "c", "re", "ing"). UI renders uppercase. */
+  text: string;
+  /** True if this tile represents a multi-letter chunk/morpheme. */
+  isChunk: boolean;
+}
 
 /** A single card occupying a slot in a player's Engine Bay. */
 export interface BayCard {
@@ -374,20 +380,20 @@ export interface MatchState {
   bannedLetterHistory: string[];
   /** Words used this whole match (lowercased), forbidden to repeat. */
   usedWords: Set<string>;
-  /** Picker: the current player's Offer — the candidate words they choose from. Empty in
-   *  Classic, and empty outside a Round.
+  /** Word Builder: the current player's Tile Rack. Empty in Classic, and cleared when a turn ends
+   *  or the phase leaves Round, so no surface can render last turn's tiles as live.
    *
-   *  Public by design: every player sees the active player's candidates, and turns are
-   *  sequential, so exactly one Offer is on screen at a time. That is what keeps the authority in
-   *  plain broadcast mode with no per-recipient projection. Regenerated once per turn by the
-   *  authoritative side only — a mirror must never generate its own (see match.ts beginEra on why
-   *  no RNG-derived logic may run on a client). A plain string[] is JSON-safe, so this needs no
-   *  serialize.ts handling, unlike `usedWords`. */
-  offer: string[];
-  /** Picker: whether the CURRENT player may still spend Winnower's redraw this turn.
+   *  Public by design: every player sees the active player's tiles, and turns are sequential, so
+   *  exactly one rack is on screen at a time. That is what keeps the authority in plain broadcast
+   *  mode with no per-recipient projection. Regenerated once per turn by the authoritative side
+   *  only — a mirror must never generate its own (see match.ts beginEra on why no RNG-derived logic
+   *  may run on a client). Tiles are plain JSON, so this needs no serialize.ts handling, unlike
+   *  `usedWords`. */
+  rack: Tile[];
+  /** Word Builder: whether the CURRENT player may spend Winnower's redraw this turn.
    *  Published as state because the charge lives in room services, which are not replicated —
    *  a guest mirror could otherwise only guess, and would offer a button the server refuses. */
-  offerRedrawAvailable: boolean;
+  rackRedrawAvailable: boolean;
   history: Submission[];
   /** Seconds remaining on the active shot clock. */
   clockRemaining: number;
@@ -432,8 +438,8 @@ export function emptyMatchState(settings: AlphaChainSettings): MatchState {
     bannedLetter: "",
     bannedLetterHistory: [],
     usedWords: new Set<string>(),
-    offer: [],
-    offerRedrawAvailable: false,
+    rack: [],
+    rackRedrawAvailable: false,
     history: [],
     clockRemaining: 0,
     clockTotal: 0,
@@ -457,8 +463,7 @@ export interface SubmitResult {
     | "wrong-start-letter"
     | "too-short"
     | "prism-saved"
-    /** Picker: the committed word was not in the current Offer. The trust boundary — a client
-     *  cannot commit a word it invented, even a perfectly legal one. */
-    | "not-offered";
+    /** Word Builder: the committed word cannot be spelled from the current Tile Rack. */
+    | "not-constructible";
   submission?: Submission;
 }

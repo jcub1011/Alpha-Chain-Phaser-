@@ -513,48 +513,77 @@
   animation: tut-banned-pulse 1.6s ease-in-out infinite;
 }
 
-/* ── Offer page (Picker) ─────────────────────────────────────────────────────
- * Three Offer Cards with the middle one selected, over a miniature engine whose
- * multiplier lights up — the two-stage tap, the shape annotations and the engine
- * projection, which are the three things the page teaches. */
-.tut-offer {
+/* ── Word Builder Tutorial Stage ─────────────────────────────────────────── */
+.tut-builder {
   flex-direction: column;
-  gap: var(--sp-3);
-}
-.tut-offer-row {
-  display: flex;
   gap: var(--sp-2);
-  align-items: stretch;
 }
-.tut-ocard {
+.tut-builder-track {
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.15rem;
-  min-width: 4.6rem;
-  padding: 0.45rem 0.5rem;
-  border: 2px solid var(--ac-border);
+  gap: 0.25rem;
+  padding: 0.2rem 0.6rem;
+  border: 1.5px dashed var(--ac-amber);
   border-radius: var(--r-sm);
-  background: rgba(255, 255, 255, 0.04);
-  animation: tut-word-in 0.5s ease-out both;
-  animation-delay: calc(var(--i) * 0.16s);
+  background: rgba(0, 0, 0, 0.35);
+  box-shadow: 0 0 10px rgba(255, 179, 0, 0.2);
+  min-height: 2.2rem;
 }
-.tut-ocard.is-picked {
-  border-color: var(--ac-amber);
-  box-shadow: var(--ac-glow-amber);
-  transform: translateY(-3px);
+.tut-builder-rack {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.25rem;
 }
-.tut-oword {
-  font-family: var(--font-mono);
+.tut-btile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.15rem 0.4rem;
+  min-width: 1.6rem;
+  height: 1.8rem;
+  border: 1px solid var(--ac-rim);
+  border-radius: var(--r-xs);
+  background: linear-gradient(180deg, var(--ac-stock-100), var(--ac-stock-200));
+  color: var(--ink-on-stock);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    inset 0 -2px 0 var(--ac-stock-300);
+  font-family: var(--font-machine);
+  font-stretch: 125%;
   font-weight: 800;
-  font-size: 0.86rem;
-  letter-spacing: 0.04em;
+  font-size: 0.85rem;
 }
-.tut-otag {
-  font-size: 0.6rem;
-  font-weight: 700;
-  opacity: 0.7;
+/* These must mirror .ac-tile in hud.css exactly — brass stock for the blank
+   that has to lead, cooler stock for a multi-letter chunk. They were the last
+   survivors of the old Tailwind emerald/sky ramp, and because the tutorial
+   NAMES the colours in its copy, leaving them wrong meant the game was actively
+   teaching a rule it no longer follows. */
+.tut-btile.is-starter {
+  background: linear-gradient(180deg, var(--ac-brass-lit), var(--ac-brass));
+  color: var(--ink-on-brass);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    inset 0 -2px 0 var(--ac-brass-dim);
+}
+.tut-btile.is-chunk {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--ac-stock-100) 76%, var(--ac-accent-clock)),
+    color-mix(in srgb, var(--ac-stock-300) 70%, var(--ac-accent-clock))
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    inset 0 -2px 0 color-mix(in srgb, var(--ac-stock-300) 66%, var(--ac-accent-clock));
+}
+.tut-btile.is-staged {
+  border-color: var(--i-primary);
+}
+.tut-btile.is-dim {
+  opacity: 0.25;
+  border-style: dashed;
 }
 .tut-offer-bay {
   display: flex;
@@ -568,8 +597,7 @@
   animation: none;
 }
 
-/* Picker's timeout outcome is the opposite of Classic's, so it must not read as punishment:
- * the same clock, but the stamp and the "penalty" go safe-cyan instead of danger-red. */
+/* Word Builder's timeout outcome is safe: your assembled word is submitted with no penalty. */
 .tut-stamp.is-safe,
 .tut-penalty.is-safe {
   color: var(--ac-cyan);

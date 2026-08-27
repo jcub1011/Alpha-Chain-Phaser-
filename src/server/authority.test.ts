@@ -10,11 +10,12 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { canConstructWordFromTiles } from "../game/builder/rack";
 import { cardIdentity } from "../game/cards/library";
 import { orderPreservingRng } from "../game/rng";
 import { DEFAULT_SETTINGS } from "../game/settings";
 import { CardRarity, GameMode } from "../game/types";
-import type { AlphaChainSettings } from "../game/types";
+import type { AlphaChainSettings, MatchState } from "../game/types";
 import type { NetPeer } from "../net/netPeer";
 import { ServerController } from "../net/serverController";
 import { createAuthority, type Kb } from "./authority";
@@ -935,28 +936,38 @@ describe("authority — the sandbox has no ambient clock", () => {
  * intents drive a turn end-to-end. Same shape the rarity-dealing suite above uses to prove both
  * mirrors carry byte-identical bays.
  */
-describe("authority — Picker offers through the server", () => {
+describe("authority — Word Builder racks through the server", () => {
   const PICKER: Partial<AlphaChainSettings> = {
     gameMode: GameMode.Picker,
     enableTutorials: false,
     preRoundCountdownSeconds: 1,
     eraInterval: 9,
     eraCount: 1,
-    offerCount: 3,
     pickerShotClockSeconds: 40,
   };
 
-  it("ships one identical Offer to every client", () => {
+  /** Words from the stub lexicon the replicated rack can build, honouring Succession and words
+   *  already played. Derived from WORDS rather than a WordPool on purpose: a client mirror is
+   *  never given a pool, so this is exactly the information a real client has. */
+  const rackWords = (m: { state: MatchState }): string[] =>
+    [...WORDS].filter(
+      (w) =>
+        (m.state.requiredLetter === "" || w[0] === m.state.requiredLetter) &&
+        !m.state.usedWords.has(w) &&
+        canConstructWordFromTiles(w, m.state.rack),
+    );
+
+  it("ships one identical Tile Rack to every client", () => {
     const { hub, c1, c2 } = session();
     c1.startMatch({ ...DEFAULT_SETTINGS, ...PICKER });
     hub.advance(1000); // countdown → Round, first turn armed
 
-    const offer = c1.match.state.offer;
-    expect(offer.length).toBe(3);
+    const rack = c1.match.state.rack;
+    expect(rack.length).toBeGreaterThan(0);
     // Byte-identical on both mirrors: neither client generated anything itself.
-    expect(c2.match.state.offer).toEqual(offer);
-    // ...and every offered word is real, so a commit can never reject as "not-a-word".
-    for (const w of offer) expect(WORDS.has(w)).toBe(true);
+    expect(c2.match.state.rack).toEqual(rack);
+    // ...and the rack can build at least one real word, so the turn is never a forced timeout.
+    expect(rackWords(c1.match).length).toBeGreaterThan(0);
   });
 
   it("arms the Picker clock rather than Classic's", () => {
@@ -967,34 +978,34 @@ describe("authority — Picker offers through the server", () => {
     expect(c2.match.state.clockTotal).toBe(40);
   });
 
-  it("redraws the Offer each turn and honours Succession on both mirrors", () => {
+  it("redraws the rack each turn and honours Succession on both mirrors", () => {
     const { hub, c1, c2 } = session();
     c1.startMatch({ ...DEFAULT_SETTINGS, ...PICKER });
     hub.advance(1000);
-    const first = [...c1.match.state.offer];
+    const first = c1.match.state.rack.map((t) => t.text).join("|");
+    const word = rackWords(c1.match)[0];
 
-    // Commit through the plain submit path (the Picker intents land in M2), which still runs the
-    // same pipeline a commit will.
-    byId(c1, c2)[c1.match.current.id].submitWord(first[0]);
+    // Commit through the plain submit path, which still runs the same pipeline a commit will.
+    byId(c1, c2)[c1.match.current.id].submitWord(word);
     hub.advance(50);
 
-    expect(c1.match.state.offer).not.toEqual(first);
-    expect(c2.match.state.offer).toEqual(c1.match.state.offer);
+    expect(c1.match.state.rack.map((t) => t.text).join("|")).not.toEqual(first);
+    expect(c2.match.state.rack).toEqual(c1.match.state.rack);
     const letter = c1.match.state.requiredLetter;
     if (letter !== "") {
-      for (const w of c1.match.state.offer) expect(w[0]).toBe(letter);
+      for (const w of rackWords(c1.match)) expect(w[0]).toBe(letter);
     }
   });
 
-  it("leaves the Offer empty in Classic", () => {
+  it("leaves the rack empty in Classic", () => {
     const { hub, c1, c2 } = session();
     c1.startMatch({ ...DEFAULT_SETTINGS, ...FAST });
     hub.advance(1000);
-    expect(c1.match.state.offer).toEqual([]);
-    expect(c2.match.state.offer).toEqual([]);
+    expect(c1.match.state.rack).toEqual([]);
+    expect(c2.match.state.rack).toEqual([]);
   });
 
-  /** Start a Picker match and return the harness plus whoever is up. */
+  /** Start a Word Builder match and return the harness plus whoever is up. */
   const pickerSession = (over: Partial<AlphaChainSettings> = {}) => {
     const s = session();
     s.c1.startMatch({ ...DEFAULT_SETTINGS, ...PICKER, ...over });
@@ -1008,24 +1019,24 @@ describe("authority — Picker offers through the server", () => {
     };
   };
 
-  it("broadcasts NOTHING for a select", () => {
-    /* The single most important property of the select intent. There is no server-side rate
+  it("broadcasts NOTHING for a stage", () => {
+    /* The single most important property of the staging intent. There is no server-side rate
      * limiter anywhere in this build, so an intent that cannot make the authority fan state out is
      * the only thing between a held-down tap and an amplification vector. */
     const { hub, up } = pickerSession();
+    const words = rackWords(up.match);
     const before = hub.broadcasts;
-    up.reportSelection(up.match.state.offer[0]);
-    up.reportSelection(up.match.state.offer[1]);
-    up.reportSelection(up.match.state.offer[2]);
+    for (const w of words.slice(0, 3)) up.stageTiles([], w);
+    up.stageTiles([], ""); // ...including the clear, which is a stage of the empty word
     expect(hub.broadcasts).toBe(before);
   });
 
-  it("commits a selected word and converges both mirrors", () => {
+  it("commits a staged word and converges both mirrors", () => {
     const { hub, c1, c2, upId, up } = pickerSession();
-    const chosen = up.match.state.offer[1];
+    const chosen = rackWords(up.match)[0];
     const before = hub.broadcasts;
 
-    up.reportSelection(chosen);
+    up.stageTiles([], chosen);
     up.commitSelection(chosen);
 
     expect(hub.broadcasts).toBeGreaterThan(before); // a real outcome DOES broadcast
@@ -1034,31 +1045,31 @@ describe("authority — Picker offers through the server", () => {
       expect(c.match.state.history[c.match.state.history.length - 1]?.word).toBe(chosen);
       expect(c.match.current.id).not.toBe(upId);
     }
-    // The next player's Offer is generated once, server-side, and is identical on both mirrors.
-    expect(c2.match.state.offer).toEqual(c1.match.state.offer);
-    expect(c1.match.state.offer.length).toBe(3);
+    // The next player's rack is generated once, server-side, and is identical on both mirrors.
+    expect(c2.match.state.rack).toEqual(c1.match.state.rack);
+    expect(c1.match.state.rack.length).toBeGreaterThan(0);
   });
 
-  it("commits the streamed selection when the clock expires", () => {
-    // The whole reason the select intent exists: the SERVER owns the clock, so it can only commit
+  it("commits the streamed staged word when the clock expires", () => {
+    // The whole reason staging is streamed: the SERVER owns the clock, so it can only commit
     // the right word if the selection reached it before the buzzer.
     const { hub, c1, c2, upId, up } = pickerSession();
-    const chosen = up.match.state.offer[2];
-    up.reportSelection(chosen);
+    const chosen = rackWords(up.match)[0];
+    up.stageTiles([], chosen);
     hub.advance((c1.match.state.clockRemaining + 2) * 1000); // clock + the 1s submit grace
 
     expect([...c2.match.state.usedWords]).toContain(chosen);
     expect(c1.match.current.id).not.toBe(upId);
   });
 
-  it("treats an expiry with no selection as a no-show, but still resolves the turn", () => {
+  it("treats an expiry with no staged word as a no-show, but still resolves the turn", () => {
     const { hub, c1, c2, upId } = pickerSession();
-    const offered = [...c1.match.state.offer];
+    const buildable = rackWords(c1.match);
     hub.advance((c1.match.state.clockRemaining + 2) * 1000); // clock + the 1s submit grace
 
-    // A random Offer word still resolves so the chain continues...
+    // A word built from the player's OWN RACK still resolves, so the chain continues...
     const played = c1.match.state.history[c1.match.state.history.length - 1]?.word;
-    expect(offered).toContain(played);
+    expect(buildable).toContain(played);
     expect([...c2.match.state.usedWords]).toContain(played);
     // ...and there is NO timeout point penalty in Picker.
     const scorer = c1.match.state.players.find((p) => p.id === upId);
@@ -1068,31 +1079,35 @@ describe("authority — Picker offers through the server", () => {
   it("refuses a commit from the player whose turn it is not", () => {
     const { hub, c1, upId, off } = pickerSession();
     const before = hub.broadcasts;
-    off.commitSelection(c1.match.state.offer[0]);
+    off.commitSelection(rackWords(c1.match)[0]);
     expect(hub.broadcasts).toBe(before); // eventless refusal — nothing to publish
     expect(c1.match.current.id).toBe(upId);
     expect(c1.match.state.usedWords.size).toBe(0);
   });
 
-  it("refuses a word that was never on offer, and says so", () => {
+  it("refuses a word the rack cannot build, and says so", () => {
     const { c1, c2, upId, up } = pickerSession();
     const rejects: string[] = [];
     c1.events.on("rejected", ({ reason }) => rejects.push(reason));
-    // "table" is a real word in the stub dictionary — legality is not enough.
-    expect(c1.match.state.offer).not.toContain("table");
-    up.commitSelection("table");
+    // A legal word the tiles cannot spell — legality is not enough. This is the anti-cheat gate:
+    // with the Offer retired there is no second surface a tampered client can borrow a word from.
+    const unbuildable = [...WORDS].find((w) => !canConstructWordFromTiles(w, c1.match.state.rack));
+    expect(unbuildable).toBeDefined();
+    up.commitSelection(unbuildable!);
 
-    expect(rejects).toEqual(["not-offered"]);
+    expect(rejects).toEqual(["not-constructible"]);
     expect(c1.match.current.id).toBe(upId);
     expect(c2.match.state.usedWords.size).toBe(0);
   });
 
-  it("ignores a select for a word that is not on offer", () => {
+  it("ignores a stage for a word the rack cannot build", () => {
     // A stale or tampered selection must not become the word the expiry commits.
     const { hub, c1, up } = pickerSession();
-    up.reportSelection("table");
+    const unbuildable = [...WORDS].find((w) => !canConstructWordFromTiles(w, c1.match.state.rack));
+    expect(unbuildable).toBeDefined();
+    up.stageTiles([], unbuildable!);
     hub.advance((c1.match.state.clockRemaining + 2) * 1000); // clock + the 1s submit grace
     const played = c1.match.state.history[c1.match.state.history.length - 1]?.word;
-    expect(played).not.toBe("table");
+    expect(played).not.toBe(unbuildable);
   });
 });

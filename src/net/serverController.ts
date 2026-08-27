@@ -136,14 +136,6 @@ export class ServerController implements GameController {
     this.dispatch({ kind: "draftWord", word });
   }
 
-  reportSelection(word: string): void {
-    // Stream the highlighted Offer word so the SERVER clock can commit it on expiry. Without this
-    // the authority would see no selection and read every expiry as a no-show — which in Survival
-    // would eliminate a player who had in fact chosen. Throttled by <ac-offer-grid>; the server's
-    // 1s submit grace is what makes that throttle safe against the buzzer.
-    this.dispatch({ kind: "selectOffer", word });
-  }
-
   commitSelection(word?: string): SubmitResult {
     // The word is required on the wire: a payload-less commit would depend on the throttled select
     // having already landed, so tap-then-immediately-GO could commit the wrong word or nothing.
@@ -155,10 +147,18 @@ export class ServerController implements GameController {
     return { accepted: false };
   }
 
-  redrawOffer(): void {
+  redrawRack(): void {
     // The authority re-derives eligibility (turn, charge, card held), so an ineligible redraw
     // costs one refused intent and no broadcast.
-    this.dispatch({ kind: "redrawOffer" });
+    this.dispatch({ kind: "redrawRack" });
+  }
+
+  /** Stream the staged word so the SERVER clock can commit it on expiry. Without this the authority
+   *  would see no selection and read every expiry as a no-show — which in Survival would eliminate a
+   *  player who had in fact built a word. Throttled by <ac-word-builder>, which flushes the throttle
+   *  at the buzzer; the server's 1s submit grace covers the round trip. */
+  stageTiles(tileIds: string[], word?: string): void {
+    this.dispatch({ kind: "stageTiles", tileIds, word });
   }
 
   destroy(): void {

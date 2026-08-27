@@ -1,8 +1,13 @@
 /*
  * <ac-net-lobby> — the pre-match multiplayer surface. The owner sees the joined
- * roster + settings steppers + START MATCH (and can join as a player or sit out
+ * roster + the settings panel + START MATCH (and can join as a player or sit out
  * as a shared display). Other players see the roster and wait for the owner to
  * start. Emits `ac-net-start` with the chosen settings (owner only).
+ *
+ * The settings rows themselves live in settings-sections.ts, shared with <ac-lobby>. What stays
+ * here is this lobby's own machinery: the draft, persistence, the owner-only push, the row
+ * primitives it lends the shared sections (which is what keeps guests read-only), and the
+ * multiplayer-only host preference (host plays).
  *
  * Server-authoritative: lobby powers gate on the owner (peer.isOwner), never the
  * host — in server mode there is no host client.
@@ -10,14 +15,14 @@
 
 import { html, nothing, type PropertyValues, type TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import { DEFAULT_SETTINGS, MAX_ERA_STEPPER, saveSettings } from "../../game/settings";
-import { GameMode } from "../../game/types";
+import { applyPreset, type PresetId } from "../../game/presets";
+import { DEFAULT_SETTINGS, saveSettings } from "../../game/settings";
 import type { AlphaChainSettings } from "../../game/types";
 import type { ServerController } from "../../net/serverController";
 import { AcElement } from "../app/AcElement";
-import { renderPickerSettings } from "./picker-settings";
-import { RARITY_WEIGHT_BOUNDS, renderRarityWeights } from "./rarity-weights";
-import { SETTING_HINTS } from "./settings-hints";
+import type { SettingControls } from "./setting-controls";
+import { renderSettingsPresets } from "./settings-presets";
+import { renderHostPreferences, renderMatchRules } from "./settings-sections";
 
 @customElement("ac-net-lobby")
 export class AcNetLobby extends AcElement {
@@ -109,6 +114,15 @@ export class AcNetLobby extends AcElement {
 
   private set<K extends keyof AlphaChainSettings>(key: K, value: AlphaChainSettings[K]): void {
     this.draft = { ...this.draft, [key]: value };
+    saveSettings(this.draft);
+    this.pushSettings();
+  }
+
+  /** Apply a preset's match rules. Rides the same persistence + publish path as a single
+   *  stepper — the only difference is that it writes many keys at once, so the guests' mirrors
+   *  get one snapshot instead of twenty. The host's own preferences survive: see applyPreset. */
+  private applyPreset(id: PresetId): void {
+    this.draft = applyPreset(this.draft, id);
     saveSettings(this.draft);
     this.pushSettings();
   }
@@ -210,22 +224,25 @@ export class AcNetLobby extends AcElement {
     );
   }
 
-  /** The "Rarity Weights" group — shared with the solo lobby (see rarity-weights.ts). Passing
-   *  this element's own `stepper` is what keeps the guest read-only disabling. */
-  private rarityWeights(): TemplateResult {
-    return renderRarityWeights(
-      this.draft,
-      (key, delta) => this.step(key, delta, RARITY_WEIGHT_BOUNDS.min, RARITY_WEIGHT_BOUNDS.max),
-      this.stepper.bind(this),
-    );
+  /** The row primitives lent to the shared sections. Passing this element's own is what keeps
+   *  the guest read-only disabling — nothing in the shared sections knows about ownership. */
+  private get controls(): SettingControls {
+    return {
+      step: this.step.bind(this),
+      set: this.set.bind(this),
+      stepper: this.stepper.bind(this),
+      segmented: this.segmented.bind(this),
+      toggle: this.toggle.bind(this),
+    };
   }
 
   override render(): TemplateResult {
-    const c = this.controller;
-    const roster = c?.roster ?? [];
-    const isOwner = c?.isOwner ?? false;
-    const ownerId = c?.ownerId ?? null;
+    const ctrl = this.controller;
+    const roster = ctrl?.roster ?? [];
+    const isOwner = ctrl?.isOwner ?? false;
+    const ownerId = ctrl?.ownerId ?? null;
     const d = this.draft;
+    const c = this.controls;
 
     return html`
       <div class="lobby">
@@ -251,165 +268,8 @@ export class AcNetLobby extends AcElement {
                   Settings (read-only) — the owner controls these.
                 </p>`
               : nothing}
-            <!-- Game Mode leads the list, matching <ac-lobby>: Picker is the default, so stored
-                 settings load with it selected and Classic must stay discoverable. -->
-            ${this.segmented<GameMode>(
-              "Game Mode",
-              d.gameMode,
-              [
-                { value: GameMode.Picker, text: "picker" },
-                { value: GameMode.Classic, text: "classic" },
-              ],
-              (v) => this.set("gameMode", v),
-              SETTING_HINTS.gameMode,
-            )}
-            ${renderPickerSettings(
-              d,
-              this.step.bind(this),
-              this.set.bind(this),
-              this.stepper.bind(this),
-              this.segmented.bind(this),
-              this.toggle.bind(this),
-            )}
-            ${d.gameMode === GameMode.Classic
-              ? this.stepper(
-                  "Shot Clock",
-                  `${d.shotClockSeconds}s`,
-                  () => this.step("shotClockSeconds", -5, 5, 60),
-                  () => this.step("shotClockSeconds", 5, 5, 60),
-                  SETTING_HINTS.shotClockSeconds,
-                )
-              : nothing}
-            ${this.toggle(
-              "Tutorials",
-              d.enableTutorials,
-              (v) => this.set("enableTutorials", v),
-              SETTING_HINTS.enableTutorials,
-            )}
-            ${this.segmented(
-              "Host plays",
-              d.hostPlays ? "play" : "watch",
-              [
-                { value: "play", text: "yes" },
-                { value: "watch", text: "spectate" },
-              ],
-              (v) => this.set("hostPlays", v === "play"),
-              SETTING_HINTS.hostPlays,
-            )}
-            ${this.segmented<AlphaChainSettings["banMode"]>(
-              "Letter Ban Mode",
-              d.banMode,
-              [
-                { value: "All", text: "all" },
-                { value: "VowelsOnly", text: "vowels" },
-                { value: "ConsonantsOnly", text: "conson." },
-              ],
-              (v) => this.set("banMode", v),
-              SETTING_HINTS.banMode,
-            )}
-            ${this.segmented<AlphaChainSettings["banRepeatRule"]>(
-              "Letter Ban Repeats",
-              d.banRepeatRule,
-              [
-                { value: "AllowRepeat", text: "allow" },
-                { value: "NoConsecutive", text: "no consec." },
-                { value: "NoRepeat", text: "never" },
-              ],
-              (v) => this.set("banRepeatRule", v),
-              SETTING_HINTS.banRepeatRule,
-            )}
-            ${this.stepper(
-              "Letter Ban Time",
-              `${d.sniperBanSeconds}s`,
-              () => this.step("sniperBanSeconds", -5, 5, 120),
-              () => this.step("sniperBanSeconds", 5, 5, 120),
-              SETTING_HINTS.sniperBanSeconds,
-            )}
-            ${this.stepper(
-              "Eras",
-              String(d.eraCount),
-              () => this.step("eraCount", -1, 1, MAX_ERA_STEPPER),
-              () => this.step("eraCount", 1, 1, MAX_ERA_STEPPER),
-              SETTING_HINTS.eraCount,
-            )}
-            ${this.stepper(
-              "Rounds Per Era",
-              String(d.eraInterval),
-              () => this.step("eraInterval", -1, 1, MAX_ERA_STEPPER),
-              () => this.step("eraInterval", 1, 1, MAX_ERA_STEPPER),
-              SETTING_HINTS.eraInterval,
-            )}
-            ${this.stepper(
-              "Cards Per Era",
-              String(d.modifiersDealtPerEra),
-              () => this.step("modifiersDealtPerEra", -1, 0, 10),
-              () => this.step("modifiersDealtPerEra", 1, 0, 10),
-              SETTING_HINTS.modifiersDealtPerEra,
-            )}
-            ${this.rarityWeights()}
-            ${this.stepper(
-              "Starting Slots",
-              String(d.modifierSlotsStart),
-              () => this.step("modifierSlotsStart", -1, 1, 20),
-              () => this.step("modifierSlotsStart", 1, 1, 20),
-              SETTING_HINTS.modifierSlotsStart,
-            )}
-            ${this.stepper(
-              "Slots Increase Every",
-              d.slotIncreaseEveryNEras === 0
-                ? "Never"
-                : `${d.slotIncreaseEveryNEras} era${d.slotIncreaseEveryNEras === 1 ? "" : "s"}`,
-              () => this.step("slotIncreaseEveryNEras", -1, 0, 20),
-              () => this.step("slotIncreaseEveryNEras", 1, 0, 20),
-              SETTING_HINTS.slotIncreaseEveryNEras,
-            )}
-            ${this.stepper(
-              "Slots Per Increase",
-              String(d.slotIncreaseAmount),
-              () => this.step("slotIncreaseAmount", -1, 1, 10),
-              () => this.step("slotIncreaseAmount", 1, 1, 10),
-              SETTING_HINTS.slotIncreaseAmount,
-            )}
-            ${this.stepper(
-              "Max Slots",
-              String(d.modifierSlotsMax),
-              () => this.step("modifierSlotsMax", -1, 1, 20),
-              () => this.step("modifierSlotsMax", 1, 1, 20),
-              SETTING_HINTS.modifierSlotsMax,
-            )}
-            ${this.toggle(
-              "Start With Engine Cards",
-              d.dealEngineCardsFirstEra,
-              (v) => this.set("dealEngineCardsFirstEra", v),
-              SETTING_HINTS.dealEngineCardsFirstEra,
-            )}
-            ${this.stepper(
-              "Engine Management Time",
-              `${d.intermissionCardSelectSeconds}s`,
-              () => this.step("intermissionCardSelectSeconds", -10, 10, 180),
-              () => this.step("intermissionCardSelectSeconds", 10, 10, 180),
-              SETTING_HINTS.intermissionCardSelectSeconds,
-            )}
-            ${this.stepper(
-              "Engine Animation Duration",
-              `${d.engineAnimationSeconds.toFixed(1)}s`,
-              () => this.step("engineAnimationSeconds", -0.5, 0.5, 10),
-              () => this.step("engineAnimationSeconds", 0.5, 0.5, 10),
-              SETTING_HINTS.engineAnimationSeconds,
-            )}
-            ${this.stepper(
-              "Countdown",
-              `${d.preRoundCountdownSeconds}s`,
-              () => this.step("preRoundCountdownSeconds", -1, 3, 15),
-              () => this.step("preRoundCountdownSeconds", 1, 3, 15),
-              SETTING_HINTS.preRoundCountdownSeconds,
-            )}
-            ${this.toggle(
-              "Survival Mode",
-              d.survivalMode,
-              (v) => this.set("survivalMode", v),
-              SETTING_HINTS.survivalMode,
-            )}
+            ${renderSettingsPresets(d, this.applyPreset.bind(this), this.readOnly)}
+            ${renderHostPreferences(d, c, { hostPlays: true })} ${renderMatchRules(d, c)}
           </div>
         </div>
 

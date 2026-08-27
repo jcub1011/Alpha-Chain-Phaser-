@@ -10,7 +10,10 @@ import { bubblePreferences, isInertPreference } from "./picker/preference";
 import { scoreWord, type ScoreOptions } from "./scoring";
 import type { Dictionary } from "./dictionary";
 import { shuffle } from "./rng";
-import { CardOp, type BayCard, type BotDifficulty } from "./types";
+import { CardOp, type BayCard, type BotDifficulty, type Tile } from "./types";
+import { subWordFinder } from "./builder/rack";
+import type { WordPool } from "./picker/wordPool";
+import type { PoolIndex } from "./picker/offer";
 
 const LENGTH_BAND: Record<BotDifficulty, [number, number]> = {
   easy: [3, 5],
@@ -190,6 +193,51 @@ export function bestScoredCandidate(
     }
   }
   return best;
+}
+
+/** Pool candidates a bot's rack scan may examine per turn. See the call site for why this is a
+ *  budget rather than a result cap, and why it cannot change Reduced-list play. */
+const BOT_SCAN_BUDGET = 4000;
+
+/**
+ * Word Builder: gather buildable sub-words from the active Tile Rack and pick the best word
+ * scored through the bot's bay (or a random/short word on easy difficulty).
+ */
+export function chooseBotWordFromRack(
+  rack: readonly Tile[],
+  pool: WordPool,
+  index: PoolIndex,
+  opts: Pick<BotScoredPick, "requiredLetter" | "usedWords" | "bannedLetter" | "difficulty" | "bay" | "scoreOpts">,
+  rng: () => number = Math.random,
+): string | null {
+  // `usedWords` goes INTO the scan rather than filtering its output, and the scan is bounded.
+  //
+  // A budget, not a maxResults cap: subWordFinder walks the short length buckets first, so a result
+  // cap would hand medium and hard bots nothing but short words. The budget is unreachable on the
+  // Reduced list, whose fattest starting letter holds 947 words, so it changes nothing about how
+  // bots play there — it exists for the Full tier, where one uncapped scan per bot turn walks a
+  // 40,310-word bucket, five times a round with a full table of bots.
+  const candidates = subWordFinder(rack, pool, index, opts.requiredLetter, {
+    usedWords: opts.usedWords,
+    budget: { remaining: BOT_SCAN_BUDGET },
+  });
+
+  // Standing down beats knowingly repeating a word. Falling back to the used set here made the bot
+  // commit a word submitWord rejects as already-used, which spends its one action, runs the clock
+  // out into a dead turn, and in Survival eliminates it — all with a rejection flash on the way
+  // past. Returning null reaches the same resolved turn quietly, and matches what the engine's own
+  // no-show auto-pick already does.
+  if (candidates.length === 0) return null;
+
+  // Easy bot: picks shorter or random valid sub-word
+  if (opts.difficulty === "easy") {
+    const shortWords = candidates.filter((w) => w.length <= 5);
+    const set = shortWords.length > 0 ? shortWords : candidates;
+    return set[Math.floor(rng() * set.length)];
+  }
+
+  // Medium / Hard: evaluate top scored candidates
+  return bestScoredCandidate(candidates, opts, rng);
 }
 
 /** Engine-ordering rank: additives left, FX in the middle, multipliers right —

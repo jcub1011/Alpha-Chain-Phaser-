@@ -44,7 +44,7 @@ export const RARITY_WEIGHT_KEYS: Record<CardRarity, RarityWeightKey> = {
 export const DEFAULT_SETTINGS: AlphaChainSettings = {
   // Picker is the default mode, not an alternate — it is what a new player meets first.
   gameMode: GameMode.Picker,
-  offerCount: 5,
+  rackSize: 9,
   offerDictionary: DictionaryTier.Reduced,
   // A genuine playtest question, not a design decision: too generous and turns drag, which is
   // fatal in a party game; too tight and Picker becomes a reading-speed race. 25s is the starting
@@ -165,24 +165,25 @@ const BOT_DIFFICULTIES: readonly BotDifficulty[] = ["easy", "medium", "hard"];
 const GAME_MODES: readonly GameMode[] = Object.values(GameMode);
 const DICTIONARY_TIERS: readonly DictionaryTier[] = Object.values(DictionaryTier);
 
-/** Offer size bounds. The upper bound is a layout guarantee, not a taste call: GDD §2.1 requires
- *  every Offer Card be visible without scrolling, and past 8 that stops holding on a phone. */
-export const MIN_OFFER_COUNT = 3;
-export const MAX_OFFER_COUNT = 8;
+/** Word Builder rack size bounds — the ONE definition. `effectiveRackSize` clamps to these, the
+ *  persistence validator below accepts them, and the lobby stepper offers them, because a lobby
+ *  range that drifts from the clamp band is exactly what let a Preference Card's tile delta be
+ *  clamped away while the other half of the card still applied: at a matched ceiling Wide Net
+ *  charged its -15% shot clock and delivered no tiles, and at a matched floor Tunnel Vision kept its
+ *  x1.4 and cost none. Both were one stepper click from the default.
+ *
+ *  The range is intentionally permissive. A host who wants an absurd rack, or a player who stacks
+ *  Tunnel Vision down to nearly nothing, gets it; the generator degrades rather than refusing.
+ *
+ *  The ceiling is a TECHNICAL limit and not a balance one: canConstructWordFromTiles and
+ *  findTileDecomposition key their memo on `offset * (1 << n) + mask`, which stops being a perfect
+ *  hash once the tile count reaches 31 — a bitmask in a JS number cannot go further. */
+export const MIN_BUILDER_RACK_SIZE = 2;
+export const MAX_BUILDER_RACK_SIZE = 30;
 
 /** Upper bound for `eraCount` / `eraInterval`, shared by the persistence validators and both
  *  lobbies' steppers so the editable range and the accepted range cannot drift apart. */
 export const MAX_ERA_STEPPER = 50;
-
-/** The match's base shot clock for the active mode.
- *
- *  MUST be used everywhere the clock is read for MATHS rather than display. `baseClockSeconds`
- *  feeds every clock-scaling card's fraction (Panic Button, Speedracer, The Vault, Redline,
- *  Chrono Syphon), so a site that keeps reading `shotClockSeconds` while Picker arms
- *  `pickerShotClockSeconds` mis-scores silently instead of failing. */
-export function baseShotClockSeconds(s: AlphaChainSettings): number {
-  return s.gameMode === GameMode.Picker ? s.pickerShotClockSeconds : s.shotClockSeconds;
-}
 
 /** A finite number within [min, max]. Rejects NaN/±Infinity (which are `typeof
  *  "number"`) and out-of-range values that the lobby's step-clamp never sees on load. */
@@ -196,7 +197,7 @@ const isBool = (v: unknown): boolean => typeof v === "boolean";
  *  value that fails keeps the default (see loadSettings). */
 const SETTINGS_VALIDATORS: { [K in keyof AlphaChainSettings]: (v: unknown) => boolean } = {
   gameMode: (v) => GAME_MODES.includes(v as GameMode),
-  offerCount: inRange(MIN_OFFER_COUNT, MAX_OFFER_COUNT),
+  rackSize: inRange(MIN_BUILDER_RACK_SIZE, MAX_BUILDER_RACK_SIZE),
   offerDictionary: (v) => DICTIONARY_TIERS.includes(v as DictionaryTier),
   pickerShotClockSeconds: inRange(5, 60),
   highlightBannedLetters: isBool,

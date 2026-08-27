@@ -74,15 +74,12 @@ export interface GameController {
   /** Report the local human's in-progress word so a shot-clock timeout can auto-submit
    *  it (networked play streams it to the host; solo is a no-op — the UI handles it). */
   reportDraft(word: string): void;
-  /** Picker: report which Offer word the local human has selected, so a clock expiry commits it
-   *  rather than counting as a no-show. Unlike `reportDraft` this is NOT a solo no-op: selections
-   *  are discrete and rare, so the engine owns the expiry commit in both solo and networked play
-   *  and stays the single authority on what a no-show is. */
-  reportSelection(word: string): void;
-  /** Picker: commit the selected Offer word (second tap, or the GO button). */
+  /** Word Builder: commit the staged word (Enter, or the SUBMIT button). */
   commitSelection(word?: string): SubmitResult;
-  /** Picker: Winnower's once-per-turn Offer redraw, bought with shot clock. */
-  redrawOffer(): void;
+  /** Word Builder: Winnower's once-per-turn Tile Rack redraw, bought with shot clock. */
+  redrawRack(): void;
+  /** Word Builder: stage active tiles and stream drafted word. */
+  stageTiles(tileIds: string[], word?: string): void;
   /** Tear down timers/listeners. */
   destroy(): void;
 }

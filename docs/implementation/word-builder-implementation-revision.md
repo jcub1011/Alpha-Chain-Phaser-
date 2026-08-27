@@ -107,9 +107,13 @@ export interface MatchState {
 ```
 
 #### `messages.ts` (Intents)
-* `selectTile { tileId: string; slotIndex?: number }`: Moves tile to staging strip. Throttled/local preview.
-* `deselectTile { tileId: string }`: Returns tile to rack.
-* `clearStaging {}`: Clears all staged tiles.
+* `stageTiles { tileIds: string[]; word?: string }`: The whole of staging, as built. Carries the
+  drafted word so a clock expiry commits it, and an empty `word` is how the UI says "I unstaged
+  everything". Throttled by the component, which flushes the throttle at the buzzer.
+  *As-built note: the per-tile `selectTile` / `deselectTile` / `clearStaging` intents this plan
+  proposed were never dispatched by any client and have been removed. The authority resolves nothing
+  from tile ids — a tile index would be resolved against the SERVER's rack — so the word on the wire
+  is the only thing that can be trusted, and one intent carrying it is the whole surface needed.*
 * `submitWord { word: string }`: Existing submit intent re-used; validates that `word` is constructible from `state.rack` and starts with `requiredLetter`.
 
 ### 3.3 UI Component: `<ac-word-builder>`

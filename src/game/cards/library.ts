@@ -102,7 +102,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
   TheAnchor: {
     name: "Decard",
     rarity: CardRarity.Common,
-    color: "#4f9dff",
+    color: "#6699bd",
     family: CardFamily.Letter,
     op: CardOp.Additive,
     magnitudeText: "+10",
@@ -113,7 +113,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
   Vanilla: {
     name: "Vanilla",
     rarity: CardRarity.Common,
-    color: "#f2e2a8",
+    color: "#dcae4c",
     family: CardFamily.Letter,
     op: CardOp.Additive,
     magnitudeText: "+1/ltr",
@@ -127,7 +127,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
   ConsonantCrunch: {
     name: "Consonant Crunch",
     rarity: CardRarity.Common,
-    color: "#ff7a59",
+    color: "#c25a3a",
     family: CardFamily.Letter,
     op: CardOp.Additive,
     magnitudeText: "+2/con",
@@ -142,7 +142,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
   VocalVowels: {
     name: "Vocal Vowels",
     rarity: CardRarity.Common,
-    color: "#7be0c4",
+    color: "#74b291",
     family: CardFamily.Letter,
     op: CardOp.Additive,
     magnitudeText: "+3/vwl",
@@ -154,7 +154,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
   BrickLayer: {
     name: "Brick Layer",
     rarity: CardRarity.Common,
-    color: "#d96a3c",
+    color: "#b26a3a",
     family: CardFamily.Letter,
     op: CardOp.Additive,
     magnitudeText: "+3/ltr",
@@ -168,7 +168,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
   TheBlueprint: {
     name: "Tempo",
     rarity: CardRarity.Common,
-    color: "#9ad0ff",
+    color: "#6699bd",
     family: CardFamily.Letter,
     op: CardOp.Additive,
     magnitudeText: "+3/ltr",
@@ -185,7 +185,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
   LetterHoarder: {
     name: "Character Collector",
     rarity: CardRarity.Common,
-    color: "#e9c46a",
+    color: "#dcae4c",
     family: CardFamily.Letter,
     op: CardOp.Additive,
     magnitudeText: "+2/uniq",
@@ -196,7 +196,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
   HighRoller: {
     name: "High Roller",
     rarity: CardRarity.Common,
-    color: "#ff5ca0",
+    color: "#b56276",
     family: CardFamily.Economy,
     op: CardOp.Additive,
     magnitudeText: "+10/rare",
@@ -210,7 +210,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
   BoosterPack: {
     name: "Booster Pack",
     rarity: CardRarity.Common,
-    color: "#ffb020",
+    color: "#b26a3a",
     family: CardFamily.Economy,
     op: CardOp.Additive,
     magnitudeText: "+2×slots /right",
@@ -224,7 +224,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
   Scavenger: {
     name: "Scavenger",
     rarity: CardRarity.Common,
-    color: "#c08552",
+    color: "#b26a3a",
     family: CardFamily.Economy,
     op: CardOp.Additive,
     magnitudeText: "+2/word",
@@ -239,7 +239,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
   VowelSurge: {
     name: "Vowel Surge",
     rarity: CardRarity.Uncommon,
-    color: "#2ed6b6",
+    color: "#5c9a78",
     family: CardFamily.Letter,
     op: CardOp.Multiplicative,
     magnitudeText: "×3",
@@ -253,7 +253,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
   TheArchitect: {
     name: "Architect",
     rarity: CardRarity.Rare,
-    color: "#8f8cff",
+    color: "#6699bd",
     family: CardFamily.Letter,
     op: CardOp.Multiplicative,
     magnitudeText: "×3",
@@ -265,7 +265,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     name: "Deca-Quint",
     rarity: CardRarity.Legendary,
     maxInstances: 1,
-    color: "#b06bff",
+    color: "#9878ae",
     family: CardFamily.Letter,
     op: CardOp.Multiplicative,
     magnitudeText: "×5",
@@ -276,7 +276,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
   GutturalRoar: {
     name: "Chant",
     rarity: CardRarity.Uncommon,
-    color: "#c98a3c",
+    color: "#b26a3a",
     family: CardFamily.Letter,
     op: CardOp.Multiplicative,
     magnitudeText: "×2",
@@ -291,7 +291,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
   PerfectLink: {
     name: "Perfect Link",
     rarity: CardRarity.Common,
-    color: "#57e08a",
+    color: "#5c9a78",
     family: CardFamily.Letter,
     op: CardOp.Multiplicative,
     magnitudeText: "×1.5",
@@ -303,7 +303,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
   TryHard: {
     name: "Try Hard",
     rarity: CardRarity.Uncommon,
-    color: "#ff8c42",
+    color: "#cb8450",
     family: CardFamily.Letter,
     op: CardOp.Multiplicative,
     magnitudeText: "×1.5+",
@@ -317,7 +317,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
   DoubleDown: {
     name: "Double Down",
     rarity: CardRarity.Uncommon,
-    color: "#ff4d9d",
+    color: "#b56276",
     family: CardFamily.Economy,
     op: CardOp.Multiplicative,
     magnitudeText: "×2",
@@ -341,7 +341,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     build: (t) => ({
       name: "Overclock",
       rarity: CardRarity.Rare,
-      color: "#9fb3d6",
+      color: "#6699bd",
       family: CardFamily.Clock,
       op: CardOp.Multiplicative,
       magnitudeText: `×${t.factor}`,
@@ -367,7 +367,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     build: (t) => ({
       name: "Redline",
       rarity: CardRarity.Rare,
-      color: "#ff4d4d",
+      color: "#c25a3a",
       family: CardFamily.Clock,
       op: CardOp.Multiplicative,
       magnitudeText: `×${t.factor}`,
@@ -385,7 +385,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     build: (t) => ({
       name: "Reflex",
       rarity: CardRarity.Uncommon,
-      color: "#ff2e6e",
+      color: "#9c4a5e",
       family: CardFamily.Clock,
       op: CardOp.Multiplicative,
       magnitudeText: `≤×${t.cap}`,
@@ -398,7 +398,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
   SlowBurn: {
     name: "Slow Burn",
     rarity: CardRarity.Uncommon,
-    color: "#ff9e57",
+    color: "#cb8450",
     family: CardFamily.Clock,
     op: CardOp.Fx,
     magnitudeText: "FX",
@@ -425,7 +425,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
       name: "Speedracer",
       rarity: CardRarity.Uncommon,
       maxInstances: 2,
-      color: "#ffd23f",
+      color: "#dcae4c",
       family: CardFamily.Clock,
       op: CardOp.Multiplicative,
       magnitudeText: "×(1+Remain /Total)",
@@ -445,7 +445,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     // Classic-only: its whole downside is masking the input box while you type, and Picker has no
     // input box — in Picker this would be a ×1.5 with no cost at all.
     modes: [GameMode.Classic],
-    color: "#8a7dff",
+    color: "#6699bd",
     family: CardFamily.Clock,
     op: CardOp.Multiplicative,
     magnitudeText: "×1.5",
@@ -460,7 +460,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
   HeatSink: {
     name: "Heat Sink",
     rarity: CardRarity.Common,
-    color: "#7fd8ff",
+    color: "#74b291",
     family: CardFamily.Clock,
     op: CardOp.Multiplicative,
     magnitudeText: "×0.9",
@@ -472,7 +472,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
   Catalyst: {
     name: "Catalyst",
     rarity: CardRarity.Uncommon,
-    color: "#b97bff",
+    color: "#9878ae",
     family: CardFamily.Utility,
     op: CardOp.Fx,
     magnitudeText: "FX",
@@ -485,7 +485,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
   Forgery: {
     name: "Forgery",
     rarity: CardRarity.Legendary,
-    color: "#d8b46a",
+    color: "#dcae4c",
     family: CardFamily.Utility,
     op: CardOp.Fx,
     magnitudeText: "FX",
@@ -504,7 +504,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     // impossible. Rarity is the brake here — at Rare the dealer rarely offers five,
     // and five glasses plus something to magnify needs 6 of the 12 max bay slots.
     maxInstances: 5,
-    color: "#9ad0ff",
+    color: "#6699bd",
     family: CardFamily.Utility,
     op: CardOp.Fx,
     magnitudeText: "FX",
@@ -516,7 +516,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
   Wildcard: {
     name: "Wildcard",
     rarity: CardRarity.Rare,
-    color: "#ffd34d",
+    color: "#dcae4c",
     family: CardFamily.Utility,
     op: CardOp.Fx,
     magnitudeText: "FX",
@@ -532,7 +532,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
   Prism: {
     name: "Prism",
     rarity: CardRarity.Rare,
-    color: "#6fe0ff",
+    color: "#74b291",
     family: CardFamily.Utility,
     op: CardOp.Fx,
     magnitudeText: "FX",
@@ -552,7 +552,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
   IrsAgent: {
     name: "Fancy Accounting",
     rarity: CardRarity.Common,
-    color: "#4caf6e",
+    color: "#5c9a78",
     family: CardFamily.Economy,
     op: CardOp.Fx,
     magnitudeText: "FX",
@@ -565,7 +565,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
   TaxWriteOff: {
     name: "Tax Write-Off",
     rarity: CardRarity.Common,
-    color: "#3fa7a0",
+    color: "#4f7fa4",
     family: CardFamily.Economy,
     op: CardOp.Fx,
     magnitudeText: "FX",
@@ -580,7 +580,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     name: "Roulette Wheel",
     rarity: CardRarity.Legendary,
     maxInstances: 1,
-    color: "#e0457b",
+    color: "#9c4a5e",
     family: CardFamily.Economy,
     op: CardOp.Multiplicative,
     magnitudeText: "×2",
@@ -599,7 +599,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     name: "Toll Booth",
     rarity: CardRarity.Rare,
     maxInstances: 1,
-    color: "#caa24a",
+    color: "#c8952f",
     family: CardFamily.Economy,
     op: CardOp.Fx,
     magnitudeText: "FX",
@@ -632,7 +632,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
   TaxCollector: {
     name: "Tax Collector",
     rarity: CardRarity.Rare,
-    color: "#2fa85a",
+    color: "#5c9a78",
     family: CardFamily.Economy,
     op: CardOp.Fx,
     magnitudeText: "FX",
@@ -657,7 +657,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     build: (t) => ({
       name: "Chrono Syphon",
       rarity: CardRarity.Uncommon,
-      color: "#5ad0c4",
+      color: "#5c9a78",
       family: CardFamily.Economy,
       op: CardOp.Fx,
       magnitudeText: "FX",
@@ -680,7 +680,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
   BaitAndSwitch: {
     name: "Bait & Switch",
     rarity: CardRarity.Uncommon,
-    color: "#b388ff",
+    color: "#9878ae",
     family: CardFamily.Utility,
     op: CardOp.Fx,
     magnitudeText: "FX",
@@ -704,7 +704,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
   TheLexicon: {
     name: "Scholar",
     rarity: CardRarity.Uncommon,
-    color: "#7bb0ff",
+    color: "#6699bd",
     family: CardFamily.Letter,
     op: CardOp.Multiplicative,
     magnitudeText: "×2 @9+",
@@ -716,7 +716,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
   Stonemason: {
     name: "Stonemason",
     rarity: CardRarity.Uncommon,
-    color: "#b5651d",
+    color: "#b26a3a",
     family: CardFamily.Letter,
     op: CardOp.Additive,
     magnitudeText: "+4/ltr",
@@ -731,7 +731,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
   LoanShark: {
     name: "Loan Shark",
     rarity: CardRarity.Uncommon,
-    color: "#2f8f5b",
+    color: "#5c9a78",
     family: CardFamily.Economy,
     op: CardOp.Fx,
     magnitudeText: "FX",
@@ -757,7 +757,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
   Numismatist: {
     name: "Numismatist",
     rarity: CardRarity.Rare,
-    color: "#caa24a",
+    color: "#c8952f",
     family: CardFamily.Economy,
     op: CardOp.Multiplicative,
     magnitudeText: "×1.6 /rare",
@@ -777,7 +777,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     build: (t) => ({
       name: "Blind Sniper",
       rarity: CardRarity.Rare,
-      color: "#ff5252",
+      color: "#c25a3a",
       family: CardFamily.Utility,
       op: CardOp.Fx,
       magnitudeText: "FX",
@@ -814,7 +814,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     // Classic-only: it negates the timeout point penalty, and Picker has no timeout penalty (a
     // Picker expiry commits a word and scores it), so the card would be pure dead weight.
     modes: [GameMode.Classic],
-    color: "#4cc2ff",
+    color: "#6699bd",
     family: CardFamily.Utility,
     op: CardOp.Fx,
     magnitudeText: "FX",
@@ -830,7 +830,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
   TheFlywheel: {
     name: "Flywheel",
     rarity: CardRarity.Rare,
-    color: "#8f8cff",
+    color: "#6699bd",
     family: CardFamily.Letter,
     op: CardOp.Multiplicative,
     magnitudeText: "×1.15+",
@@ -853,7 +853,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
   Tilesmith: {
     name: "Tilesmith",
     rarity: CardRarity.Common,
-    color: "#c9a227",
+    color: "#c8952f",
     family: CardFamily.Letter,
     op: CardOp.Additive,
     magnitudeText: "+tile",
@@ -864,7 +864,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
   Crescendo: {
     name: "Crescendo",
     rarity: CardRarity.Uncommon,
-    color: "#ff8fb0",
+    color: "#b56276",
     family: CardFamily.Economy,
     op: CardOp.Multiplicative,
     magnitudeText: "×1+0.25 /clean",
@@ -880,7 +880,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
   Bookends: {
     name: "Bookends",
     rarity: CardRarity.Common,
-    color: "#8fb0ff",
+    color: "#6699bd",
     family: CardFamily.Letter,
     op: CardOp.Multiplicative,
     magnitudeText: "×2",
@@ -894,7 +894,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
   Dividend: {
     name: "Dividend",
     rarity: CardRarity.Common,
-    color: "#4caf6e",
+    color: "#5c9a78",
     family: CardFamily.Economy,
     op: CardOp.Additive,
     magnitudeText: "+2/card",
@@ -918,14 +918,21 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     name: "Sieve",
     rarity: CardRarity.Common,
     modes: [GameMode.Picker],
-    color: "#7ec8a9",
+    color: "#74b291",
     family: CardFamily.Utility,
     op: CardOp.Fx,
-    magnitudeText: "6+ only",
-    description: "Your Offer contains only words of 6+ letters. Scores nothing itself.",
+    magnitudeText: "8+ seed",
+    // States the guarantee the engine can actually keep. selectGoldenSeed clamps the floor to
+    // min(minSeedLength, rackSize) because an 8-letter seed cannot be decomposed into a smaller
+    // rack — so with Tunnel Vision, or a lobby rack under 8, the seed is the whole rack instead.
+    description:
+      "Your Tile Rack is seeded from a word of 8+ letters — or your whole rack, when that is shorter. Scores nothing itself.",
     fold: (v) => fx(v),
     // The cost: you can never duck a Banned Letter with a short safe word.
-    preference: { filter: () => (w) => w.length >= 6 },
+    preference: {
+      minSeedLength: 8,
+      filter: () => (w) => w.length >= 6,
+    },
   },
 
   /* Tuned not for per-mode values — it is Picker-only, so it has no Classic form to protect — but
@@ -938,11 +945,11 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
       rarity: CardRarity.Rare,
       maxInstances: 1,
       modes: [GameMode.Picker],
-      color: "#c9a6ff",
+      color: "#9878ae",
       family: CardFamily.Utility,
       op: CardOp.Fx,
       magnitudeText: "redraw",
-      description: `Once per turn, redraw your whole Offer for ${Math.round(t.clockCostFraction * 100)}% of your shot clock.`,
+      description: `Once per turn, redraw your whole Tile Rack for ${Math.round(t.clockCostFraction * 100)}% of your shot clock.`,
       fold: (v) => fx(v),
       roomServices: ["winnowerGuard"],
       // The price is a FIXED fraction, so it grows harsher as your engine grows and each Offer
@@ -955,11 +962,11 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     name: "Wide Net",
     rarity: CardRarity.Common,
     modes: [GameMode.Picker],
-    color: "#6fb7ff",
+    color: "#6699bd",
     family: CardFamily.Clock,
     op: CardOp.Fx,
     magnitudeText: "+2 / −15%",
-    description: "+2 Offer Cards, and −15% shot clock. More to choose from, less time to choose.",
+    description: "+2 Rack tiles, and −15% shot clock. More to build with, less time to build.",
     fold: (v) => fx(v),
     // A genuine ClockModifier, which is why armedClockSeconds keeps the FULL bay even though this
     // card is hidden from bay-size SCORING.
@@ -972,11 +979,11 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     rarity: CardRarity.Legendary,
     maxInstances: 1,
     modes: [GameMode.Picker],
-    color: "#ff8f6b",
+    color: "#c25a3a",
     family: CardFamily.Utility,
     op: CardOp.Multiplicative,
     magnitudeText: "×1.4",
-    description: "×1.4 always, but you are offered 2 fewer words. Raw multiplier, less choice.",
+    description: "×1.4 always, but you have 2 fewer Rack tiles. Raw multiplier, less to build with.",
     fold: (v, c) => mul(v, 1.4 * c.magnification()),
     // The one Preference Card that really scores, so it is placed and counted like any other
     // multiplier rather than bubbling left — see isInertPreference for why that must be so.
@@ -987,29 +994,33 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     name: "Prospector",
     rarity: CardRarity.Uncommon,
     modes: [GameMode.Picker],
-    color: "#e0c060",
+    color: "#dcae4c",
     family: CardFamily.Letter,
     op: CardOp.Fx,
     magnitudeText: "1 rare",
-    description: "At least one Offer Card always contains Q, X, Z or J. Scores nothing itself.",
+    description: "Guaranteed at least one rare letter (Q, X, Z, J) on your Tile Rack. Scores nothing itself.",
     fold: (v) => fx(v),
     // The cost: one of your Offer slots is permanently spent on a word you may not want.
-    preference: { guarantee: () => (w) => [...w].some((ch) => RARE_START.has(ch)) },
+    preference: {
+      guaranteeRare: true,
+      guarantee: () => (w) => [...w].some((ch) => RARE_START.has(ch)),
+    },
   },
 
   Tide: {
     name: "Tide",
     rarity: CardRarity.Uncommon,
     modes: [GameMode.Picker],
-    color: "#5fd0d8",
+    color: "#5c9a78",
     family: CardFamily.Letter,
     op: CardOp.Fx,
     magnitudeText: "vowels",
-    description: "Your Offer is drawn vowel-heavy wherever the pool allows. Scores nothing itself.",
+    description: "Your Tile Rack is guaranteed vowel-heavy (>=50% vowels). Scores nothing itself.",
     fold: (v) => fx(v),
     // A SOFT bias, abandoned when the pool cannot serve it, so it never starves the Offer. The
     // cost is concentration: a narrower draw means more repeats and a thinner ending-letter graph.
     preference: {
+      highVowelRatio: true,
       prefer: () => (w) => {
         let vowels = 0;
         for (const ch of w) if (isVowel(ch)) vowels++;
@@ -1022,16 +1033,17 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     name: "Sentinel",
     rarity: CardRarity.Rare,
     modes: [GameMode.Picker],
-    color: "#9fb4c7",
+    color: "#6699bd",
     family: CardFamily.Utility,
     op: CardOp.Fx,
     magnitudeText: "1 safe",
     description:
-      "At least one Offer Card is guaranteed free of every letter banned against you. Scores nothing itself.",
+      "Your Tile Rack is guaranteed free of every letter banned against you. Scores nothing itself.",
     fold: (v) => fx(v),
-    // Insurance against the Zero-Point Tax, paid for in slots — and it spends an Offer slot on
+    // Insurance against the Zero-Point Tax, paid for in slots — and it spends a bay slot on
     // safety rather than on ceiling. With no bans in force it guarantees nothing and costs nothing.
     preference: {
+      excludeBannedLetters: true,
       guarantee: (ctx) =>
         ctx.bannedLetters.length === 0
           ? null
