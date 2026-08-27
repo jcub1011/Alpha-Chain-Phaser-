@@ -150,14 +150,6 @@ export class LocalController implements GameController {
     // (ac-word-entry), so the engine's draft auto-submit never needs to fire here.
   }
 
-  /** Unlike reportDraft, this DOES reach the engine in solo. Streaming a keystroke per character
-   *  locally would be pointless, but a selection changes a handful of times per turn — and routing
-   *  it through means the engine decides what a no-show is identically in solo and networked play,
-   *  instead of the UI owning a second copy of that rule. */
-  reportSelection(word: string): void {
-    this.match.setSelection(this.humanId, word);
-  }
-
   commitSelection(word?: string): SubmitResult {
     return this.match.commitSelection(this.humanId, word);
   }
@@ -166,7 +158,12 @@ export class LocalController implements GameController {
     this.match.redrawRack(this.humanId);
   }
 
-  /** The word is passed through even when EMPTY: "" is how <ac-word-builder> says "I unstaged
+  /** Unlike reportDraft, staging DOES reach the engine in solo. Streaming a keystroke per character
+   *  locally would be pointless, but a staged word changes a handful of times per turn — and routing
+   *  it through means the engine decides what a no-show is identically in solo and networked play,
+   *  instead of the UI owning a second copy of that rule.
+   *
+   *  The word is passed through even when EMPTY: "" is how <ac-word-builder> says "I unstaged
    *  everything", and setSelection treats it as a clear. Dropping it would leave the stale pick
    *  alive for the rest of the turn — in Survival, the difference between a no-show and not. */
   stageTiles(_tileIds: string[], word?: string): void {

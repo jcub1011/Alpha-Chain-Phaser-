@@ -33,6 +33,12 @@ const seeds: PlayerSeed[] = [
   { id: "bot1", name: "Bot", isBot: true },
 ];
 
+const threeSeats: PlayerSeed[] = [
+  { id: "bot1", name: "Bot One", isBot: true },
+  { id: "bot2", name: "Bot Two", isBot: true },
+  { id: "you", name: "You", isBot: false },
+];
+
 interface Calls {
   staged: { ids: string[]; word?: string }[];
   commits: (string | undefined)[];
@@ -74,7 +80,6 @@ function harness(
     tick: () => {},
     submitWord: () => ({ accepted: false }),
     reportDraft: () => {},
-    reportSelection: (w) => match.setSelection("you", w),
     commitSelection: (w) => {
       calls.commits.push(w);
       return match.commitSelection("you", w);
@@ -99,6 +104,9 @@ async function mount(controller: GameController): Promise<AcWordBuilder> {
   await el.updateComplete;
   return el;
 }
+
+const standby = (el: AcWordBuilder): HTMLElement =>
+  el.querySelector(".ac-standby") as HTMLElement;
 
 const rackTiles = (el: AcWordBuilder): HTMLButtonElement[] =>
   [...el.querySelectorAll(".ac-tile-rack .ac-tile")] as HTMLButtonElement[];
@@ -312,4 +320,121 @@ describe("<ac-word-builder>", () => {
     expect(starterTiles[0].textContent).toContain("T");
     expect(starterTiles[1].textContent).toContain("TION");
   });
+
+  it("ignores modifier chords instead of staging a tile for them", async () => {
+    /* The handler is on the WINDOW and `e.key` for Ctrl+R is still a bare "r", so every Ctrl/Cmd/Alt
+     * combo used to be preventDefault-ed AND staged a tile: Ctrl+R staged an `r` rather than
+     * reloading, and Ctrl+A/C/V/F were simply swallowed for the length of your turn. */
+    const { match, controller } = harness();
+    const el = await mount(controller);
+    const letter = match.state.rack[0].text[0];
+
+    for (const mods of [{ ctrlKey: true }, { metaKey: true }, { altKey: true }]) {
+      const ev = new KeyboardEvent("keydown", { key: letter, cancelable: true, ...mods });
+      window.dispatchEvent(ev);
+      await el.updateComplete;
+      expect(ev.defaultPrevented).toBe(false);
+      expect(stagedTiles(el).length).toBe(0);
+    }
+
+    // The same key without a modifier still stages, so the guard is not simply swallowing input.
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: letter, cancelable: true }));
+    await el.updateComplete;
+    expect(stagedTiles(el).length).toBe(1);
+  });
+
+  it("flushes a throttled stage at the buzzer instead of submitting the fragment", async () => {
+    /* The regression this exists for: the 80ms stage throttle defers a send, the engine's expiry
+     * commits whatever the last stage left behind, and a player who taps their final tiles quickly
+     * into the buzzer had their FRAGMENT submitted, rejected as not-a-word, and counted as a no-show
+     * — which in Survival is an elimination on a turn they actually finished. Solo has no submit
+     * grace to hide behind, so this is the case with no other protection. */
+    const { match, controller } = harness({ survivalMode: true });
+    // A two-tile "cat" makes the fragment and the finished word distinguishable: the first tap
+    // stages "c" (buildable, so the engine accepts it as a selection) and the second completes it
+    // inside the throttle window.
+    match.state.rack = [
+      { id: "t0", text: "c", isChunk: false },
+      { id: "t1", text: "at", isChunk: false },
+    ];
+    match.state.requiredLetter = "c";
+    const el = await mount(controller);
+    expect(match.current.id).toBe("you");
+
+    const tiles = rackTiles(el);
+    tiles[0].click();
+    tiles[1].click(); // within the throttle window, so this send is deferred
+    await el.updateComplete;
+
+    // Run the clock out. The engine emits clockTick before its own timeout check, which is the
+    // window the flush uses.
+    match.tick(match.state.clockRemaining + 0.1);
+
+    expect(match.state.history[match.state.history.length - 1]?.word).toBe("cat");
+    expect(match.state.players.find((p) => p.id === "you")?.eliminated).toBe(false);
+  });
+
+  it("shows the standby cover when the seat before the human is eliminated", async () => {
+    /* A bare (currentPlayerIndex + 1) lands on the eliminated seat and denies the cover to the
+     * player who is genuinely next — the opposite of what the comment there used to claim. */
+    const { match, controller } = harness({}, WORDS, threeSeats);
+    match.state.currentPlayerIndex = match.state.players.findIndex((p) => p.id === "bot1");
+    const between = match.state.players.find((p) => p.id === "bot2")!;
+    between.eliminated = true;
+
+    const el = await mount(controller);
+    expect(standby(el).classList.contains("is-shown")).toBe(true);
+    expect(standby(el).textContent).toContain("You're Next");
+  });
+
+  it("keeps SUBMIT dead through the round settle window", async () => {
+    /* `live` is re-derived on every clockTick and state does not say "this turn is over", so the
+     * derivation flipped it back on over a rack belonging to the previous turn. commitSelection
+     * refuses during the settle window and emits no `rejected`, so the button was silently dead.
+     *
+     * Driven by the human's own ERA-ENDING word, which is the case that reaches it. submitWord emits
+     * `submission` BEFORE endTurn runs, so the last derivation of `live` still sees the human as the
+     * current seat; endTurn then arms the settle window and returns without arming a turn, and no
+     * further event fires (tick returns early while settling, so not even a clockTick). `live` was
+     * therefore left true over the rack of a turn that had already resolved. */
+    const { match, controller, calls } = harness({ eraInterval: 1 }, WORDS, threeSeats);
+    // Eliminating the other seats makes the human's own turn the one that wraps the round, so the
+    // settle window is armed with the human still the current seat. Survival is off, so no game over.
+    for (const p of match.state.players) if (p.id !== "you") p.eliminated = true;
+    match.state.currentPlayerIndex = match.state.players.findIndex((p) => p.id === "you");
+    match.state.rack = [
+      { id: "t0", text: "c", isChunk: false },
+      { id: "t1", text: "at", isChunk: false },
+    ];
+    match.state.requiredLetter = "c";
+    const el = await mount(controller);
+
+    for (const tile of rackTiles(el)) tile.click();
+    await el.updateComplete;
+    submitBtn(el).click();
+    await el.updateComplete;
+
+    expect(match.state.history[match.state.history.length - 1]?.word).toBe("cat");
+    expect(match.isSettling()).toBe(true);
+    expect(match.state.phase).toBe("Round");
+    expect(match.current.id).toBe("you"); // still the current seat, but the turn is over
+    expect(match.state.rack.length).toBeGreaterThan(0); // and its rack is still on screen
+
+    const commitsBefore = calls.commits.length;
+    await el.updateComplete;
+
+    // The stale rack must refuse the tap outright — otherwise the player builds a word and presses a
+    // button the engine will silently ignore.
+    expect(rackTiles(el).length).toBeGreaterThan(0);
+    expect(rackTiles(el).every((t) => t.disabled)).toBe(true);
+    for (const tile of rackTiles(el)) tile.click();
+    await el.updateComplete;
+    expect(stagedTiles(el).length).toBe(0);
+
+    submitBtn(el).click();
+    await el.updateComplete;
+    expect(submitBtn(el).disabled).toBe(true);
+    expect(calls.commits.length).toBe(commitsBefore);
+  });
 });
+

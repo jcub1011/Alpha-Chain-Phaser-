@@ -9,6 +9,7 @@ import { html, type PropertyValues, type TemplateResult } from "lit";
 import { customElement, property, query, state } from "lit/decorators.js";
 import type { GameController } from "../../net/controller";
 import { createLogger } from "../../log";
+import { nextLiveIndex } from "../../game/turnOrder";
 import { AcElement } from "../app/AcElement";
 import { REJECT_REASON } from "./reject-reasons";
 
@@ -107,18 +108,15 @@ export class AcWordEntry extends AcElement {
     return !!this.controller.match.state.players.find((p) => p.id === human)?.eliminated;
   }
 
-  /** Whether the human is up immediately after the current player. Mirrors
-   *  MatchController.advanceIndex by skipping eliminated seats. */
+  /** Whether the human is up immediately after the current player. Shares `nextLiveIndex` with
+   *  MatchController.advanceIndex, so the seat promised here is the seat the engine will actually
+   *  give the turn to. */
   private isOnDeck(human: string): boolean {
     const s = this.controller.match.state;
     if (s.phase !== "Round") return false;
-    const players = s.players;
-    const n = players.length;
-    for (let i = 1; i <= n; i++) {
-      const p = players[(s.currentPlayerIndex + i) % n];
-      if (!p.eliminated) return p.id === human;
-    }
-    return false;
+    const next = nextLiveIndex(s.players, s.currentPlayerIndex).index;
+    const p = s.players[next];
+    return !!p && !p.eliminated && p.id === human;
   }
 
   override updated(): void {

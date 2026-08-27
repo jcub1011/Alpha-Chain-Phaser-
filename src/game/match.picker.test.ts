@@ -641,7 +641,7 @@ describe("word builder — Preference Cards through the engine", () => {
     const m = makePicker({ rackSize: 9 }, REDUCED, [solo]);
     m.benchSetBay(solo.id, ["TunnelVision", "TunnelVision", "TunnelVision"]);
     started(m);
-    // Clamped by MIN_RACK_SIZE rather than shrinking toward zero, and still buildable.
+    // Floored by MIN_RACK_SIZE rather than shrinking toward zero, and still buildable.
     expect(m.state.rack.length).toBeGreaterThanOrEqual(3);
     expect(rackWords(m).length).toBeGreaterThan(0);
   });

@@ -1019,24 +1019,24 @@ describe("authority — Word Builder racks through the server", () => {
     };
   };
 
-  it("broadcasts NOTHING for a select", () => {
-    /* The single most important property of the select intent. There is no server-side rate
+  it("broadcasts NOTHING for a stage", () => {
+    /* The single most important property of the staging intent. There is no server-side rate
      * limiter anywhere in this build, so an intent that cannot make the authority fan state out is
      * the only thing between a held-down tap and an amplification vector. */
     const { hub, up } = pickerSession();
     const words = rackWords(up.match);
     const before = hub.broadcasts;
-    for (const w of words.slice(0, 3)) up.reportSelection(w);
-    up.reportSelection(""); // ...including the clear, which is a select of the empty word
+    for (const w of words.slice(0, 3)) up.stageTiles([], w);
+    up.stageTiles([], ""); // ...including the clear, which is a stage of the empty word
     expect(hub.broadcasts).toBe(before);
   });
 
-  it("commits a selected word and converges both mirrors", () => {
+  it("commits a staged word and converges both mirrors", () => {
     const { hub, c1, c2, upId, up } = pickerSession();
     const chosen = rackWords(up.match)[0];
     const before = hub.broadcasts;
 
-    up.reportSelection(chosen);
+    up.stageTiles([], chosen);
     up.commitSelection(chosen);
 
     expect(hub.broadcasts).toBeGreaterThan(before); // a real outcome DOES broadcast
@@ -1050,19 +1050,19 @@ describe("authority — Word Builder racks through the server", () => {
     expect(c1.match.state.rack.length).toBeGreaterThan(0);
   });
 
-  it("commits the streamed selection when the clock expires", () => {
-    // The whole reason the select intent exists: the SERVER owns the clock, so it can only commit
+  it("commits the streamed staged word when the clock expires", () => {
+    // The whole reason staging is streamed: the SERVER owns the clock, so it can only commit
     // the right word if the selection reached it before the buzzer.
     const { hub, c1, c2, upId, up } = pickerSession();
     const chosen = rackWords(up.match)[0];
-    up.reportSelection(chosen);
+    up.stageTiles([], chosen);
     hub.advance((c1.match.state.clockRemaining + 2) * 1000); // clock + the 1s submit grace
 
     expect([...c2.match.state.usedWords]).toContain(chosen);
     expect(c1.match.current.id).not.toBe(upId);
   });
 
-  it("treats an expiry with no selection as a no-show, but still resolves the turn", () => {
+  it("treats an expiry with no staged word as a no-show, but still resolves the turn", () => {
     const { hub, c1, c2, upId } = pickerSession();
     const buildable = rackWords(c1.match);
     hub.advance((c1.match.state.clockRemaining + 2) * 1000); // clock + the 1s submit grace
@@ -1100,12 +1100,12 @@ describe("authority — Word Builder racks through the server", () => {
     expect(c2.match.state.usedWords.size).toBe(0);
   });
 
-  it("ignores a select for a word the rack cannot build", () => {
+  it("ignores a stage for a word the rack cannot build", () => {
     // A stale or tampered selection must not become the word the expiry commits.
     const { hub, c1, up } = pickerSession();
     const unbuildable = [...WORDS].find((w) => !canConstructWordFromTiles(w, c1.match.state.rack));
     expect(unbuildable).toBeDefined();
-    up.reportSelection(unbuildable!);
+    up.stageTiles([], unbuildable!);
     hub.advance((c1.match.state.clockRemaining + 2) * 1000); // clock + the 1s submit grace
     const played = c1.match.state.history[c1.match.state.history.length - 1]?.word;
     expect(played).not.toBe(unbuildable);

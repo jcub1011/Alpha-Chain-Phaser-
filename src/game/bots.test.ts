@@ -130,4 +130,30 @@ describe("chooseBotWordFromRack", () => {
     });
     expect(["tract", "traction"]).toContain(word);
   });
+
+  // "action" = a + c + tion and "act" = a + c + t, so this letter has two buildable words to choose
+  // between — unlike "t", where only "traction" is buildable ("tract" would need a second t).
+  it("never picks a word that has already been played", () => {
+    const word = chooseBotWordFromRack(testRack, pool, index, {
+      ...basePick({ requiredLetter: "a", usedWords: new Set(["action"]) }),
+    });
+    expect(word).toBe("act");
+  });
+
+  it("stands down instead of repeating a word when everything buildable is used", () => {
+    /* Falling back to the used set made the bot commit a word submitWord rejects as already-used,
+     * which spends its one action, runs the clock out into a dead turn, and in Survival eliminates
+     * it — with a rejection flash on the way past. Returning null reaches the same resolved turn
+     * quietly, which is what the engine's own no-show auto-pick already does. */
+    for (const difficulty of ["easy", "medium", "hard"] as const) {
+      const word = chooseBotWordFromRack(testRack, pool, index, {
+        ...basePick({
+          difficulty,
+          requiredLetter: "a",
+          usedWords: new Set(["action", "act"]),
+        }),
+      });
+      expect(word).toBeNull();
+    }
+  });
 });

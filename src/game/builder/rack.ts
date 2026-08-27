@@ -9,8 +9,8 @@
  * All RNG is injected via dependency parameters.
  *
  * PIPELINE STAGES:
- * 1. Golden Seed Selection: pick a 7-9 letter word starting with the required letter, scored for
- *    combinatorial fertility (common vowels and consonants).
+ * 1. Golden Seed Selection: pick a 6-8 letter word starting with the required letter (shorter when
+ *    the rack is smaller than that, longer under Sieve), scored for combinatorial fertility.
  * 2. Tile Decomposition: extract morpheme chunks (-ING, -ED, -TION, etc.) and single letters.
  * 3. Catalyst Injection: pad rack to target capacity (default 9-10 tiles) while maintaining target
  *    vowel ratio (35%-45%) and high-utility inflections (S, D, R, E, Y, -ED, -ING).
@@ -19,9 +19,18 @@
  */
 
 import { RARE_START } from "../cards/card";
-import { isVowel } from "../settings";
-import type { PoolIndex } from "../picker/offer";
+import { isVowel, MAX_BUILDER_RACK_SIZE, MIN_BUILDER_RACK_SIZE } from "../settings";
+import { MIN_OFFER_LENGTH, type PoolIndex } from "../picker/offer";
 import type { WordPool } from "../picker/wordPool";
+
+/** The largest tile count the exact-cover DFS below can memoize.
+ *
+ *  Both `canConstructWordFromTiles` and `findTileDecomposition` key their memo on
+ *  `offset * (1 << n) + mask`, which is a perfect hash only while `1 << n` stays a positive power of
+ *  two — at n = 31 a JS bitmask goes negative and distinct states start colliding, which would make
+ *  the DFS report a buildable word as unbuildable. MAX_RACK_SIZE is held at or below this, and both
+ *  functions are exported and take arbitrary tile arrays, so they check rather than assume. */
+const TILE_MASK_LIMIT = 30;
 
 /** A single tile on a player's rack. */
 export interface Tile {
@@ -75,14 +84,25 @@ export interface RackResult {
   subWordCount: number;
   /** Whether the rack passed the full Diversity Contract. */
   diversityPassed: boolean;
+  /** Pool candidates the diversity verifier examined, summed over every attempt this draw made.
+   *  Diagnostics, and what lets a test pin bounded scanning deterministically instead of with a wall
+   *  clock — the cost this generator has to control is candidates walked, not milliseconds. */
+  examined: number;
+  /** Preference Card guarantees this rack could not honour — a rack too small to spare a slot, or a
+   *  Sentinel ban that outranked them. Empty in the ordinary case. Surfaced rather than swallowed so
+   *  the impossible case is observable instead of looking like a working guarantee. */
+  unmetGuarantees: ("rare" | "vowels")[];
 }
 
 /** Default rack size if unspecified. */
 export const DEFAULT_RACK_SIZE = 9;
 
-/** Minimum and maximum allowable rack sizes after modifiers. */
-export const MIN_RACK_SIZE = 6;
-export const MAX_RACK_SIZE = 12;
+/** Minimum and maximum allowable rack sizes after modifiers. Aliases of the lobby's own bounds, so
+ *  the band this clamps to and the range a host may pick from cannot drift apart — see
+ *  MIN_BUILDER_RACK_SIZE for why that mattered, and for why the ceiling is where it is (the memo key
+ *  in canConstructWordFromTiles below is a bitmask in a JS number). */
+export const MIN_RACK_SIZE = MIN_BUILDER_RACK_SIZE;
+export const MAX_RACK_SIZE = MAX_BUILDER_RACK_SIZE;
 
 /**
  * The rack size a draw will ACTUALLY use: the requested base plus the holder's Preference Card
@@ -214,17 +234,6 @@ export const ROOT_CHUNKS: readonly string[] = [
   "un",
 ];
 
-export const MORPHEME_PREFIXES: readonly string[] = [
-  "dis",
-  "pre",
-  "pro",
-  "con",
-  "re",
-  "un",
-  "de",
-  "in",
-];
-
 /** Universal catalyst consonants and inflections. */
 const CATALYST_CONSONANTS: readonly string[] = ["s", "d", "r", "t", "n", "l", "y", "m", "p", "c"];
 const CATALYST_VOWELS: readonly string[] = ["a", "e", "i", "o", "u"];
@@ -353,8 +362,27 @@ export function canConstructWordFromTiles(
   word: string,
   tiles: readonly (string | Tile)[],
 ): boolean {
-  const target = word.toLowerCase();
-  const tileTexts = tiles.map((t) => (typeof t === "string" ? t.toLowerCase() : t.text.toLowerCase()));
+  const tileTexts = tiles.map((t) =>
+    typeof t === "string" ? t.toLowerCase() : t.text.toLowerCase(),
+  );
+  return matchAgainstTexts(word.toLowerCase(), tileTexts);
+}
+
+/** The exact-cover DFS behind {@link canConstructWordFromTiles}, over tile texts that are ALREADY
+ *  lowercased.
+ *
+ *  Split out so a scanning caller can lower the rack ONCE rather than per candidate. subWordFinder
+ *  reaches this for every word that survives the frequency check on a chunked rack — and a chunked
+ *  rack is the normal case, since decomposeSeed extracts chunks and catalyst injection adds one at
+ *  28% per slot — so the `tiles.map(...toLowerCase())` it used to redo each time was pure garbage on
+ *  a 40k-word bucket. */
+function matchAgainstTexts(target: string, tileTexts: readonly string[]): boolean {
+  if (tileTexts.length > TILE_MASK_LIMIT) {
+    throw new Error(
+      `canConstructWordFromTiles: ${tileTexts.length} tiles exceeds TILE_MASK_LIMIT ` +
+        `(${TILE_MASK_LIMIT}); the memo key would collide silently`,
+    );
+  }
 
   // Quick total length check
   let totalLength = 0;
@@ -393,6 +421,13 @@ export function canConstructWordFromTiles(
  * Return the exact subset of Tile objects used to spell a word, or null if impossible.
  */
 export function findTileDecomposition(word: string, rack: readonly Tile[]): Tile[] | null {
+  if (rack.length > TILE_MASK_LIMIT) {
+    throw new Error(
+      `findTileDecomposition: ${rack.length} tiles exceeds TILE_MASK_LIMIT (${TILE_MASK_LIMIT}); ` +
+        `the memo key would collide silently`,
+    );
+  }
+
   const target = word.toLowerCase();
   const result: Tile[] = [];
 
@@ -456,6 +491,12 @@ function rackLetterProfile(tiles: readonly { text: string }[]): {
   return { counts, mask, totalLetters, vowelCount };
 }
 
+/** A work budget for a bounded pool scan, decremented IN PLACE so one object threads through
+ *  several probes: the caller reads back how much was consumed and whether it ran out. */
+export interface ScanBudget {
+  remaining: number;
+}
+
 /**
  * Ultra-fast sub-word finder. Scans the starting-letter pool for words buildable from the rack.
  */
@@ -469,30 +510,67 @@ export function subWordFinder(
     maxResults?: number;
     minLen?: number;
     maxLen?: number;
+    /** Stop as soon as this returns true, evaluated after each accepted word. Lets a caller stop on
+     *  a property of the SET found ("a second distinct ending letter") rather than on a count. */
+    stopWhen?: (word: string, found: readonly string[]) => boolean;
+    /** Cap on pool candidates EXAMINED — not returned.
+     *
+     *  Use this, not `maxResults`, to bound an open-ended scan: `index.lengthsFor` yields the short
+     *  buckets first and the only other bail is post-push, so a result cap truncates by ASCENDING
+     *  LENGTH and silently starves any caller that cares about long words. A budget bounds the work
+     *  without biasing which words come back. */
+    budget?: ScanBudget;
   } = {},
 ): string[] {
   const { counts: rackCounts, mask: rackMask, totalLetters } = rackLetterProfile(rack);
-  const minLen = Math.max(2, options.minLen ?? 2);
+  // Floored at the shortest length PoolIndex actually indexes. The old floor of 2 was unreachable:
+  // `lengthsFor` never yields below MIN_OFFER_LENGTH and `range` returns an empty span there, so a
+  // caller asking for 2-letter words silently got none.
+  const minLen = Math.max(MIN_OFFER_LENGTH, options.minLen ?? MIN_OFFER_LENGTH);
   const maxLen = Math.min(totalLetters, options.maxLen ?? totalLetters);
   const maxResults = options.maxResults ?? Infinity;
   const used = options.usedWords ?? new Set<string>();
 
   const hasChunks = rack.some((t) => t.isChunk);
+  // Lowered ONCE for the whole scan rather than per candidate (see matchAgainstTexts).
+  const rackTexts = hasChunks ? rack.map((t) => t.text.toLowerCase()) : [];
   const found: string[] = [];
+
+  // One reused frequency buffer instead of a fresh Int32Array per candidate. Only the codes this
+  // word touched are reset, so the cost is the word's length rather than a 26-slot zero-fill plus
+  // an allocation — on the innermost loop of every candidate that survives the bitmask check, and
+  // it matters most exactly where this scan hurts: the server's Jint sandbox, where there is no JIT
+  // and an allocation is comparatively far more expensive.
+  const wordCounts = new Int32Array(26);
 
   const lettersToScan = requiredLetter
     ? [requiredLetter.toLowerCase()]
     : index.startLetters();
 
+  const stopWhen = options.stopWhen;
+  // Tracked locally and written back once at the single exit, so no early return can skip the
+  // write-back and leave a threaded budget lying about what it spent.
+  let remaining = options.budget ? options.budget.remaining : Infinity;
+  let stopped = false;
+
   for (const startLetter of lettersToScan) {
+    if (stopped) break;
     const lengths = index.lengthsFor(startLetter);
     for (const len of lengths) {
+      if (stopped) break;
       if (len < minLen || len > maxLen) continue;
 
       const r = index.range(startLetter, len);
       for (let i = r.start; i < r.end; i++) {
         const word = pool.pickOfLength(len, i);
-        if (!word || used.has(word)) continue;
+        if (!word) continue;
+        if (remaining <= 0) {
+          stopped = true;
+          break;
+        }
+        // Charged before the `used` filter: skipping an already-played word is still work done.
+        remaining--;
+        if (used.has(word)) continue;
 
         // 1. Bitmask check
         let wordMask = 0;
@@ -508,28 +586,37 @@ export function subWordFinder(
         if (!possible || (wordMask & ~rackMask) !== 0) continue;
 
         // 2. Letter frequency check
-        const wordCounts = new Int32Array(26);
-        for (let c = 0; c < word.length; c++) {
-          const code = word.charCodeAt(c) - 97;
-          wordCounts[code]++;
-          if (wordCounts[code] > rackCounts[code]) {
+        let upto = 0;
+        for (; upto < word.length; upto++) {
+          const code = word.charCodeAt(upto) - 97;
+          if (++wordCounts[code] > rackCounts[code]) {
             possible = false;
+            upto++; // this letter was counted, so it must be reset too
             break;
           }
         }
+        for (let c = 0; c < upto; c++) wordCounts[word.charCodeAt(c) - 97] = 0;
         if (!possible) continue;
 
         // 3. Tile partition check if chunk tiles exist
-        if (hasChunks && !canConstructWordFromTiles(word, rack)) {
+        if (hasChunks && !matchAgainstTexts(word, rackTexts)) {
           continue;
         }
 
         found.push(word);
-        if (found.length >= maxResults) return found;
+        if (stopWhen && stopWhen(word, found)) {
+          stopped = true;
+          break;
+        }
+        if (found.length >= maxResults) {
+          stopped = true;
+          break;
+        }
       }
     }
   }
 
+  if (options.budget) options.budget.remaining = remaining;
   return found;
 }
 
@@ -557,7 +644,8 @@ const DEAD_END_POOL_SHARE = 0.5;
  * near-certain timeout, and an elimination in Survival. Classic never calls this: there the player
  * types freely and a thin letter costs them nothing but difficulty.
  *
- * Counted over lengths a rack of `rackSize` could actually spell, so the same letter can support a
+ * Counted over indexed lengths a rack of `rackSize` could actually spell (MIN_OFFER_LENGTH and up —
+ * the pool holds nothing shorter), so the same letter can support a
  * 9-tile rack and not a 7-tile one — which is exactly what the measurements show.
  *
  * This is the rack-path equivalent of the letter-starvation lookahead the retired Offer generator
@@ -573,7 +661,7 @@ export function letterSupportsRack(
   const buildable = (l: string): number => {
     let n = 0;
     for (const len of index.lengthsFor(l)) {
-      if (len < 2 || len > rackSize) continue;
+      if (len < MIN_OFFER_LENGTH || len > rackSize) continue;
       const r = index.range(l, len);
       n += r.end - r.start;
     }
@@ -592,11 +680,65 @@ export function letterSupportsRack(
   return count >= (total / starts.length) * DEAD_END_POOL_SHARE;
 }
 
+/* Diversity Contract clause thresholds. Each clause has its OWN length window, and that is the
+ * whole reason the verifier below can be bounded without going approximate: a `maxResults` cap set
+ * to a clause's threshold, on a probe restricted to that clause's window, cannot false-negative.
+ * A cap SHARED across the windows can and does — see subWordFinder's `budget` doc. */
+const DIVERSITY_LONG_LEN = 7;
+const DIVERSITY_MID_MIN = 4;
+const DIVERSITY_MID_MAX = 6;
+const DIVERSITY_MID_NEEDED = 2;
+const DIVERSITY_ENDINGS_NEEDED = 2;
+const DIVERSITY_MAX_PROGRESS = 1 + DIVERSITY_MID_NEEDED + DIVERSITY_ENDINGS_NEEDED;
+
+/** Candidates the bounded verifier may examine per rack before giving up on the contract.
+ *
+ *  Chosen to be UNREACHABLE on the shipped Reduced list, which is what preserves outcome identity:
+ *  `words-common.txt`'s fattest starting letter (`c`, 947 words) sums to 1,870 examinations across
+ *  the three probe windows (300 mid + 623 long + 947 endings), so no Reduced draw can exhaust this
+ *  and no Reduced verdict — and therefore no rng draw downstream of one — can change. Any value
+ *  >= 1,900 is Reduced-neutral; below that, identity is forfeit and the shared-stream tests in
+ *  rack.test.ts will drift.
+ *
+ *  It earns its keep on the Full list, where a census of one starting letter costs 7,000-23,000
+ *  examinations against a 7-tile rack and the old code paid that up to 12 times per draw, on the
+ *  turn-arm path, inside the server's Jint sandbox where there is no JIT.
+ *
+ *  Measured over 400 Full-list draws at Sudden Death's rack size of 7: p50 132 examinations, p90
+ *  1,004, and the budget binds on 1.5% of draws. Those 1.5% fall back to a best-effort rack — still
+ *  seeded, still buildable, just not contract-verified — which is the intended trade, since they are
+ *  exactly the draws where verifying costs the most. Raising this buys a fraction of a percent of
+ *  rack quality for a proportional rise in the worst case. */
+const DIVERSITY_EXAMINE_BUDGET = 4000;
+
+export interface RackDiversity {
+  valid: boolean;
+  /** A SAMPLE, not a census: capped at roughly what the contract needs, unless `exhaustive` was
+   *  set. Use it to tell "some words exist" from "none do", not to measure how many. */
+  words: string[];
+  /** Capped the same way — ">= 2" is meaningful, the exact value above 2 is not. */
+  distinctEndings: number;
+  /** Pool candidates examined. Diagnostics, and what lets a test pin bounded work deterministically
+   *  instead of with a wall clock. */
+  examined: number;
+  /** The budget ran out, so a `valid: false` here may be a false negative. Never true on Reduced. */
+  budgetExhausted: boolean;
+  /** How many of the contract's clause-units are satisfied, 0..DIVERSITY_MAX_PROGRESS. `valid` is
+   *  exactly `progress === DIVERSITY_MAX_PROGRESS`. This is the ranking key for the least-bad
+   *  fallback rack, which total sub-word count could only ever proxy for. */
+  progress: number;
+}
+
 /**
  * Diversity Contract Verification:
  * 1. >= 1 word of length >= 7 (High-ceiling engine path)
  * 2. >= 2 words of length 4-6 (Mid-range / safe path)
  * 3. >= 2 distinct ending letters (Tactical Succession choices)
+ *
+ * Verified with three bounded probes rather than one unbounded scan. The contract needs at most a
+ * handful of words, but the scan it used to run walked EVERY buildable word in the required letter's
+ * bucket — 947 on the Reduced list, 40,310 on the Full one that Sudden Death selects — and
+ * generateRack repeats it up to MAX_ATTEMPTS times per turn.
  */
 export function verifyRackDiversity(
   rack: readonly Tile[],
@@ -604,21 +746,194 @@ export function verifyRackDiversity(
   index: PoolIndex,
   requiredLetter: string,
   usedWords: ReadonlySet<string> = new Set(),
-): { valid: boolean; words: string[]; distinctEndings: number } {
-  const words = subWordFinder(rack, pool, index, requiredLetter, { usedWords });
+  options: {
+    /** The Golden Seed this rack was decomposed from. Always buildable from the rack, always
+     *  unplayed, always starts with the required letter — so it is a word the unbounded scan would
+     *  have returned, and priming with it is exact rather than a shortcut. */
+    seedWord?: string;
+    /** Reproduce the old unbounded single scan. For tests and diagnostics ONLY — it is the oracle
+     *  the bounded path is verified against. generateRack never sets it. */
+    exhaustive?: boolean;
+    budget?: ScanBudget;
+  } = {},
+): RackDiversity {
+  // MAX_SAFE_INTEGER rather than Infinity for the exhaustive default, so `examined` below stays a
+  // real count instead of Infinity - Infinity.
+  const budget: ScanBudget = options.budget ?? {
+    remaining: options.exhaustive ? Number.MAX_SAFE_INTEGER : DIVERSITY_EXAMINE_BUDGET,
+  };
+  const startedWith = budget.remaining;
 
+  // A rack that physically cannot spell DIVERSITY_LONG_LEN letters must not be held to the long
+  // clause — with the floor at MIN_RACK_SIZE that is reachable. When the relaxed threshold drops
+  // into the mid band the two windows overlap and one word can satisfy both clauses; that is
+  // deliberate, since demanding distinct words would make the contract unsatisfiable exactly where
+  // the rack is already too thin to offer any.
+  const longLen = Math.min(DIVERSITY_LONG_LEN, rackLetterProfile(rack).totalLetters);
+
+  const words: string[] = [];
+  const seen = new Set<string>();
+  const endings = new Set<string>();
   let countLong = 0;
   let countMid = 0;
-  const endings = new Set<string>();
 
-  for (const w of words) {
-    if (w.length >= 7) countLong++;
-    else if (w.length >= 4 && w.length <= 6) countMid++;
+  const add = (w: string): void => {
+    if (!seen.has(w)) {
+      seen.add(w);
+      words.push(w);
+    }
     if (w.length > 0) endings.add(w[w.length - 1]);
+  };
+
+  const finish = (): RackDiversity => {
+    const progress =
+      Math.min(countLong, 1) +
+      Math.min(countMid, DIVERSITY_MID_NEEDED) +
+      Math.min(endings.size, DIVERSITY_ENDINGS_NEEDED);
+    return {
+      valid: progress === DIVERSITY_MAX_PROGRESS,
+      words,
+      distinctEndings: endings.size,
+      examined: startedWith - budget.remaining,
+      budgetExhausted: budget.remaining <= 0,
+      progress,
+    };
+  };
+
+  if (options.exhaustive) {
+    for (const w of subWordFinder(rack, pool, index, requiredLetter, { usedWords, budget })) {
+      if (w.length >= longLen) countLong++;
+      if (w.length >= DIVERSITY_MID_MIN && w.length <= DIVERSITY_MID_MAX) countMid++;
+      add(w);
+    }
+    return finish();
   }
 
-  const valid = countLong >= 1 && countMid >= 2 && endings.size >= 2;
-  return { valid, words, distinctEndings: endings.size };
+  // Prime from the seed. A 7+ letter seed settles the long clause with ZERO scanning, and at the
+  // default rack size the seed band is 6-8 with fertility scoring favouring length, so this is the
+  // common case — which means the one genuinely expensive probe is usually skipped outright.
+  const seed = options.seedWord;
+  if (
+    seed &&
+    seed.length >= longLen &&
+    !usedWords.has(seed) &&
+    (requiredLetter === "" || seed.startsWith(requiredLetter.toLowerCase()))
+  ) {
+    countLong = 1;
+    add(seed);
+  }
+
+  // Mid band: cheapest and densest, so it goes first and usually supplies both endings too.
+  const mid = subWordFinder(rack, pool, index, requiredLetter, {
+    usedWords,
+    minLen: DIVERSITY_MID_MIN,
+    maxLen: DIVERSITY_MID_MAX,
+    maxResults: DIVERSITY_MID_NEEDED,
+    budget,
+  });
+  countMid = mid.length;
+  for (const w of mid) add(w);
+
+  if (countLong === 0) {
+    const long = subWordFinder(rack, pool, index, requiredLetter, {
+      usedWords,
+      minLen: longLen,
+      maxResults: 1,
+      budget,
+    });
+    countLong = long.length;
+    for (const w of long) add(w);
+  }
+
+  // Endings: only when the words already found do not carry two, which is uncommon. `stopWhen` makes
+  // this exact — it stops on the FIRST word with an unseen ending, so it returns one iff the
+  // unbounded scan would have found one. Tallied into `endings` alone: countLong and countMid come
+  // from their own probes, so nothing here can double-count toward those clauses.
+  if (endings.size < DIVERSITY_ENDINGS_NEEDED) {
+    const extra = subWordFinder(rack, pool, index, requiredLetter, {
+      usedWords,
+      budget,
+      stopWhen: (w) => !endings.has(w[w.length - 1]),
+    });
+    for (const w of extra) {
+      if (endings.has(w[w.length - 1])) continue;
+      add(w);
+    }
+  }
+
+  return finish();
+}
+
+/** Stand-in for "this player has no ban worth weighing" — see the call site in selectGoldenSeed. */
+const NO_BANS: ReadonlySet<string> = new Set();
+
+/** A tile under construction. `fromSeed` marks the output of decomposeSeed, and is what makes the
+ *  guarantee repair below safe: generateRack promises the seed stays buildable from the finished
+ *  rack, so the repair may overwrite catalyst tiles and nothing else. Dropped when the array is
+ *  mapped to Tile[]. */
+interface DraftTile {
+  text: string;
+  isChunk: boolean;
+  fromSeed: boolean;
+}
+
+/** The catalyst options a player is actually allowed, which is all of them unless they hold Sentinel.
+ *  Separated from the draw so a caller can test for an empty list WITHOUT consuming an rng call —
+ *  the old `?? "z"` / `?? "e"` / `?? "s"` fallbacks drew from an empty array (burning a draw and
+ *  yielding undefined) and then injected the very letter the ban forbade, quietly defeating the card
+ *  whose entire promise is that it will not appear. */
+function allowedCatalysts(
+  candidates: readonly string[],
+  bannedSet: ReadonlySet<string>,
+  filterBans: boolean,
+): readonly string[] {
+  if (!filterBans) return candidates;
+  return candidates.filter((c) => ![...c].some((ch) => bannedSet.has(ch)));
+}
+
+/** Terminal catalyst: the first letter nobody has banned. Deterministic and rng-free, so reaching it
+ *  cannot shift the stream. Only a fully banned alphabet falls through to "s", and at that point the
+ *  rack is taxed whatever goes in. */
+function firstUnbannedLetter(bannedSet: ReadonlySet<string>): string {
+  for (let c = 0; c < 26; c++) {
+    const ch = String.fromCharCode(97 + c);
+    if (!bannedSet.has(ch)) return ch;
+  }
+  return "s";
+}
+
+function hasRareTile(tiles: readonly { text: string }[]): boolean {
+  return tiles.some((t) => RARE_LETTERS.some((r) => t.text.includes(r)));
+}
+
+function vowelShare(tiles: readonly { text: string }[]): number {
+  const p = rackLetterProfile(tiles);
+  return p.vowelCount / Math.max(1, p.totalLetters);
+}
+
+/** The catalyst tile whose replacement by a single vowel buys the most vowel share — i.e. the one
+ *  carrying the most consonant letters, earliest index winning ties so the choice stays
+ *  deterministic. Rare-bearing tiles are excluded so a vowel repair can never undo a rare one. */
+function bestVowelSwapIndex(tiles: readonly DraftTile[]): number {
+  let best = -1;
+  let bestConsonants = 0;
+  for (let i = 0; i < tiles.length; i++) {
+    const t = tiles[i];
+    if (t.fromSeed) continue;
+    if (RARE_LETTERS.some((r) => t.text.includes(r))) continue;
+    let consonants = 0;
+    for (const ch of t.text) if (!isVowel(ch)) consonants++;
+    if (consonants > bestConsonants) {
+      best = i;
+      bestConsonants = consonants;
+    }
+  }
+  return best;
+}
+
+function lastCatalystIndex(tiles: readonly DraftTile[]): number {
+  for (let i = tiles.length - 1; i >= 0; i--) if (!tiles[i].fromSeed) return i;
+  return -1;
 }
 
 /**
@@ -633,10 +948,31 @@ export function selectGoldenSeed(
   bannedLetters: ReadonlySet<string>,
   targetRackSize: number,
   rng: () => number,
+  /** Tiles the catalyst loop must be left room to inject for an active guarantee.
+   *
+   *  Reserved against seed LETTERS, which is conservative in the safe direction: decomposeSeed emits
+   *  at most one tile per letter, so a seed of `targetRackSize - reservedSlots` letters can never
+   *  occupy more than that many slots, and a chunky seed frees extra slots for nothing. Yields to
+   *  `minLen`, so Sieve's guarantee outranks Prospector's and Tide's. */
+  reservedSlots = 0,
 ): string | null {
   const startLetters = requiredLetter ? [requiredLetter.toLowerCase()] : index.startLetters();
-  const minLen = Math.min(shaping?.minSeedLength ?? 6, targetRackSize);
-  const maxLen = Math.max(minLen, Math.min(8, targetRackSize));
+  // Floored at the shortest length the pool actually indexes. Below it the whole search window is
+  // empty, and at the smallest rack sizes that is where the window lands — which used to mean no
+  // seed at all, a degenerate fixed rack, and a succession letter freed every single turn.
+  const minLen = Math.max(
+    MIN_OFFER_LENGTH,
+    Math.min(shaping?.minSeedLength ?? 6, targetRackSize),
+  );
+  const maxLen = Math.max(minLen, Math.min(8, targetRackSize - reservedSlots));
+
+  /** A seed is only usable if its decomposition fits the rack — otherwise the catalyst loop never
+   *  runs and the rack overflows the size the host asked for. Chunk extraction means letters are an
+   *  upper bound on tiles, not the tile count itself, so this has to ask decomposeSeed rather than
+   *  compare lengths: at a rack size of 2 the only usable seeds are the 3-letter words that split
+   *  into a letter plus a chunk ("t" + "ed"). Never rejects anything at rack sizes 6 and up, where
+   *  maxLen already binds below the rack size. */
+  const fits = (w: string): boolean => decomposeSeed(w).length <= targetRackSize;
 
   // Gather candidate seeds
   const candidates: { word: string; score: number }[] = [];
@@ -655,38 +991,78 @@ export function selectGoldenSeed(
         if (shaping?.excludeBannedLetters && [...w].some((ch) => bannedLetters.has(ch))) {
           continue;
         }
+        if (!fits(w)) continue;
 
-        const score = scoreSeedFertility(w, bannedLetters);
+        // Bans are weighed ONLY for a holder of Sentinel. The penalty is worth about the whole of a
+        // fertile seed's score, so feeding it in unconditionally made a banned-letter seed ~20-30x
+        // less likely to be drawn FOR EVERYONE — handing every player most of Sentinel's protection
+        // for free and quietly devaluing Sentinel, Prism and the tax-collector cards. The era ban is
+        // supposed to hurt.
+        //
+        // Under excludeBannedLetters the penalty is in fact dead, because the hard filter above has
+        // already dropped every candidate that would trip it. The conditional is here to state the
+        // intent, and to keep the two paths from diverging if that filter is ever softened.
+        const score = scoreSeedFertility(w, shaping?.excludeBannedLetters ? bannedLetters : NO_BANS);
         candidates.push({ word: w, score });
       }
     }
   }
 
   if (candidates.length === 0) {
-    // Fallback: sweep any available length in the pool
+    // Fallback: sweep any available length in the pool.
+    //
+    // Two-tier, because this path is reachable precisely BECAUSE of Sentinel — the hard filter above
+    // is what empties `candidates` (likely whenever a common letter such as `e` is banned) — and
+    // returning the first unplayed word regardless would break the guarantee the card is sold on.
+    // Tier 2 exists because returning null is worse for the player than a taxed rack: the caller
+    // reads null as "this letter is exhausted" and frees the succession letter entirely.
+    //
+    // Bounded by maxLen so a seed can never be longer than the rack it has to decompose into.
+    let taxedFallback: string | null = null;
     for (const letter of startLetters) {
       for (const len of index.lengthsFor(letter)) {
+        if (len > Math.max(maxLen, MIN_OFFER_LENGTH)) continue;
         const r = index.range(letter, len);
         for (let i = r.start; i < r.end; i++) {
           const w = pool.pickOfLength(len, i);
-          if (w && !usedWords.has(w)) return w;
+          if (!w || usedWords.has(w) || !fits(w)) continue;
+          if (!shaping?.excludeBannedLetters) return w;
+          if (![...w].some((ch) => bannedLetters.has(ch))) return w;
+          taxedFallback ??= w;
         }
       }
     }
-    return null;
+    return taxedFallback;
+  }
+
+  // Tide: prefer a vowel-heavy seed. Reaching a 50% rack vowel share by injection alone is
+  // arithmetically out of reach, because each injected vowel raises the denominator as well as the
+  // numerator — an 8-letter seed with 2 vowels needs FOUR free slots to get there, more than any
+  // rack can reserve without trampling Sieve. So the seed itself has to carry the ratio. Uses the
+  // same predicate Tide applies on the Offer path (vowels * 2 >= length), and falls back to the
+  // whole candidate set when the pool cannot serve it — a preference the pool cannot meet is
+  // abandoned, never allowed to shrink the draw.
+  let pickFrom = candidates;
+  if (shaping?.highVowelRatio) {
+    const vowelHeavy = candidates.filter((c) => {
+      let v = 0;
+      for (const ch of c.word) if (isVowel(ch)) v++;
+      return v * 2 >= c.word.length;
+    });
+    if (vowelHeavy.length > 0) pickFrom = vowelHeavy;
   }
 
   // Weighted random selection based on fertility score
   let totalScore = 0;
-  for (const c of candidates) totalScore += c.score;
+  for (const c of pickFrom) totalScore += c.score;
   let pick = rng() * totalScore;
 
-  for (const c of candidates) {
+  for (const c of pickFrom) {
     pick -= c.score;
     if (pick <= 0) return c.word;
   }
 
-  return candidates[candidates.length - 1].word;
+  return pickFrom[pickFrom.length - 1].word;
 }
 
 /**
@@ -704,13 +1080,26 @@ export function generateRack(req: RackRequest): RackResult {
 
   const bannedSet = new Set((req.bannedLetters ?? []).map((l) => l.toLowerCase()));
   const targetRackSize = effectiveRackSize(req.rackSize, shaping?.slotDelta);
+  const filterBans = !!shaping?.excludeBannedLetters;
 
   const targetVowelRatio = shaping?.highVowelRatio ? 0.5 : 0.4;
+  // One slot per active guarantee, so the seed cannot fill the rack and starve the catalyst loop.
+  const reservedSlots = (shaping?.guaranteeRare ? 1 : 0) + (shaping?.highVowelRatio ? 1 : 0);
+  const unmet: ("rare" | "vowels")[] = [];
   let bestRack: Tile[] | null = null;
   let bestWords: string[] = [];
   let bestSeed = "";
+  let examined = 0;
+  let bestProgress = -1;
+  let bestUnmet: ("rare" | "vowels")[] = [];
+  let exhaustedStreak = 0;
 
   const MAX_ATTEMPTS = 12;
+  /** Consecutive budget-exhausted attempts before giving up on the contract for this draw. A rack
+   *  the verifier could not settle within budget is a Full-dictionary symptom rather than a bad
+   *  rack, and each retry costs another full budget while being no likelier to pass. Cannot fire on
+   *  the Reduced list, where the budget is unreachable, so it cannot change a Reduced outcome. */
+  const MAX_EXHAUSTED_STREAK = 3;
 
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     // 1. Select Golden Seed
@@ -723,52 +1112,89 @@ export function generateRack(req: RackRequest): RackResult {
       bannedSet,
       targetRackSize,
       rng,
+      reservedSlots,
     );
 
     if (!seedWord) break;
 
     // 2. Decompose Seed into Tiles
     const seedTiles = decomposeSeed(seedWord);
-    const tiles: { text: string; isChunk: boolean }[] = [...seedTiles];
+    const tiles: DraftTile[] = seedTiles.map((t) => ({ ...t, fromSeed: true }));
 
     // 3. Catalyst Injection & Vowel Balancing
+    //
+    // Each branch tests its option list for emptiness BEFORE drawing, so a Sentinel ban that wipes
+    // out a list costs no rng call and falls through to the next branch — which keeps the number of
+    // rng draws per injected tile identical to the unbanned case, and therefore keeps every
+    // shared-stream test in rack.test.ts stable.
     while (tiles.length < targetRackSize) {
-      const profile = rackLetterProfile(tiles);
-      const currentVowelRatio = profile.vowelCount / Math.max(1, profile.totalLetters);
-
-      let newTileText: string;
+      let newTileText: string | null = null;
       let isChunk = false;
 
-      if (shaping?.guaranteeRare && !tiles.some((t) => RARE_LETTERS.some((r) => t.text.includes(r)))) {
-        // Inject rare letter for Prospector
-        const availableRares = shaping.excludeBannedLetters
-          ? RARE_LETTERS.filter((r) => !bannedSet.has(r))
-          : RARE_LETTERS;
-        newTileText = availableRares[Math.floor(rng() * availableRares.length)] ?? "z";
-      } else if (currentVowelRatio < targetVowelRatio) {
-        // Need vowel
-        const vowels = shaping?.excludeBannedLetters
-          ? CATALYST_VOWELS.filter((v) => !bannedSet.has(v))
-          : CATALYST_VOWELS;
-        newTileText = vowels[Math.floor(rng() * vowels.length)] ?? "e";
-      } else {
-        // Need consonant / catalyst chunk
+      // Prospector first. Its guarantee is binary and costs exactly one slot, where Tide's is a
+      // ratio that degrades gracefully — and with slots now reserved up front, the one-free-slot
+      // case that made this ordering matter no longer arises.
+      if (shaping?.guaranteeRare && !hasRareTile(tiles)) {
+        const rares = allowedCatalysts(RARE_LETTERS, bannedSet, filterBans);
+        if (rares.length > 0) newTileText = rares[Math.floor(rng() * rares.length)];
+      }
+
+      if (newTileText === null && vowelShare(tiles) < targetVowelRatio) {
+        const vowels = allowedCatalysts(CATALYST_VOWELS, bannedSet, filterBans);
+        if (vowels.length > 0) newTileText = vowels[Math.floor(rng() * vowels.length)];
+      }
+
+      if (newTileText === null) {
         const roll = rng();
-        if (roll < 0.28 && tiles.length <= targetRackSize - 1) {
-          const chunks = shaping?.excludeBannedLetters
-            ? CATALYST_CHUNKS.filter((c) => ![...c].some((ch) => bannedSet.has(ch)))
-            : CATALYST_CHUNKS;
-          newTileText = chunks[Math.floor(rng() * chunks.length)] ?? "s";
-          isChunk = true;
-        } else {
-          const consonants = shaping?.excludeBannedLetters
-            ? CATALYST_CONSONANTS.filter((c) => !bannedSet.has(c))
-            : CATALYST_CONSONANTS;
-          newTileText = consonants[Math.floor(rng() * consonants.length)] ?? "s";
+        if (roll < 0.28) {
+          const chunks = allowedCatalysts(CATALYST_CHUNKS, bannedSet, filterBans);
+          if (chunks.length > 0) {
+            newTileText = chunks[Math.floor(rng() * chunks.length)];
+            isChunk = true;
+          }
+        }
+        if (newTileText === null) {
+          const consonants = allowedCatalysts(CATALYST_CONSONANTS, bannedSet, filterBans);
+          newTileText =
+            consonants.length > 0
+              ? consonants[Math.floor(rng() * consonants.length)]
+              : firstUnbannedLetter(bannedSet);
         }
       }
 
-      tiles.push({ text: newTileText, isChunk });
+      tiles.push({ text: newTileText, isChunk, fromSeed: false });
+    }
+
+    // 3b. Guarantee repair. The loop above is the only place Prospector and Tide were ever enforced,
+    // so a seed that filled the rack on its own — reachable whenever seed length meets the rack size,
+    // and unavoidable at the smallest sizes — silently dropped both. Reservation makes that rare;
+    // this makes it recoverable.
+    //
+    // Overwrites catalyst tiles IN PLACE and never touches a `fromSeed` tile, so the seed stays
+    // buildable and the tile count cannot move. Both steps are rng-free, so the stream is untouched.
+    unmet.length = 0;
+    if (shaping?.guaranteeRare && !hasRareTile(tiles)) {
+      const rares = allowedCatalysts(RARE_LETTERS, bannedSet, filterBans);
+      const slot = lastCatalystIndex(tiles);
+      if (rares.length > 0 && slot >= 0) {
+        tiles[slot] = { text: rares[0], isChunk: false, fromSeed: false };
+      } else {
+        // Sentinel outranks Prospector when every rare is banned, and a rack with no catalyst tile
+        // has nothing to give. Skipped in silence, as the Offer path already does for a guarantee
+        // it cannot meet.
+        unmet.push("rare");
+      }
+    }
+
+    if (shaping?.highVowelRatio) {
+      const vowels = allowedCatalysts(CATALYST_VOWELS, bannedSet, filterBans);
+      for (let guard = tiles.length; guard > 0 && vowels.length > 0; guard--) {
+        if (vowelShare(tiles) >= targetVowelRatio) break;
+        const slot = bestVowelSwapIndex(tiles);
+        if (slot < 0) break;
+        tiles[slot] = { text: vowels[0], isChunk: false, fromSeed: false };
+      }
+      if (vowelShare(tiles) < targetVowelRatio) unmet.push("vowels");
     }
 
     // 4. Shuffle tiles thoroughly so the seed word is non-sequential
@@ -782,7 +1208,11 @@ export function generateRack(req: RackRequest): RackResult {
     }));
 
     // 6. Sub-Word Diversity Check
-    const diversity = verifyRackDiversity(finalTiles, pool, index, requiredLetter, usedWords);
+    const diversity = verifyRackDiversity(finalTiles, pool, index, requiredLetter, usedWords, {
+      seedWord,
+    });
+
+    examined += diversity.examined;
 
     if (diversity.valid) {
       return {
@@ -790,25 +1220,49 @@ export function generateRack(req: RackRequest): RackResult {
         seedWord,
         subWordCount: diversity.words.length,
         diversityPassed: true,
+        examined,
+        unmetGuarantees: [...unmet],
       };
     }
 
-    if (!bestRack || diversity.words.length > bestWords.length) {
+    // Ranked on contract progress, not on total sub-word count: `words` is now a capped sample, and
+    // progress is the thing the count could only ever proxy for. Consumes no rng, so the stream is
+    // untouched either way.
+    if (
+      !bestRack ||
+      diversity.progress > bestProgress ||
+      (diversity.progress === bestProgress && diversity.words.length > bestWords.length)
+    ) {
       bestRack = finalTiles;
       bestWords = diversity.words;
       bestSeed = seedWord;
+      bestProgress = diversity.progress;
+      bestUnmet = [...unmet];
     }
+
+    exhaustedStreak = diversity.budgetExhausted ? exhaustedStreak + 1 : 0;
+    if (exhaustedStreak >= MAX_EXHAUSTED_STREAK) break;
   }
 
-  // Fallback to best rack generated
+  // Fallback to best rack generated. The hand-built rack is the last resort for a required letter
+  // the pool cannot seed at all; it is sized to the request rather than fixed at three tiles, so a
+  // host who asked for a large rack does not silently get a tiny one.
+  const degenerate: Tile[] = [{ id: "t0", text: requiredLetter || "a", isChunk: false }];
+  const filler = ["t", "e", "a", "s", "r", "n", "i", "o", "l", "d"];
+  while (degenerate.length < targetRackSize) {
+    degenerate.push({
+      id: `t${degenerate.length}`,
+      text: filler[(degenerate.length - 1) % filler.length],
+      isChunk: false,
+    });
+  }
+
   return {
-    tiles: bestRack ?? [
-      { id: "t0", text: requiredLetter || "a", isChunk: false },
-      { id: "t1", text: "t", isChunk: false },
-      { id: "t2", text: "e", isChunk: false },
-    ],
+    tiles: bestRack ?? degenerate,
     seedWord: bestSeed,
     subWordCount: bestWords.length,
     diversityPassed: false,
+    examined,
+    unmetGuarantees: bestUnmet,
   };
 }

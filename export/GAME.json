@@ -4,6 +4,14 @@
   "name": "Alpha Chain",
   "description": "A multiplayer, shiritori-esque game about building the most broken word scoring engine.",
   "version": "1.0.0",
+  "author": {
+    "name": "jcub1011"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/jcub1011/Alpha-Chain-Phaser-",
+  "bugs": "https://github.com/jcub1011/Alpha-Chain-Phaser-/issues",
+  "contentRating": "everyone",
+  "minAppVersion": "0.1.0",
   "tags": [
     "word-game",
     "party",
@@ -11,6 +19,7 @@
   ],
   "entry": "index.html",
   "thumbnail": "thumb.svg",
+  "minPlayers": 2,
   "maxPlayers": 8,
   "serverAuthority": "authority.js",
   "authorityWords": {

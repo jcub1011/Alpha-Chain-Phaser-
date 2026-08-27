@@ -17,6 +17,7 @@ import { html, nothing, type PropertyValues, type TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type { Tile } from "../../game/types";
 import { isVowel } from "../../game/settings";
+import { nextLiveIndex } from "../../game/turnOrder";
 import { RARE_START } from "../../game/cards/card";
 import type { GameController } from "../../net/controller";
 import { AcElement } from "../app/AcElement";
@@ -42,6 +43,29 @@ export class AcWordBuilder extends AcElement {
   private selectTimer: ReturnType<typeof setTimeout> | null = null;
   private lastSelectAt = 0;
 
+  /** Whether a turn has produced its outcome with no new turn armed since — i.e. the engine's round
+   *  settle window, tracked from events rather than read from state.
+   *
+   *  `live` is re-derived on every clockTick and state does not say "this turn is over":
+   *  `roundSettleRemaining` is engine-private, and `state.rack` is not cleared until armCurrentTurn.
+   *  So the derivation flipped `live` back on over a rack belonging to the previous turn, leaving
+   *  SUBMIT enabled — and commitSelection refuses during the settle window, returning
+   *  `{ accepted: false }` with no `rejected` event, so the button was silently dead.
+   *
+   *  The case that reaches it is the human's own ERA-ENDING word. submitWord emits `submission`
+   *  before endTurn runs, so the last derivation still sees the human as the current seat; endTurn
+   *  then arms the settle window and returns WITHOUT arming a turn, and nothing fires afterwards —
+   *  `tick` returns early while settling, so not even a clockTick. `live` was left true over the rack
+   *  of a turn that had already resolved.
+   *
+   *  Set on ANY player's submission or timeout rather than only the human's: it costs nothing, since
+   *  a normal mid-round outcome arms the next turn synchronously and `turnArmed` clears the flag in
+   *  the same tick, and it does not depend on the emit-before-advance ordering staying as it is.
+   *
+   *  A Prism rescue emits `rejected` rather than submission/timeout, so it correctly leaves the turn
+   *  live. */
+  private settled = false;
+
   override connectedCallback(): void {
     super.connectedCallback();
     window.addEventListener("keydown", this.onKeyDown);
@@ -50,10 +74,7 @@ export class AcWordBuilder extends AcElement {
   override disconnectedCallback(): void {
     super.disconnectedCallback();
     window.removeEventListener("keydown", this.onKeyDown);
-    if (this.selectTimer) {
-      clearTimeout(this.selectTimer);
-      this.selectTimer = null;
-    }
+    this.cancelPendingStage();
   }
 
   override willUpdate(changed: PropertyValues): void {
@@ -64,16 +85,19 @@ export class AcWordBuilder extends AcElement {
 
       this.listen(e, "turnArmed", ({ requiredLetter }) => {
         this.requiredLetter = requiredLetter;
+        this.settled = false;
         this.syncFromState();
         this.feedback = "";
         this.clearStaging();
       });
       this.listen(e, "submission", ({ submission }) => {
         if (submission.playerId === human) this.clearStaging();
+        this.settled = true;
         this.live = false;
         this.syncFromState();
       });
       this.listen(e, "timeout", () => {
+        this.settled = true;
         this.live = false;
         this.clearStaging();
         this.syncFromState();
@@ -84,6 +108,11 @@ export class AcWordBuilder extends AcElement {
         this.shake();
       });
       this.listen(e, "clockTick", () => {
+        // Land any stage the throttle is still holding. This fires synchronously inside the engine's
+        // emit, ahead of match.tick's timeout check — the same ordering <ac-word-entry> relies on for
+        // its auto-submit — so at the buzzer the engine reads the player's finished word rather than
+        // whatever fragment the throttle was sitting on.
+        this.flushStaging();
         this.syncFromState();
       });
 
@@ -95,18 +124,27 @@ export class AcWordBuilder extends AcElement {
     const s = this.controller.match.state;
     const human = this.controller.humanId;
     const isHumanTurn = s.phase === "Round" && s.players[s.currentPlayerIndex]?.id === human;
-    this.live = isHumanTurn;
+    this.live = isHumanTurn && !this.settled;
     this.isOut = !!s.players.find((p) => p.id === human)?.eliminated;
 
-    const nextIdx = (s.currentPlayerIndex + 1) % Math.max(1, s.players.length);
-    // An eliminated seat is never on deck — advanceIndex skips it, so promising a turn would lie.
+    // Walked with the engine's own nextLiveIndex rather than a bare +1, because a bare +1 lands on
+    // an ELIMINATED seat and then denies the standby cover to the player who is genuinely next — the
+    // exact opposite of what the old comment here claimed it was doing.
+    const nextSeat = s.players[nextLiveIndex(s.players, s.currentPlayerIndex).index];
     this.onDeck =
-      !this.isOut && s.phase === "Round" && !isHumanTurn && s.players[nextIdx]?.id === human;
+      !this.isOut &&
+      s.phase === "Round" &&
+      !isHumanTurn &&
+      !!nextSeat &&
+      !nextSeat.eliminated &&
+      nextSeat.id === human;
 
     this.highlightBans = s.settings.highlightBannedLetters;
     this.bannedLetter = s.bannedLetter;
     this.requiredLetter = s.requiredLetter;
-    this.canRedraw = isHumanTurn && s.rackRedrawAvailable;
+    // Follows `live`, not `isHumanTurn`, so the Winnower button does not outlive the turn the same
+    // way SUBMIT did.
+    this.canRedraw = this.live && s.rackRedrawAvailable;
 
     // Sync rack content
     if (s.rack && s.rack.length > 0) {
@@ -186,7 +224,33 @@ export class AcWordBuilder extends AcElement {
     if (!this.live) return;
     const word = this.stagedWord.trim().toLowerCase();
     if (!word) return;
+    // The commit carries the word itself, so a pending stage has nothing left to contribute and
+    // would only fire against a turn that has already resolved.
+    this.cancelPendingStage();
     this.controller.commitSelection(word);
+  }
+
+  private cancelPendingStage(): void {
+    if (!this.selectTimer) return;
+    clearTimeout(this.selectTimer);
+    this.selectTimer = null;
+  }
+
+  /** Send a stage the throttle is still holding, immediately. A no-op when nothing is pending.
+   *
+   *  The throttle defers a send by up to THROTTLE_MS, and the engine's expiry commits whatever the
+   *  last stage left in `currentSelection`. So a player who taps their final two tiles quickly and
+   *  meets the buzzer inside that window had their FRAGMENT submitted, rejected as not-a-word, and —
+   *  since showing up now means producing a word the engine ACCEPTS — counted as a no-show, which in
+   *  Survival is an elimination on a turn they actually finished. The server's 1 s submit grace
+   *  absorbs this in networked play; LocalController.stageTiles is a synchronous setSelection with no
+   *  grace at all, so solo Survival had nothing standing between the throttle and the elimination. */
+  private flushStaging(): void {
+    if (!this.selectTimer) return;
+    this.cancelPendingStage();
+    if (!this.live) return;
+    this.lastSelectAt = Date.now();
+    this.controller.stageTiles(this.stagedTileIds, this.stagedWord.trim().toLowerCase());
   }
 
   private redraw(): void {
@@ -222,9 +286,14 @@ export class AcWordBuilder extends AcElement {
       this.controller.stageTiles(this.stagedTileIds, word);
     } else {
       this.selectTimer = setTimeout(() => {
-        this.lastSelectAt = Date.now();
         this.selectTimer = null;
-        this.controller.stageTiles(this.stagedTileIds, word);
+        // Re-checked on the trailing edge, matching <ac-word-entry>'s draft throttle: the turn can
+        // have passed while the send sat deferred.
+        if (!this.live) return;
+        this.lastSelectAt = Date.now();
+        // Read fresh rather than reusing the word captured when the timer was scheduled. The tile
+        // ids below were always read fresh, so a captured word could disagree with them.
+        this.controller.stageTiles(this.stagedTileIds, this.stagedWord.trim().toLowerCase());
       }, THROTTLE_MS - elapsed);
     }
   }
@@ -238,9 +307,22 @@ export class AcWordBuilder extends AcElement {
   }
 
   private onKeyDown = (e: KeyboardEvent): void => {
-    // Ignore keydown when interacting with input/textarea/select
+    // Ignore keydown when interacting with a text control
     const target = e.target as HTMLElement | null;
-    if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) return;
+    if (
+      target &&
+      (target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.tagName === "SELECT" ||
+        target.isContentEditable)
+    ) {
+      return;
+    }
+    // Chords belong to the browser and the OS. This handler is on the window and `e.key` for Ctrl+R
+    // is still a bare "r", so without this every Ctrl/Cmd/Alt combo was preventDefault-ed AND staged
+    // a tile for its letter: Ctrl+R staged an `r` instead of reloading, and Ctrl+A/C/V/F and the Cmd
+    // equivalents were simply swallowed for the length of your turn.
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (!this.live) return;
 
     if (e.key === "Enter") {

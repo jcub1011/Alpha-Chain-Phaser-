@@ -166,15 +166,42 @@ export function presetSettings(id: PresetId): Pick<AlphaChainSettings, PresetKey
 /** `current` with the preset's match rules applied. The host's preferences survive by
  *  construction: `presetSettings` has no key to overwrite them with. */
 export function applyPreset(current: AlphaChainSettings, id: PresetId): AlphaChainSettings {
-  return { ...current, ...presetSettings(id) };
+  const next = { ...current, ...presetSettings(id) };
+  // The game mode is STICKY unless the preset names it. `presetSettings` fills every preset key
+  // from the defaults, and the default mode is Word Builder — so picking Sudden Death from a Classic
+  // lobby used to switch the player's whole surface as a side effect of asking for a shorter clock
+  // and a thinner rack. Every preset but Old-School sets BOTH modes' shot clocks, which is the tell
+  // that they were written to describe match rules rather than to choose a surface; Old-School is
+  // the one preset that IS a mode, and it says so.
+  if (!namesGameMode(id)) next.gameMode = current.gameMode;
+  return next;
+}
+
+/** Whether a preset chooses the game mode itself, rather than inheriting whatever is set. */
+function namesGameMode(id: PresetId): boolean {
+  const preset = SETTINGS_PRESETS.find((p) => p.id === id);
+  return !!preset && "gameMode" in preset.overrides;
 }
 
 /** Which preset `s` currently IS, or null for Custom. Compares only the match rules, so a host
- *  who changes their bot count or turns tutorials off keeps whichever preset they picked. */
+ *  who changes their bot count or turns tutorials off keeps whichever preset they picked.
+ *
+ *  A preset that does not name a game mode is not judged on one either — otherwise `applyPreset`'s
+ *  sticky mode would immediately read back as Custom, and clicking a preset would un-select it.
+ *  Mode-naming presets are tested FIRST so that identity still beats the mode-agnostic match: with
+ *  stock Classic settings both Old-School and Normal would otherwise qualify, and the answer is
+ *  Old-School. Picker defaults still resolve to Normal, since Old-School requires Classic. */
 export function detectPreset(s: AlphaChainSettings): PresetId | null {
-  for (const preset of SETTINGS_PRESETS) {
+  const modeAgnosticKeys = PRESET_KEYS.filter((k) => k !== "gameMode");
+  const byModeFirst = [
+    ...SETTINGS_PRESETS.filter((p) => namesGameMode(p.id)),
+    ...SETTINGS_PRESETS.filter((p) => !namesGameMode(p.id)),
+  ];
+
+  for (const preset of byModeFirst) {
     const want = presetSettings(preset.id);
-    if (PRESET_KEYS.every((k) => s[k] === want[k])) return preset.id;
+    const keys = namesGameMode(preset.id) ? PRESET_KEYS : modeAgnosticKeys;
+    if (keys.every((k) => s[k] === want[k])) return preset.id;
   }
   return null;
 }

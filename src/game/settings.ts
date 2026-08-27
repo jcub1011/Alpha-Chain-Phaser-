@@ -165,9 +165,21 @@ const BOT_DIFFICULTIES: readonly BotDifficulty[] = ["easy", "medium", "hard"];
 const GAME_MODES: readonly GameMode[] = Object.values(GameMode);
 const DICTIONARY_TIERS: readonly DictionaryTier[] = Object.values(DictionaryTier);
 
-/** Word Builder rack size bounds. */
-export const MIN_BUILDER_RACK_SIZE = 6;
-export const MAX_BUILDER_RACK_SIZE = 12;
+/** Word Builder rack size bounds — the ONE definition. `effectiveRackSize` clamps to these, the
+ *  persistence validator below accepts them, and the lobby stepper offers them, because a lobby
+ *  range that drifts from the clamp band is exactly what let a Preference Card's tile delta be
+ *  clamped away while the other half of the card still applied: at a matched ceiling Wide Net
+ *  charged its -15% shot clock and delivered no tiles, and at a matched floor Tunnel Vision kept its
+ *  x1.4 and cost none. Both were one stepper click from the default.
+ *
+ *  The range is intentionally permissive. A host who wants an absurd rack, or a player who stacks
+ *  Tunnel Vision down to nearly nothing, gets it; the generator degrades rather than refusing.
+ *
+ *  The ceiling is a TECHNICAL limit and not a balance one: canConstructWordFromTiles and
+ *  findTileDecomposition key their memo on `offset * (1 << n) + mask`, which stops being a perfect
+ *  hash once the tile count reaches 31 — a bitmask in a JS number cannot go further. */
+export const MIN_BUILDER_RACK_SIZE = 2;
+export const MAX_BUILDER_RACK_SIZE = 30;
 
 /** Upper bound for `eraCount` / `eraInterval`, shared by the persistence validators and both
  *  lobbies' steppers so the editable range and the accepted range cannot drift apart. */

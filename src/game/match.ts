@@ -13,6 +13,7 @@ import { cardIdentity, dealableCardIds, getCard } from "./cards/library";
 import { DEFAULT_MAX_INSTANCES } from "./cards/card";
 import { BanLetterService, EngineEffects, RoomServices } from "./cards/roomServices";
 import { createLogger } from "../log";
+import { nextLiveIndex } from "./turnOrder";
 import { Emitter } from "./emitter";
 import { buildPoolIndex, type PoolIndex } from "./picker/offer";
 import {
@@ -663,16 +664,7 @@ export class MatchController {
    *  `index`, and whether reaching it wraps the round. `advanceIndex` is this plus the
    *  assignment; `nextRequiredLetter` peeks so it can size the successor's rack. */
   private peekNextIndex(index: number): { index: number; wrapped: boolean } {
-    const n = this.state.players.length;
-    let cur = index;
-    let wrapped = false;
-    for (let i = 0; i < n; i++) {
-      const next = (cur + 1) % n;
-      if (next <= cur) wrapped = true;
-      cur = next;
-      if (!this.state.players[next].eliminated) break;
-    }
-    return { index: cur, wrapped };
+    return nextLiveIndex(this.state.players, index);
   }
 
   /** Advance to the next active player; returns true if the turn order wrapped
@@ -765,6 +757,15 @@ export class MatchController {
     this.state.rack = result.tiles;
     this.state.rackRedrawAvailable = this.canRedrawRack(p.id);
     if (result.seedWord === "") log.error("builder: rack generation produced no seed");
+    // A guarantee the rack could not honour is skipped in silence by design — a Preference Card may
+    // never shrink the draw — but silent to the PLAYER is not the same as invisible to us. It means
+    // either a rack too small to spare a slot or a Sentinel ban that outranked the card.
+    if (result.unmetGuarantees.length > 0) {
+      log.warn(
+        `builder: unmet rack guarantees [${result.unmetGuarantees.join(", ")}] ` +
+          `at ${result.tiles.length} tiles`,
+      );
+    }
   }
 
   /**

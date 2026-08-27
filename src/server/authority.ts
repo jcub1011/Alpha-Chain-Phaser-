@@ -267,14 +267,6 @@ export function createAuthority(kb: Kb) {
             // event — nothing to broadcast.
             h.setDraft(fromId, action.word);
             return null;
-          case "selectOffer":
-            // Picker's twin of draftWord. Returning a literal null — never drainPatch — is
-            // LOAD-BEARING, not tidiness: there is no server-side rate limiter anywhere in this
-            // build, and an intent that cannot make the server fan state out is the only thing
-            // standing between a held-down tap and an amplification vector. setSelection also
-            // refuses a word that isn't in the current Offer, and refuses off-turn senders.
-            h.setSelection(fromId, action.word);
-            return null;
           case "commitSelection":
             // Mirrors `submit`: commitSelection emits `submission` on success or one `rejected`
             // on a bad word, and is deliberately EVENTLESS when nothing is selected — so
@@ -283,20 +275,23 @@ export function createAuthority(kb: Kb) {
             return drainPatch(false);
           case "redrawRack":
             // Mutates state (a new rack + a shorter clock) and emits turnArmed/clockTick, so
-            // unlike selectOffer this one genuinely must broadcast. The engine re-derives
+            // unlike stageTiles this one genuinely must broadcast. The engine re-derives
             // eligibility — turn, phase, card held, charge unspent — so a spammed redraw is
             // refused there and drainPatch publishes nothing.
             h.redrawRack(fromId);
             return drainPatch(false);
           case "stageTiles":
+            // Returning a literal null — never drainPatch — is LOAD-BEARING, not tidiness: there is
+            // no server-side rate limiter anywhere in this build, and an intent that cannot make the
+            // server fan state out is the only thing standing between a held-down tap and an
+            // amplification vector. setSelection also refuses a word the rack cannot spell, and
+            // refuses off-turn senders.
+            //
             // The word is forwarded even when EMPTY: "" is how <ac-word-builder> says "I unstaged
             // everything", and setSelection treats it as a clear. Guarding on truthiness here
             // would leave the stale pick alive for the rest of the turn — in Survival, the
             // difference between a no-show and not.
             h.setSelection(fromId, action.word ?? "");
-            return null;
-          case "selectTile":
-          case "deselectTile":
             return null;
           case "reorderBay":
             if (!inOptimize()) return null;
