@@ -120,11 +120,16 @@ export class BenchScenario {
     return this.state.rack;
   }
   /** Word Builder: words buildable from this turn's rack — what the sandbox offers as one-click
-   *  commits, replacing the retired Offer chips. Capped because a fertile rack yields hundreds. */
+   *  commits, replacing the retired Offer chips. Capped because a fertile rack yields hundreds.
+   *
+   *  Keyed on `successionWaivedThisTurn`, not the raw letter: a Wildcard rack is drawn free of
+   *  `requiredLetter` while the letter still stands, so filtering by it would report "none" on
+   *  precisely the turn the rack is most fertile. */
   get subWords(): string[] {
     const pool = this.controller.wordPoolInstance;
     if (!pool || this.state.rack.length === 0) return [];
-    return subWordFinder(this.state.rack, pool, this.controller.offerIndex, this.state.requiredLetter, {
+    const letter = this.controller.successionWaivedThisTurn ? "" : this.state.requiredLetter;
+    return subWordFinder(this.state.rack, pool, this.controller.offerIndex, letter, {
       usedWords: this.state.usedWords,
       maxResults: 24,
     });

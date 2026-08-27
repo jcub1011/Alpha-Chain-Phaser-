@@ -84,6 +84,22 @@ export const DEFAULT_RACK_SIZE = 9;
 export const MIN_RACK_SIZE = 6;
 export const MAX_RACK_SIZE = 12;
 
+/**
+ * The rack size a draw will ACTUALLY use: the requested base plus the holder's Preference Card
+ * slot delta (Wide Net +2, Tunnel Vision -2), clamped to the allowable band.
+ *
+ * Exported because the base setting alone is not the rack anyone gets, and two callers need the
+ * same answer: `generateRack` sizes its draw with it, and `MatchController.nextRequiredLetter`
+ * asks `letterSupportsRack` about the rack the NEXT player will hold — a letter that clears the
+ * bar at 9 tiles can still be a dead end at 7.
+ */
+export function effectiveRackSize(rackSize?: number, slotDelta?: number): number {
+  return Math.max(
+    MIN_RACK_SIZE,
+    Math.min(MAX_RACK_SIZE, (rackSize ?? DEFAULT_RACK_SIZE) + (slotDelta ?? 0)),
+  );
+}
+
 /** Common morpheme chunk affixes for extraction. Ordered longest-first for greedy matching. */
 export const MORPHEME_SUFFIXES: readonly string[] = [
   "tion",
@@ -687,13 +703,7 @@ export function generateRack(req: RackRequest): RackResult {
   } = req;
 
   const bannedSet = new Set((req.bannedLetters ?? []).map((l) => l.toLowerCase()));
-  const targetRackSize = Math.max(
-    MIN_RACK_SIZE,
-    Math.min(
-      MAX_RACK_SIZE,
-      (req.rackSize ?? DEFAULT_RACK_SIZE) + (shaping?.slotDelta ?? 0),
-    ),
-  );
+  const targetRackSize = effectiveRackSize(req.rackSize, shaping?.slotDelta);
 
   const targetVowelRatio = shaping?.highVowelRatio ? 0.5 : 0.4;
   let bestRack: Tile[] | null = null;

@@ -204,7 +204,11 @@ export class LocalController implements GameController {
           this.match.wordPoolInstance,
           this.match.offerIndex,
           {
-            requiredLetter: s.requiredLetter,
+            // Waived on a rack drawn free of the letter (Wildcard / exhausted letter), which the
+            // engine records rather than clearing `requiredLetter`. Filtering by the standing
+            // letter left the bot with no candidates on exactly the turn it was handed a free
+            // rack, so it logged "nothing to pick from" and deliberately timed out.
+            requiredLetter: this.match.successionWaivedThisTurn ? "" : s.requiredLetter,
             usedWords: s.usedWords,
             bannedLetter: s.bannedLetter,
             difficulty: s.settings.botDifficulty,

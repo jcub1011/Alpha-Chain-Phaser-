@@ -22,6 +22,7 @@ import {
 } from "./picker/preference";
 import {
   canConstructWordFromTiles,
+  effectiveRackSize,
   generateRack,
   letterSupportsRack,
   subWordFinder,
@@ -96,6 +97,14 @@ const BAN_TUTORIALS: readonly TutorialKind[] = ["tax", "sniper"];
  *  submission, so every player sees the final word's score replay finish before
  *  the phase changes. Covers the taxed finale (~0.92s) on top of the walk. */
 const ROUND_SETTLE_BUFFER = 1.0;
+
+/** Word Builder: how many buildable words the no-show auto-pick gathers before picking one.
+ *
+ *  A cap, not a budget: the pick needs ONE word, and `subWordFinder` scans a whole starting-letter
+ *  bucket per call. Uncapped on a free required letter it walks every letter of the pool — a
+ *  full-dictionary sweep (386k words under Sudden Death's Full tier) on the expiry tick, inside the
+ *  server's Jint sandbox where there is no JIT. Matches the cap the bench getter already uses. */
+const NO_SHOW_CANDIDATE_CAP = 24;
 
 export interface PlayerSeed {
   id: string;
@@ -404,6 +413,16 @@ export class MatchController {
     return this.wordPool;
   }
 
+  /** Word Builder: whether THIS turn's rack was drawn free of the Succession letter — a spent
+   *  Wildcard charge, or a letter whose words were exhausted.
+   *
+   *  Anything asking what the rack can build must consult this rather than `state.requiredLetter`,
+   *  which is deliberately left standing on a free draw (the chain still advances from it). Filter
+   *  by a letter the rack was built WITHOUT and the only honest answer is "nothing buildable". */
+  get successionWaivedThisTurn(): boolean {
+    return this.offerIgnoresSuccession;
+  }
+
   /** The Offer index, built on first use so Classic pays nothing. */
   get offerIndex(): PoolIndex {
     return (this.poolIndex ??= buildPoolIndex(this.wordPool!));
@@ -427,10 +446,26 @@ export class MatchController {
    */
   private nextRequiredLetter(last: string): string {
     if (this.state.bannedLetter && last === this.state.bannedLetter) return "";
-    if (this.isPicker && !letterSupportsRack(this.offerIndex, last, this.state.settings.rackSize)) {
+    if (this.isPicker && !letterSupportsRack(this.offerIndex, last, this.successorRackSize())) {
       return "";
     }
     return last;
+  }
+
+  /** The rack size the player who INHERITS this letter will actually hold: the base setting plus
+   *  their own bay's slot delta (Wide Net +2, Tunnel Vision -2). That delta is exactly the
+   *  sensitivity `letterSupportsRack` measures — a letter that supports a 9-tile rack can still
+   *  dead-end a 7-tile one — so measuring the base setting asks about a rack nobody gets.
+   *
+   *  Called from `submitWord`, before `endTurn` advances the order, so the peek is exact within a
+   *  round. Should the turn instead wrap into a new era, `beginEra` resets `requiredLetter` to ""
+   *  and whatever this produced is discarded — the peek is never load-bearing across an era. */
+  private successorRackSize(): number {
+    const successor = this.state.players[this.peekNextIndex(this.state.currentPlayerIndex).index];
+    return effectiveRackSize(
+      this.state.settings.rackSize,
+      successor ? this.rackShapingFor(successor).slotDelta : 0,
+    );
   }
 
   /** Length of the previous accepted word (Booster/Blueprint scoring context).
@@ -624,17 +659,27 @@ export class MatchController {
     this.armCurrentTurn();
   }
 
+  /** Where the turn order goes next WITHOUT moving it: the next non-eliminated seat after
+   *  `index`, and whether reaching it wraps the round. `advanceIndex` is this plus the
+   *  assignment; `nextRequiredLetter` peeks so it can size the successor's rack. */
+  private peekNextIndex(index: number): { index: number; wrapped: boolean } {
+    const n = this.state.players.length;
+    let cur = index;
+    let wrapped = false;
+    for (let i = 0; i < n; i++) {
+      const next = (cur + 1) % n;
+      if (next <= cur) wrapped = true;
+      cur = next;
+      if (!this.state.players[next].eliminated) break;
+    }
+    return { index: cur, wrapped };
+  }
+
   /** Advance to the next active player; returns true if the turn order wrapped
    *  (i.e. every player has now had a turn this round). */
   private advanceIndex(): boolean {
-    const n = this.state.players.length;
-    let wrapped = false;
-    for (let i = 0; i < n; i++) {
-      const next = (this.state.currentPlayerIndex + 1) % n;
-      if (next <= this.state.currentPlayerIndex) wrapped = true;
-      this.state.currentPlayerIndex = next;
-      if (!this.state.players[next].eliminated) break;
-    }
+    const { index, wrapped } = this.peekNextIndex(this.state.currentPlayerIndex);
+    this.state.currentPlayerIndex = index;
     return wrapped;
   }
 
@@ -679,8 +724,15 @@ export class MatchController {
   private generateRackForTurn(p: PlayerState): void {
     if (!this.wordPool) return;
     const shaping = this.rackShapingFor(p);
+    // `offerIgnoresSuccession` is the RECEIPT for a charge already spent this turn, and the reason
+    // availability cannot simply be re-derived: the Winnower redraw calls this again mid-turn, by
+    // which point `baySuccessionExempt` is false because the guard was consumed on the first draw.
+    // Re-deriving there charged the player 30% of their clock and handed back a rack strictly MORE
+    // constrained than the free one they had just discarded, with the Wildcard already gone.
+    const alreadyFree = this.offerIgnoresSuccession;
     const wildcardAvailable =
-      this.state.requiredLetter !== "" && baySuccessionExempt(this.bayEval(p, "", false));
+      alreadyFree ||
+      (this.state.requiredLetter !== "" && baySuccessionExempt(this.bayEval(p, "", false)));
 
     const draw = (requiredLetter: string) =>
       generateRack({
@@ -696,7 +748,7 @@ export class MatchController {
 
     let result = draw(wildcardAvailable ? "" : this.state.requiredLetter);
     if (wildcardAvailable && result.seedWord !== "") {
-      this.services.wildcardGuard.tryConsume(p.id);
+      if (!alreadyFree) this.services.wildcardGuard.tryConsume(p.id); // never charged twice
       this.offerIgnoresSuccession = true;
     }
 
@@ -1153,6 +1205,43 @@ export class MatchController {
   }
 
   /**
+   * Word Builder: a random word THIS turn's rack can actually build, for the no-show commit.
+   *
+   * Three things this has to get right, and the bare `subWordFinder` call it replaces got none of
+   * them — it only ever ran once the Offer path was retired, which is what exposed all three:
+   *
+   *  1. `usedWords`. The candidate has to survive `submitWord`, which rejects an already-played
+   *     word — and the rejection lands on a player who merely timed out, flashing "Already used"
+   *     at them and resolving the turn as the dead "—" submission with the chain letter unmoved.
+   *     The odds of drawing a played word rise with every word in the match.
+   *  2. The WAIVED letter. On a Wildcard turn the rack is drawn free of `state.requiredLetter`
+   *     while the letter itself stands, so filtering by it hunts for a letter the rack was
+   *     deliberately built without. See `successionWaivedThisTurn`.
+   *  3. A bounded scan — `NO_SHOW_CANDIDATE_CAP`. The cap alone would bias the pick: with a free
+   *     letter `subWordFinder` walks `startLetters()` in order, so the first N hits are all "a"
+   *     words and every free-letter no-show would commit one. The letters are therefore visited in
+   *     a RANDOM order and the first that yields anything wins — the same shape as the bot's own
+   *     candidate gathering (`botCandidateTiers`, bots.ts). A rack that can spell nothing still
+   *     costs a full sweep, but each letter is capped and the honest answer there IS "nothing".
+   */
+  private randomBuildableWord(): string | null {
+    const s = this.state;
+    if (s.rack.length === 0 || !this.wordPool) return null;
+    const letters =
+      this.offerIgnoresSuccession || s.requiredLetter === ""
+        ? shuffle(this.offerIndex.startLetters(), this.rng)
+        : [s.requiredLetter];
+    for (const letter of letters) {
+      const candidates = subWordFinder(s.rack, this.wordPool, this.offerIndex, letter, {
+        usedWords: s.usedWords,
+        maxResults: NO_SHOW_CANDIDATE_CAP,
+      });
+      if (candidates.length > 0) return candidates[Math.floor(this.rng() * candidates.length)];
+    }
+    return null;
+  }
+
+  /**
    * Picker: the shot clock expired. Commit the current selection; with none selected, commit one
    * at random so the chain continues.
    */
@@ -1192,25 +1281,20 @@ export class MatchController {
     // player could actually have built from the tiles in front of them. Committing from the Offer
     // instead would credit them a word they never saw and could not have reached, and the tutorial
     // promises "a word is built for you".
-    let chosen: string | null = null;
-    if (s.rack.length > 0 && this.wordPool) {
-      const subWords = subWordFinder(s.rack, this.wordPool, this.offerIndex, s.requiredLetter);
-      if (subWords.length > 0) {
-        chosen = subWords[Math.floor(this.rng() * subWords.length)];
-      }
-    }
+    const chosen = this.randomBuildableWord();
 
     if (chosen !== null) {
       const res = this.submitWord(p.id, chosen);
       if (res.reason === "prism-saved") return;
       if (res.accepted) return; // submitWord already ran endTurn
-      // Should be unreachable: an offered word satisfies Succession, uniqueness and the
+      // Should be unreachable: `randomBuildableWord` satisfies Succession, uniqueness and the
       // dictionary by construction, and a TAXED word is still accepted (scoring 0), not rejected.
       log.error(`picker: commit unexpectedly rejected (${res.reason ?? "no reason"})`);
     }
 
-    // Nothing committable — an empty Offer, or the unreachable rejection above. Resolve the turn
-    // anyway so it cannot hang. Score and penalty are both 0; the required letter is unchanged.
+    // Nothing committable — a rack that builds nothing, or the unreachable rejection above.
+    // Resolve the turn anyway so it cannot hang. Score and penalty are both 0; the required
+    // letter is unchanged.
     const submission: Submission = {
       playerId: p.id,
       displayName: p.name,

@@ -124,11 +124,14 @@ function rackWord(m: MatchController, index = 0): string {
   return w;
 }
 
-/** Every word the current rack can build, respecting Succession and words already played. */
+/** Every word the current rack can build, respecting Succession and words already played.
+ *  Succession is waived when the rack itself was drawn free of the letter (Wildcard), the same
+ *  way the engine's own no-show pick waives it — otherwise a Wildcard turn reads as barren. */
 function rackWords(m: MatchController): string[] {
   const pool = m.wordPoolInstance;
   if (!pool || m.state.rack.length === 0) return [];
-  return subWordFinder(m.state.rack, pool, m.offerIndex, m.state.requiredLetter, {
+  const letter = m.successionWaivedThisTurn ? "" : m.state.requiredLetter;
+  return subWordFinder(m.state.rack, pool, m.offerIndex, letter, {
     usedWords: m.state.usedWords,
   });
 }
@@ -365,6 +368,47 @@ describe("word builder — timeout", () => {
     expect(m.state.players.find((p) => p.id === "p1")!.score).toBeGreaterThan(0);
   });
 
+  it("never auto-picks a word that has already been played", () => {
+    /* The candidate list has to exclude used words. `submitWord` rejects one at the already-used
+     * gate, and the rejection lands on a player whose only sin was timing out: "Already used"
+     * flashes at them and the turn resolves as the dead "—" submission with the chain letter
+     * unmoved. Every buildable word but one is played here, so an unfiltered pick is a near-certain
+     * hit — in a real match the odds simply climb with every word played. */
+    const m = started(makePicker({}, REDUCED, [solo], mulberry(11)));
+    const buildable = rackWords(m);
+    expect(buildable.length).toBeGreaterThan(3);
+    const survivor = buildable[buildable.length - 1];
+    for (const w of buildable) if (w !== survivor) m.state.usedWords.add(w);
+
+    const rejects: string[] = [];
+    m.events.on("rejected", ({ reason }) => rejects.push(reason));
+    runClockOut(m);
+
+    expect(rejects).toEqual([]);
+    expect(lastWord(m)).toBe(survivor); // the one word left, not the dead "—"
+  });
+
+  it("auto-picks from a Wildcard rack, which carries no required letter", () => {
+    /* In Word Builder the Wildcard is spent at GENERATION: the rack is drawn free of the required
+     * letter while the letter itself stands, since the chain still advances from it. Filtering the
+     * auto-pick by that letter searches a rack deliberately built without it — reliably nothing,
+     * so the turn died on "—" and the chain stalled on exactly the turn the card was spent. */
+    const m = makePicker({}, REDUCED, [solo], mulberry(5));
+    m.benchSetBay(solo.id, ["Wildcard"]);
+    started(m);
+    m.commitSelection(solo.id, rackWord(m)); // era openers are free; turn 2 imposes a letter
+    expect(m.state.requiredLetter).not.toBe("");
+    expect(m.successionWaivedThisTurn).toBe(true);
+
+    let deadTurns = 0;
+    m.events.on("timeout", () => deadTurns++); // only the "—" path emits this in Word Builder
+    const buildable = rackWords(m);
+    runClockOut(m);
+
+    expect(deadTurns).toBe(0);
+    expect(buildable).toContain(lastWord(m));
+  });
+
   it("ends the match on the no-show turn when it leaves one player standing", () => {
     /* The ordering test. The elimination has to be visible to endTurn's Survival active-count
      * check — which runs INSIDE submitWord, below the commit — so a deferred flag applied at the
@@ -521,6 +565,40 @@ describe("word builder — Winnower", () => {
     const notUp = m.state.players.find((p) => p.id !== m.current.id)!.id;
     expect(m.redrawRack(notUp)).toBe(false);
   });
+
+  it("keeps the Wildcard's free rack across a redraw", () => {
+    /* The redraw re-derived wildcard availability, and by then the charge was spent — so the
+     * replacement rack came back drawn WITH the required letter while the turn still counted as
+     * waived. The player paid 30% of their clock for a rack strictly more constrained than the
+     * free one they had just discarded, with the Wildcard already gone.
+     *
+     * Measured over several RNG seeds because a rack drawn WITH the letter is seeded from a word
+     * starting with it and can therefore always build one, whereas a free rack only sometimes
+     * can — so "every single redraw is letter-constrained" is the signal, and one lucky draw
+     * proves nothing either way. */
+    const seeds = [3, 5, 7, 11, 13, 17, 19, 23];
+    let redraws = 0;
+    let letterConstrained = 0;
+    for (const seed of seeds) {
+      const m = withBay(["Wildcard", "Winnower"], {}, mulberry(seed));
+      m.commitSelection(solo.id, rackWord(m)); // era openers are free; turn 2 imposes a letter
+      const letter = m.state.requiredLetter;
+      if (letter === "" || !m.successionWaivedThisTurn) continue; // no charge spent this turn
+      expect(m.redrawRack(solo.id)).toBe(true);
+      expect(m.successionWaivedThisTurn).toBe(true); // the receipt survives the redraw...
+      redraws++;
+      // Read the fresh rack BEFORE committing — a commit re-arms the turn and draws another one.
+      const onLetter = subWordFinder(m.state.rack, m.wordPoolInstance!, m.offerIndex, letter, {
+        maxResults: 1,
+      });
+      if (onLetter.length > 0) letterConstrained++;
+      const free = rackWords(m).filter((w) => w[0] !== letter);
+      expect(free.length).toBeGreaterThan(0);
+      expect(m.commitSelection(solo.id, free[0]).accepted).toBe(true); // ...and so does the bypass
+    }
+    expect(redraws).toBeGreaterThan(4);
+    expect(letterConstrained).toBeLessThan(redraws); // ...so the new rack was NOT seeded on it
+  });
 });
 
 describe("word builder — Preference Cards through the engine", () => {
@@ -627,5 +705,32 @@ describe("effectiveMode — which mode's card values a match scores with", () =>
       { isWord: (w) => dict.has(w), rng: () => 0.5, wordPool: dictionaryWordPool(dict) },
     );
     expect(m.effectiveMode).toBe(GameMode.Classic);
+  });
+});
+describe("word builder — Succession dead ends", () => {
+  /* `u` is the shipped Reduced list's one rack-size-sensitive letter: 73 buildable words at rack
+   * size 9, but 57 at size 7 — under MIN_SUCCESSION_POOL_WORDS and under half the per-letter
+   * average, so it dead-ends a Tunnel Vision holder while being perfectly playable for everyone
+   * else. That is the whole point of `letterSupportsRack`, and measuring the base setting instead
+   * of the successor's actual rack asked about a rack nobody was going to be dealt.
+   *
+   * The rack is hand-built: this is about the letter the chain hands on, not which seed the
+   * generator happened to pick. */
+  const commitEndingInU = (m: MatchController): boolean => {
+    m.state.rack = [..."bureau"].map((ch, i) => ({ id: `t${i}`, text: ch, isChunk: false }));
+    return m.commitSelection(m.current.id, "bureau").accepted;
+  };
+
+  it("waives a letter that dead-ends the NEXT player's smaller rack", () => {
+    const m = started(makePicker({ rackSize: 9 }, REDUCED, seeds));
+    m.benchSetBay(m.state.players[1].id, ["TunnelVision"]); // their rack is 7 tiles, not 9
+    expect(commitEndingInU(m)).toBe(true);
+    expect(m.state.requiredLetter).toBe("");
+  });
+
+  it("keeps the letter when the next player's rack is big enough to work it", () => {
+    const m = started(makePicker({ rackSize: 9 }, REDUCED, seeds));
+    expect(commitEndingInU(m)).toBe(true);
+    expect(m.state.requiredLetter).toBe("u");
   });
 });
