@@ -131,16 +131,119 @@
      game up, so it uses the secondary-ink token instead. */
   color: var(--ac-steel-300);
 }
-/* A run of related steppers (e.g. "Rarity Weights") as one self-contained block. The heading
-   below spans every column, which opens a row — without this wrapper the settings that follow
-   the group flow into that same row and read as part of it. Spanning the parent and re-running
-   its template keeps the group's own steppers in columns at the same widths. */
+/* Collapsible settings dropdown group (<details>) */
 .net-settings .set-group {
   grid-column: 1 / -1;
+}
+.net-settings .set-details {
+  border: 1px solid var(--ac-border);
+  border-radius: var(--r-sm);
+  background: var(--ac-steel-800);
+  margin-top: 0.35rem;
+  margin-bottom: 0.25rem;
+  overflow: hidden;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+.net-settings .set-details:hover {
+  border-color: var(--ac-steel-400);
+}
+.net-settings .set-details[open] {
+  border-color: var(--ac-steel-400);
+}
+
+/* Summary / Dropdown header */
+.set-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 0.85rem;
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  background: linear-gradient(180deg, var(--ac-steel-600), var(--ac-steel-700));
+  border-bottom: 1px solid transparent;
+  transition: background 0.15s ease;
+}
+.set-summary::-webkit-details-marker,
+.set-summary::marker {
+  display: none;
+}
+.set-summary:hover {
+  background: linear-gradient(180deg, var(--ac-steel-500), var(--ac-steel-600));
+}
+.set-summary:hover .set-subhead,
+.set-summary:hover .set-head {
+  color: var(--ac-stock-100);
+}
+.set-summary:focus-visible {
+  outline: 2px solid var(--ac-brass-lit);
+  outline-offset: -2px;
+}
+.set-details[open] > .set-summary {
+  border-bottom: 1px solid var(--ac-border);
+  background: linear-gradient(180deg, var(--ac-steel-500), var(--ac-steel-600));
+}
+.set-summary .set-subhead {
+  margin: 0;
+  font-family: var(--font-machine);
+  font-stretch: var(--stretch-machine);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ac-steel-300);
+  transition: color 0.15s ease;
+}
+.set-summary .set-head {
+  margin: 0;
+  padding: 0;
+  border-bottom: none;
+  font-size: 0.82rem;
+  letter-spacing: 0.1em;
+  color: var(--ac-stock-200);
+  transition: color 0.15s ease;
+}
+
+/* Chevron arrow indicator */
+.set-chevron {
+  display: inline-block;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-right: 2px solid var(--ac-steel-300);
+  border-bottom: 2px solid var(--ac-steel-300);
+  transform: rotate(-45deg);
+  transition:
+    transform 0.2s ease,
+    border-color 0.15s ease;
+  margin-right: 0.2rem;
+}
+.set-summary:hover .set-chevron {
+  border-color: var(--ac-stock-100);
+}
+.set-details[open] > .set-summary .set-chevron {
+  transform: rotate(45deg);
+  border-color: var(--i-primary);
+}
+
+/* Body container when details is expanded */
+.set-group-body {
+  padding: 0.6rem 0.85rem 0.85rem;
+}
+.set-group-body .set-groupdesc {
+  margin: 0 0 0.55rem;
+  max-width: 62ch;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--ac-steel-300);
+}
+.set-rows {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
   column-gap: var(--sp-4);
 }
+
 /* Band heading — one level ABOVE .set-subhead. There are three: "Presets", "Host Preferences"
    and "Match Rules". Bigger, in stock rather than steel, and underlined the full width, so the
    section headings that follow read as its children rather than as its peers. Without two

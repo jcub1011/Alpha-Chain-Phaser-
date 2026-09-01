@@ -73,7 +73,7 @@ export type PresetOverrides = Partial<Pick<AlphaChainSettings, PresetKey>>;
  * stock 12 cap — raising it there would be a number that looks like a knob and does nothing.
  */
 export const SETTINGS_PRESETS: readonly { id: PresetId; overrides: PresetOverrides }[] = [
-  { id: PresetId.Normal, overrides: {} },
+  { id: PresetId.Normal, overrides: { gameMode: GameMode.Picker } },
 
   // The original typing race. Just the mode: every other default in this port was ported FROM
   // the .NET original (see DEFAULT_SETTINGS), so Classic + the defaults IS what the old game
