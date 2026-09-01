@@ -163,17 +163,23 @@ ac-card[flipped] .gc-flip {
      it lightens the face and never the table behind it. */
   isolation: isolate;
   backface-visibility: hidden;
-  /* A die block: hardened steel, lit from the upper left, with the card's own
-     identity colour as a faint heat-tint in the metal rather than a wash of
-     coloured plastic over it. The face stays DARK deliberately — the rarity
-     foil band below blends with `screen`, which needs a dark ground to read at
-     all, and a die is dark hardened steel anyway. The bright milled stock in
-     this design belongs to the letter tiles: the thing being struck. */
+  /* A die block: hardened steel, with muted rarity tinting the top-left key light,
+     and family identity glowing towards the bottom-right corner. */
   background-image:
     linear-gradient(
       157deg,
-      color-mix(in srgb, var(--gc-card-color, var(--gc-accent)) 16%, transparent),
-      transparent 62%
+      transparent 0%,
+      transparent 50%,
+      color-mix(in srgb, var(--gc-card-color, var(--gc-accent)) 35%, transparent) 100%
+    ),
+    linear-gradient(
+      157deg,
+      color-mix(
+        in srgb,
+        color-mix(in srgb, var(--gc-rarity, var(--gc-card-color, var(--gc-accent))) 45%, #000) 18%,
+        transparent
+      ),
+      transparent 58%
     ),
     linear-gradient(178deg, var(--ac-steel-600), var(--ac-steel-800) 78%);
   background-repeat: no-repeat;
@@ -209,20 +215,6 @@ ac-card[flipped] .gc-flip {
 }
 .gc-front {
   gap: calc(var(--gc-h) * 0.03);
-}
-/* Paint-coded tooling. The family colour is a painted band across the head of
-   the block rather than a ring around the whole card: it reads at a glance in a
-   fanned bay where a full border gets buried under the next card, and it leaves
-   the card's own edge free to stay black so the block still looks like metal. */
-.gc::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 5px;
-  background: var(--gc-accent);
-  z-index: 2;
 }
 /* Faint full-bleed glyph behind the content for silhouette recognition.
    .gc has `isolation: isolate`, so z-index:-1 stays behind the in-flow content
@@ -352,9 +344,6 @@ ac-card[triggered]:not([flipped]) .gc-flip {
 ac-card[triggered] .gc {
   box-shadow: var(--ac-drop), var(--ac-heat-2);
   --gc-border: var(--ac-ember);
-}
-ac-card[triggered] .gc::before {
-  background: var(--ac-ember-hot);
 }
 
 /* Mini cards (opponent bays, sandbox, the engine-replay piles) keep the full
