@@ -1,6 +1,7 @@
 import js from "@eslint/js";
 import tseslint from "typescript-eslint";
 import prettier from "eslint-config-prettier";
+import globals from "globals";
 
 /**
  * Flat ESLint config. TypeScript-aware (non type-checked, so it stays fast and
@@ -16,11 +17,10 @@ export default tseslint.config(
   ...tseslint.configs.recommended,
   {
     // Build/maintenance scripts run under Node, not the browser, so they legitimately reach for
-    // `process` and `console`. Everything else in the repo targets the browser or the Jint sandbox,
-    // where neither exists — hence scoping the globals here rather than enabling them globally.
-    files: ["tools/**/*.mjs", "*.config.{js,mjs,ts}"],
+    // `process`, `console`, `fetch` and timers.
+    files: ["scripts/**/*.mjs", "tools/**/*.mjs", "*.config.{js,mjs,ts}"],
     languageOptions: {
-      globals: { process: "readonly", console: "readonly" },
+      globals: globals.node,
     },
   },
   {

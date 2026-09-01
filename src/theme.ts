@@ -10,43 +10,40 @@ import { CardFamily } from "./game/types";
 export const hex = (s: string): number => parseInt(s.replace("#", ""), 16);
 
 export const COLORS = {
-  // Sparks and heat — what the FX layer is almost entirely made of. A particle
-  // burst is a die landing, so it throws hot metal, never coloured light.
-  ember: 0xe1552a,
-  emberHot: 0xf4a23c,
-  brass: 0xc08f3c,
-  brassLit: 0xe0b25c,
-  copper: 0xa9603a,
-  oxide: 0xa33a2a,
-  patina: 0x5f9e77,
-  stock: 0xdcd2be,
-  ink: 0xf0e9dc,
+  // Sparks and heat / signal glow
+  ember: 0xff1744,
+  emberHot: 0xff9100,
+  brass: 0x00f0ff,
+  brassLit: 0x70f8ff,
+  copper: 0xff6d00,
+  oxide: 0xff1744,
+  patina: 0x00e676,
+  stock: 0xffffff,
+  ink: 0xffffff,
 
   // Card-family accents (mirror tokens.css).
-  accentLetter: 0x7cbf98,
-  accentClock: 0x5d97c0,
-  accentEconomy: 0xefcf6e,
-  accentUtility: 0x8b4254,
-  accentNeutral: 0x7e7669,
+  accentLetter: 0x00e676,
+  accentClock: 0x00f0ff,
+  accentEconomy: 0xffd600,
+  accentUtility: 0xd500f9,
+  accentNeutral: 0x64748b,
 } as const;
 
 /**
- * Confetti tints. Warm metal and paint codes rather than a rainbow — this is
- * the one place the FX layer is allowed to be festive, and it still has to look
- * like it came off the same shop floor as everything else.
+ * Confetti tints. Bold, maximum-contrast signal colors.
  */
 export const CONFETTI_TINTS = [
-  0xe0b25c, 0xc08f3c, 0xa9603a, 0x5f9e77, 0xdcd2be,
+  0x00f0ff, 0xff1744, 0x00e676, 0xffd600, 0xd500f9, 0xffffff,
 ] as const;
 
 /** Player accent rotation, assigned by turn-order index. */
 export const PLAYER_ACCENTS = [
-  0xe5c890, // p1 brass
-  0xb44e30, // p2 vermilion
-  0x53b283, // p3 verdigris
-  0x4d8dba, // p4 quench blue
-  0x753d61, // p5 plum
-  0xeae8e3, // p6 bone
+  0x00f0ff, // p1 Saturated Cyan
+  0xff1744, // p2 Laser Crimson
+  0x00e676, // p3 Electric Emerald
+  0xffd600, // p4 Solar Gold
+  0xd500f9, // p5 Neon Violet
+  0xffffff, // p6 Pure White
 ] as const;
 
 export const playerAccent = (index: number): number =>

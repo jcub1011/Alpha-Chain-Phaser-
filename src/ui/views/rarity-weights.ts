@@ -74,29 +74,36 @@ export const renderRarityWeights = (
   const capacity = dealPoolCapacity(weights, draft.gameMode);
   const requested = totalCardsDealtPerPlayer(draft);
   return html`
-    <div class="set-group">
-      <p class="set-subhead">Rarity Weights</p>
-      <!-- The mechanic is identical for all four tiers, so it is stated once
-           here and the rows carry only their tier name. Each row's value still
-           reports that tier's own share of a draw. -->
-      <p class="set-groupdesc">${SETTING_GROUP_HINTS.rarityWeights}</p>
-      ${RARITY_WEIGHT_ROWS.map((r) =>
-        c.stepper(
-          r.label,
-          rarityWeightValue(draft[r.key], share[r.tier]),
-          () => c.step(r.key, -1, RARITY_WEIGHT_BOUNDS.min, RARITY_WEIGHT_BOUNDS.max),
-          () => c.step(r.key, 1, RARITY_WEIGHT_BOUNDS.min, RARITY_WEIGHT_BOUNDS.max),
-        ),
-      )}
-      ${RARITY_WEIGHT_ROWS.every((r) => draft[r.key] <= 0)
-        ? html`<p class="set-warn">Every tier is disabled — no cards will be dealt.</p>`
-        : capacity < requested
-          ? html`<p class="set-warn">
-              The enabled tiers hold only ${capacity} cards per player, but this match deals
-              ${requested} — once they run out, later intermissions deal nothing.
-            </p>`
-          : nothing}
-    </div>
+    <details class="set-group set-details">
+      <summary class="set-summary">
+        <span class="set-subhead">Rarity Weights</span>
+        <span class="set-chevron" aria-hidden="true"></span>
+      </summary>
+      <div class="set-group-body">
+        <!-- The mechanic is identical for all four tiers, so it is stated once
+             here and the rows carry only their tier name. Each row's value still
+             reports that tier's own share of a draw. -->
+        <p class="set-groupdesc">${SETTING_GROUP_HINTS.rarityWeights}</p>
+        <div class="set-rows">
+          ${RARITY_WEIGHT_ROWS.map((r) =>
+            c.stepper(
+              r.label,
+              rarityWeightValue(draft[r.key], share[r.tier]),
+              () => c.step(r.key, -1, RARITY_WEIGHT_BOUNDS.min, RARITY_WEIGHT_BOUNDS.max),
+              () => c.step(r.key, 1, RARITY_WEIGHT_BOUNDS.min, RARITY_WEIGHT_BOUNDS.max),
+            ),
+          )}
+        </div>
+        ${RARITY_WEIGHT_ROWS.every((r) => draft[r.key] <= 0)
+          ? html`<p class="set-warn">Every tier is disabled — no cards will be dealt.</p>`
+          : capacity < requested
+            ? html`<p class="set-warn">
+                The enabled tiers hold only ${capacity} cards per player, but this match deals
+                ${requested} — once they run out, later intermissions deal nothing.
+              </p>`
+            : nothing}
+      </div>
+    </details>
   `;
 };
 

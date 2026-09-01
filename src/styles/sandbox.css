@@ -52,8 +52,8 @@
     background 0.15s;
 }
 .sandbox .chip:hover {
-  border-color: var(--ac-cyan);
-  background: color-mix(in srgb, var(--ac-cyan) 12%, transparent);
+  border-color: var(--i-primary);
+  background: color-mix(in srgb, var(--i-primary) 12%, transparent);
 }
 
 /* ── Scenario controls ── */
@@ -105,7 +105,7 @@
   text-transform: uppercase;
 }
 .sandbox-turn strong {
-  color: var(--ac-cyan);
+  color: var(--i-primary);
   font-family: var(--font-display);
 }
 .sandbox-req {
@@ -131,11 +131,11 @@
   background: rgba(255, 255, 255, 0.03);
 }
 .sandbox-player.is-current {
-  border-color: var(--p-accent, var(--ac-cyan));
-  box-shadow: 0 0 0 1px var(--p-accent, var(--ac-cyan));
+  border-color: var(--p-accent, var(--i-primary));
+  box-shadow: 0 0 0 1px var(--p-accent, var(--i-primary));
 }
 .sandbox-player.is-target {
-  background: color-mix(in srgb, var(--p-accent, var(--ac-cyan)) 10%, transparent);
+  background: color-mix(in srgb, var(--p-accent, var(--i-primary)) 10%, transparent);
 }
 .sandbox-player-head {
   display: flex;
@@ -218,7 +218,7 @@
   cursor: default;
 }
 .sandbox-slot-ops button:not(:disabled):hover {
-  border-color: var(--ac-cyan);
+  border-color: var(--i-primary);
 }
 
 /* ── Word submission ── */
@@ -245,7 +245,7 @@
   padding: 0.7rem 1.4rem;
 }
 .sandbox-msg {
-  color: var(--ac-amber, #ffb454);
+  color: var(--state-live);
   font-size: 13px;
   align-self: center;
 }
@@ -263,10 +263,10 @@
   font-size: 20px;
 }
 .sandbox-total b {
-  color: var(--ac-accent-mint, #14f195);
+  color: var(--state-good);
 }
 .sandbox-total .big.taxed b {
-  color: var(--ac-magenta, #ff2e8b);
+  color: var(--state-bad);
 }
 .sandbox-steps {
   list-style: none;
@@ -297,14 +297,14 @@
 }
 .sandbox-steps .step-run {
   font-variant-numeric: tabular-nums;
-  color: var(--ac-accent-cyan, #00e5ff);
+  color: var(--i-primary);
   min-width: 56px;
   text-align: right;
 }
 .sandbox-steal {
   margin: 8px 0 0;
   font-size: 13px;
-  color: var(--ac-accent-mint, #14f195);
+  color: var(--state-good);
 }
 .sandbox-effects {
   margin-top: 10px;
@@ -343,7 +343,7 @@
   font-variant-numeric: tabular-nums;
 }
 .sandbox-history-who {
-  color: var(--ac-cyan);
+  color: var(--i-primary);
   font-weight: 700;
   min-width: 4rem;
 }
@@ -354,11 +354,11 @@
   flex: 1 1 auto;
 }
 .sandbox-history-score {
-  color: var(--ac-accent-mint, #14f195);
+  color: var(--state-good);
   font-weight: 700;
 }
 .sandbox-history-tax {
-  color: var(--ac-magenta, #ff2e8b);
+  color: var(--state-bad);
   font-weight: 700;
 }
 .sandbox-history-bounty {
@@ -409,7 +409,7 @@
   padding: 4px 12px;
   border: 1px solid var(--ac-border-strong);
   border-radius: 6px;
-  background: color-mix(in srgb, var(--ac-accent-mint, #14f195) 18%, transparent);
+  background: color-mix(in srgb, var(--state-good) 18%, transparent);
   color: var(--ac-ink);
   font-family: var(--font-display);
   font-weight: 700;
@@ -420,8 +420,8 @@
     border-color 0.15s;
 }
 .palette-add:hover {
-  border-color: var(--ac-accent-mint, #14f195);
-  background: color-mix(in srgb, var(--ac-accent-mint, #14f195) 30%, transparent);
+  border-color: var(--state-good);
+  background: color-mix(in srgb, var(--state-good) 30%, transparent);
 }
 
 /* Multiplayer lobby roster (kept here; shared stylesheet). */
