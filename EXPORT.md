@@ -133,7 +133,11 @@ npm run export:game            # actually ship it
 
 ## CI
 
-`.github/workflows/release.yml` runs pre-flight quality and schema checks (`manifest:check --strict`,
-`addon:check`, `lint`, `typecheck`, `test`), then `npm run export:game`, attaches the `.kbg` package to a
-GitHub release, and registers the release in the KnockBox marketplace catalog.
+`.github/workflows/release.yml` wires this up via a manual workflow dispatch (`Actions` → `Release` → **Run workflow**):
+
+- **Dynamic Tagging:** Sourced directly from `version` in `export/GAME.json` (e.g. `1.0.0` becomes `v1.0.0`).
+- **Replace Existing Tag:** Overwrites an existing release and tag with the same version number if enabled. When `false` (the default), the workflow checks early and fails immediately if the tag already exists.
+- **Draft:** Builds and packages the game and uploads the `.kbg` as a workflow build artifact without creating a git tag, creating a GitHub release, or updating the marketplace.
+
+Add a `MARKETPLACE_TOKEN` secret (a PAT with write access to the catalog repo) to enable marketplace sync; without it that step is skipped, so a game you only ever hand to your own servers needs no extra setup.
 
