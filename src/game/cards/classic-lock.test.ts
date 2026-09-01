@@ -172,7 +172,7 @@ const EXPECTED: Record<string, string> = {
   SlowBurn:
     "chip=FX | desc=+30% shot clock. Words shorter than 6 letters are illegal and take the Zero-Point Tax. | clock=0.3/0 | armed=26 | hooks=illegalWord | alone=FX:3 FX:6 FX:7 FX:8 FX:10 FX:4 FX:6 FX:6 | full=FX FX FX FX FX FX FX FX | glass=FX | right=FX | timeout=—",
   Speedracer:
-    "chip=×(1+Remain /Total) | desc=×(1 + remaining clock time ÷ total clock time). Time out and lose 10 points. | clock=- | armed=20 | hooks=timeoutFold | alone=×1.5:5 ×1.5:9 ×1.5:11 ×1.5:12 ×1.5:15 ×1.5:6 ×1.5:9 ×1.5:9 | full=×2 ×2 ×2 ×2 ×2 ×2 ×2 ×2 | glass=×2.25 | right=×1.5 | timeout=−10",
+    "chip=×(1+Rem /Total) | desc=×(1 + remaining clock time ÷ total clock time). Time out and lose 10 points. | clock=- | armed=20 | hooks=timeoutFold | alone=×1.5:5 ×1.5:9 ×1.5:11 ×1.5:12 ×1.5:15 ×1.5:6 ×1.5:9 ×1.5:9 | full=×2 ×2 ×2 ×2 ×2 ×2 ×2 ×2 | glass=×2.25 | right=×1.5 | timeout=−10",
   Blindfold:
     "chip=×1.5 | desc=×1.5 always; hides your own input box while you type. Time out and lose 8 points. | clock=- | armed=20 | hooks=timeoutFold+hidesInput | alone=×1.5:5 ×1.5:9 ×1.5:11 ×1.5:12 ×1.5:15 ×1.5:6 ×1.5:9 ×1.5:9 | full=×1.5 ×1.5 ×1.5 ×1.5 ×1.5 ×1.5 ×1.5 ×1.5 | glass=×2.25 | right=×1.5 | timeout=−8",
   HeatSink:
