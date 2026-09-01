@@ -81,6 +81,12 @@
   --ac-oxide: #ff1744; /* danger / banned / alert (Laser Crimson / Red) */
   --ac-patina: #00e676; /* positive / gain / letter scoring (Electric Emerald) */
 
+  /* ── Starter letter tokens (Signal Green) ────────────────────────────── */
+  --ac-starter: #00e676; /* required starter tile face */
+  --ac-starter-lit: #69f0ae; /* bright specular highlight */
+  --ac-starter-dim: #00b050; /* bevel bottom edge */
+  --ink-on-starter: #002811; /* deep dark high-contrast text on green */
+
   /* Heat. The ONLY hues allowed to glow. */
   --ac-ember: #ff1744;
   --ac-ember-hot: #ff9100;
@@ -123,15 +129,6 @@
   --ink-on-stock: var(--ac-ink-dark);
   --ink-on-ember: #000000;
 
-  /* ── Legacy hue aliases — DEPRECATED ─────────────────────────────────── */
-  --ac-cyan: var(--i-primary);
-  --ac-magenta: var(--state-cost);
-  --ac-violet: #d500f9;
-  --ac-amber: var(--state-live);
-  --ac-danger: var(--state-bad);
-  --ac-mint: var(--state-good);
-  --ac-go: var(--i-primary);
-
   /* ── Card-family accents: High-Voltage Paint-Coded Tooling ───────────── */
   --ac-accent-utility: #d500f9; /* Neon Violet — utility/defensive */
   --ac-accent-neutral: #64748b; /* Machined Slate — inert/unknown */
@@ -161,18 +158,10 @@
 
   /* Referenced helpers */
   --ac-fg: var(--ac-ink);
-  --ac-accent-mint: var(--ac-accent-letter);
-  --ac-accent-cyan: var(--ac-brass);
 
   /* ── GLOW POLICY ─────────────────────────────────────────────────────── */
   --ac-heat-1: 0 0 14px rgba(255, 23, 68, 0.55);
   --ac-heat-2: 0 0 32px rgba(255, 145, 0, 0.75);
-
-  --ac-glow-cyan: none;
-  --ac-glow-mag: none;
-  --ac-glow-mint: none;
-  --ac-glow-danger: none;
-  --ac-glow-amber: none;
 
   /* ── Raised parts ──────────────────────────────────────────────────────
      One definition for every object that sits proud of the surface behind it:
