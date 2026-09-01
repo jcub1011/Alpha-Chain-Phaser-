@@ -39,14 +39,11 @@ textarea {
 
 body {
   overflow: hidden;
-  /* A warm vignette over the gunmetal ground: light falling from above onto a
-     machine, dark pooling at the floor. Static on purpose — the two drifting
-     cyan/magenta nebula blobs that used to live here were the loudest generic
-     tell in the whole app. Ambient motion behind a game that already has a
-     shot clock is noise, not atmosphere. */
+  /* A neutral specular vignette over the cast iron ground: light falling from
+     above onto the machine, dark pooling at the floor. */
   background:
-    radial-gradient(130% 90% at 50% -10%, rgba(255, 224, 180, 0.05), transparent 58%),
-    radial-gradient(110% 100% at 50% 118%, rgba(0, 0, 0, 0.55), transparent 62%), var(--ac-bg-0);
+    radial-gradient(130% 90% at 50% -10%, rgba(255, 255, 255, 0.04), transparent 58%),
+    radial-gradient(110% 100% at 50% 118%, rgba(0, 0, 0, 0.65), transparent 62%), var(--ac-bg-0);
 }
 
 /* Machined grain — a fine diagonal brushing over the ground. Barely visible by
@@ -60,7 +57,7 @@ body::before {
   pointer-events: none;
   background-image: repeating-linear-gradient(
     115deg,
-    rgba(255, 240, 214, 0.017) 0 1px,
+    rgba(255, 255, 255, 0.015) 0 1px,
     transparent 1px 5px
   );
 }
