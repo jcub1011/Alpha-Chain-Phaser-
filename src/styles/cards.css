@@ -163,7 +163,7 @@ ac-card[flipped] .gc-flip {
      it lightens the face and never the table behind it. */
   isolation: isolate;
   backface-visibility: hidden;
-  /* A die block: hardened steel, with muted rarity tinting the top-left key light,
+  /* A die block: hardened steel, with a pale rarity specular sheen on the top-left key light,
      and family identity glowing towards the bottom-right corner. */
   background-image:
     linear-gradient(
@@ -176,7 +176,7 @@ ac-card[flipped] .gc-flip {
       157deg,
       color-mix(
         in srgb,
-        color-mix(in srgb, var(--gc-rarity, var(--gc-card-color, var(--gc-accent))) 45%, #000) 18%,
+        color-mix(in srgb, var(--gc-rarity, var(--gc-card-color, var(--gc-accent))) 45%, #fff) 20%,
         transparent
       ),
       transparent 58%
