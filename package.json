@@ -6,6 +6,7 @@
   "description": "Alpha Chain — a high-velocity word-chain + engine-builder game, ported to Phaser.",
   "scripts": {
     "dev": "vite",
+    "typecheck": "tsc --noEmit",
     "build": "tsc --noEmit && vite build && npm run build:authority",
     "build:authority": "vite build --config vite.authority.config.ts",
     "preview": "vite preview",
@@ -15,19 +16,24 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"src/**/*.{ts,css}\"",
     "format:check": "prettier --check \"src/**/*.{ts,css}\"",
-    "export:game": "knockbox pack --build \"npm run build\" --in dist --manifest export/GAME.json --out dist-game/"
+    "manifest:check": "node scripts/check-manifest.mjs",
+    "addon:check": "knockbox addon check",
+    "addon:update": "knockbox addon update",
+    "export:game": "npm run manifest:check && knockbox pack --build \"npm run build\" --in dist --manifest export/GAME.json --out dist-game/"
   },
   "dependencies": {
     "lit": "^3.3.3",
     "phaser": "^4.1.0"
   },
   "devDependencies": {
+    "@cfworker/json-schema": "^4.1.1",
     "@eslint/js": "^10.0.1",
     "@types/node": "^25.9.3",
     "eslint": "^10.5.0",
     "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.12.0",
     "happy-dom": "^20.10.4",
-    "knockbox-cli": "^1.0.0",
+    "knockbox-cli": "^1.1.0",
     "prettier": "^3.8.4",
     "typescript": "^5.5.0",
     "typescript-eslint": "^8.61.1",

@@ -428,7 +428,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
       color: "#dcae4c",
       family: CardFamily.Clock,
       op: CardOp.Multiplicative,
-      magnitudeText: "×(1+Remain /Total)",
+      magnitudeText: "×(1+Rem /Total)",
       description:
         "×(1 + remaining clock time ÷ total clock time)." +
         (t.timeoutLoss ? ` Time out and lose ${t.timeoutLoss} points.` : ""),

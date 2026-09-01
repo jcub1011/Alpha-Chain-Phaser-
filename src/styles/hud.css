@@ -101,9 +101,9 @@
   margin-top: 0.15rem;
   padding: 0.1em 0.5em;
   border-radius: 99px;
-  background: color-mix(in srgb, var(--ac-mint) 18%, transparent);
-  border: 1px solid color-mix(in srgb, var(--ac-mint) 55%, transparent);
-  color: var(--ac-mint);
+  background: color-mix(in srgb, var(--state-good) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--state-good) 55%, transparent);
+  color: var(--state-good);
   font-family: var(--font-mono);
   font-weight: 800;
   font-size: 0.6rem;
@@ -137,9 +137,9 @@
 .cmd-personal-card {
   padding: 0.1em 0.5em;
   border-radius: 99px;
-  background: color-mix(in srgb, var(--ac-amber) 16%, transparent);
-  border: 1px solid color-mix(in srgb, var(--ac-amber) 55%, transparent);
-  color: var(--ac-amber);
+  background: color-mix(in srgb, var(--state-live) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--state-live) 55%, transparent);
+  color: var(--state-live);
   font-family: var(--font-mono);
   font-weight: 800;
   font-size: 0.58rem;
@@ -444,17 +444,22 @@
   /* Sparks off the strike. This rides GLOW SITE 2 — it only ever exists for the
      ~400ms a die is actually landing, which is the entire justification. */
   text-shadow: var(--ac-heat-1);
+  -webkit-text-stroke: 1.5px var(--ac-steel-900);
+  paint-order: stroke fill;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.85));
   pointer-events: none;
 }
 .sr-chip-delta {
   font-weight: 800;
   font-size: 2.1rem;
+  -webkit-text-stroke: 2px var(--ac-steel-900);
 }
 .sr-chip-op {
   margin-top: 0.1em;
   font-weight: 700;
   font-size: 0.78rem;
   opacity: 0.82;
+  -webkit-text-stroke: 1px var(--ac-steel-900);
 }
 
 /* ── Word entry ────────────────────────────────────────────────────────── */
@@ -702,8 +707,8 @@ ac-recent-words[vertical] .recent-item {
   border-left: 3px solid var(--accent);
 }
 .recent-item.is-new {
-  border-color: var(--ac-cyan);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ac-cyan) 40%, transparent);
+  border-color: var(--i-primary);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--i-primary) 40%, transparent);
   animation: ac-pop 0.35s ease-out;
 }
 .recent-word {
@@ -713,7 +718,7 @@ ac-recent-words[vertical] .recent-item {
   font-size: 0.95rem;
 }
 .recent-item.is-new .recent-word {
-  color: var(--ac-cyan);
+  color: var(--i-primary);
 }
 .recent-item.is-taxed .recent-word {
   text-decoration: line-through;
@@ -737,16 +742,16 @@ ac-recent-words[vertical] .recent-item {
   font-family: var(--font-mono);
   font-weight: 700;
   font-size: 0.72rem;
-  color: var(--ac-mint);
+  color: var(--state-good);
 }
 .recent-pts.is-partial {
-  color: var(--ac-amber);
+  color: var(--state-live);
 }
 .recent-tag {
   font-family: var(--font-mono);
   font-weight: 700;
   font-size: 0.62rem;
-  color: var(--ac-danger);
+  color: var(--state-bad);
 }
 
 /* ── Opponent engine bays ──────────────────────────────────────────────── */
@@ -992,12 +997,12 @@ ac-leaderboard[strip] .lb-row {
     box-shadow 0.2s;
 }
 .og-wrap.is-live {
-  border-color: var(--ac-amber);
-  box-shadow: var(--ac-glow-amber);
+  border-color: var(--state-live);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--state-live) 40%, transparent);
 }
 .og-wrap.is-reject {
   animation: ac-shakeX 0.4s;
-  border-color: var(--ac-danger);
+  border-color: var(--state-bad);
 }
 .og-head {
   display: flex;
@@ -1007,11 +1012,11 @@ ac-leaderboard[strip] .lb-row {
   min-height: 1.1rem;
 }
 .og-letter {
-  color: var(--ac-amber);
+  color: var(--state-live);
   font-size: 1.1em;
 }
 .og-feedback {
-  color: var(--ac-danger);
+  color: var(--state-bad);
   font-size: 0.78rem;
   font-weight: 700;
 }
@@ -1056,7 +1061,7 @@ ac-leaderboard[strip] .lb-row {
     transform 0.1s;
 }
 .og-card:hover:not(:disabled) {
-  border-color: var(--ac-cyan);
+  border-color: var(--i-primary);
 }
 .og-card:disabled {
   cursor: default;
@@ -1065,9 +1070,9 @@ ac-leaderboard[strip] .lb-row {
 /* Selection is a VISIBLE state distinct from submission — touch has no hover, so the first tap
  * has to be unmistakable before the second one commits. */
 .og-card.is-selected {
-  border-color: var(--ac-amber);
+  border-color: var(--state-live);
   background: var(--ac-panel-solid);
-  box-shadow: var(--ac-glow-amber);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--state-live) 50%, transparent);
   transform: translateY(-2px);
 }
 .og-word {
@@ -1079,7 +1084,7 @@ ac-leaderboard[strip] .lb-row {
 }
 .og-ban {
   background: none;
-  color: var(--ac-danger);
+  color: var(--state-bad);
   text-decoration: underline;
   text-decoration-thickness: 2px;
 }
@@ -1101,10 +1106,10 @@ ac-leaderboard[strip] .lb-row {
   background: rgba(255, 255, 255, 0.08);
 }
 .og-tag--vowel {
-  color: var(--ac-cyan);
+  color: var(--i-primary);
 }
 .og-tag--rare {
-  color: var(--ac-amber);
+  color: var(--state-live);
 }
 .og-go {
   width: 100%;
@@ -1551,26 +1556,26 @@ ac-leaderboard[strip] .lb-row {
   text-shadow: 0 1px 0 rgba(255, 255, 255, 0.42);
 }
 
-/* Starts with the required letter — the blank that has to lead. Brass stock
-   rather than steel stock: separated by hue AND lightness, so it stays
-   distinguishable in greyscale the way a coloured glow never was. */
+/* Starts with the required letter — the blank that has to lead. High-voltage
+   signal green: separated by hue AND lightness from standard white and compound
+   cyan tiles. */
 .ac-tile.is-starter {
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--ac-brass-lit) 80%, #fff) 0%,
-    var(--ac-brass-lit) 45%,
-    var(--ac-brass) 100%
+    color-mix(in srgb, var(--ac-starter-lit) 80%, #fff) 0%,
+    var(--ac-starter-lit) 45%,
+    var(--ac-starter) 100%
   );
-  color: var(--ink-on-brass);
+  color: var(--ink-on-starter);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.45),
-    inset 0 -3px 0 var(--ac-brass-dim),
+    inset 0 -3px 0 var(--ac-starter-dim),
     var(--ac-lift-1);
 }
 .ac-tile.is-starter:active:not(:disabled) {
   box-shadow:
     inset 0 2px 4px rgba(0, 0, 0, 0.3),
-    inset 0 -1px 0 var(--ac-brass-dim),
+    inset 0 -1px 0 var(--ac-starter-dim),
     var(--ac-lift-0);
 }
 .ac-tile.is-starter:hover:not(:disabled) {
@@ -1606,13 +1611,14 @@ ac-leaderboard[strip] .lb-row {
   font-size: 1rem;
   font-stretch: 100%;
 }
-/* Both at once: the brass face wins, since "this one has to lead" is the harder
+/* Both at once: the starter green face wins, since "this one has to lead" is the harder
    constraint, and the letter count still says it is a chunk. */
 .ac-tile--chunk.is-starter {
-  background: linear-gradient(180deg, var(--ac-brass-lit), var(--ac-brass));
+  background: linear-gradient(180deg, var(--ac-starter-lit), var(--ac-starter));
+  color: var(--ink-on-starter);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.45),
-    inset 0 -3px 0 var(--ac-brass-dim),
+    inset 0 -3px 0 var(--ac-starter-dim),
     var(--ac-lift-1);
 }
 

@@ -145,4 +145,17 @@ describe("settings panel rows", () => {
       "Engine Bay Slots",
     ]);
   });
+
+  it("renders each settings group as a collapsible dropdown with a summary header", async () => {
+    const el = await mountSolo(builder);
+    const details = [...el.querySelectorAll<HTMLDetailsElement>("details.set-details")];
+    expect(details.length).toBe(7); // Host Preferences + 6 Match Rules groups
+
+    for (const group of details) {
+      const summary = group.querySelector("summary.set-summary");
+      expect(summary).not.toBeNull();
+      expect(group.querySelector(".set-chevron")).not.toBeNull();
+      expect(group.querySelector(".set-group-body")).not.toBeNull();
+    }
+  });
 });

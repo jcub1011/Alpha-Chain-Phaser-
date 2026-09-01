@@ -133,6 +133,7 @@ npm run export:game            # actually ship it
 
 ## CI
 
-`.github/workflows/export-release.yml` runs `npm ci` then `npm run export:game` and attaches the
-`.kbg` to a GitHub release. `npm ci` is what supplies the packer, so nothing platform-specific has to
-be checked out or vendored for CI to build a package.
+`.github/workflows/release.yml` runs pre-flight quality and schema checks (`manifest:check --strict`,
+`addon:check`, `lint`, `typecheck`, `test`), then `npm run export:game`, attaches the `.kbg` package to a
+GitHub release, and registers the release in the KnockBox marketplace catalog.
+

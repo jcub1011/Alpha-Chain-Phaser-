@@ -53,19 +53,24 @@ export const HOST_PREFERENCE_KEYS: {
   net: ["hostPlays", "enableTutorials", "engineAnimationSeconds"],
 };
 
-/** One sub-section of the MATCH RULES band: a heading, its single shared explanation, and rows.
- *  `.set-group` is a full-width nested grid, so the rows keep the panel's column layout while
- *  the heading opens a fresh row instead of the next section flowing into this one. */
+/** One sub-section of the MATCH RULES band: a collapsible dropdown with heading, explanation, and rows. */
 const section = (
   title: string,
   hint: string,
   rows: (TemplateResult | typeof nothing)[],
 ): TemplateResult => html`
-  <div class="set-group">
-    <p class="set-subhead">${title}</p>
-    <p class="set-groupdesc">${hint}</p>
-    ${rows}
-  </div>
+  <details class="set-group set-details">
+    <summary class="set-summary">
+      <span class="set-subhead">${title}</span>
+      <span class="set-chevron" aria-hidden="true"></span>
+    </summary>
+    <div class="set-group-body">
+      <p class="set-groupdesc">${hint}</p>
+      <div class="set-rows">
+        ${rows}
+      </div>
+    </div>
+  </details>
 `;
 
 /**
@@ -77,53 +82,60 @@ export const renderHostPreferences = (
   c: SettingControls,
   opts: { bots?: boolean; hostPlays?: boolean },
 ): TemplateResult => html`
-  <p class="set-head">Host Preferences</p>
-  <p class="set-groupdesc">${SETTING_GROUP_HINTS.hostPreferences}</p>
-  <div class="set-group">
-    ${opts.bots
-      ? html`
-          ${c.stepper(
-            "Opponents",
-            String(draft.botCount),
-            () => c.step("botCount", -1, 1, 5),
-            () => c.step("botCount", 1, 1, 5),
-            SETTING_HINTS.botCount,
-          )}
-          ${c.segmented<BotDifficulty>(
-            "Difficulty",
-            draft.botDifficulty,
-            DIFFS.map((diff) => ({ value: diff, text: diff })),
-            (v) => c.set("botDifficulty", v),
-            SETTING_HINTS.botDifficulty,
-          )}
-        `
-      : nothing}
-    ${opts.hostPlays
-      ? c.segmented(
-          "Host Plays",
-          draft.hostPlays ? "play" : "watch",
-          [
-            { value: "play", text: "yes" },
-            { value: "watch", text: "spectate" },
-          ],
-          (v) => c.set("hostPlays", v === "play"),
-          SETTING_HINTS.hostPlays,
-        )
-      : nothing}
-    ${c.toggle(
-      "Tutorials",
-      draft.enableTutorials,
-      (v) => c.set("enableTutorials", v),
-      SETTING_HINTS.enableTutorials,
-    )}
-    ${c.stepper(
-      "Engine Animation Duration",
-      `${draft.engineAnimationSeconds.toFixed(1)}s`,
-      () => c.step("engineAnimationSeconds", -0.5, 0.5, 10),
-      () => c.step("engineAnimationSeconds", 0.5, 0.5, 10),
-      SETTING_HINTS.engineAnimationSeconds,
-    )}
-  </div>
+  <details class="set-group set-details">
+    <summary class="set-summary set-summary--head">
+      <span class="set-head">Host Preferences</span>
+      <span class="set-chevron" aria-hidden="true"></span>
+    </summary>
+    <div class="set-group-body">
+      <p class="set-groupdesc">${SETTING_GROUP_HINTS.hostPreferences}</p>
+      <div class="set-rows">
+        ${opts.bots
+          ? html`
+              ${c.stepper(
+                "Opponents",
+                String(draft.botCount),
+                () => c.step("botCount", -1, 1, 5),
+                () => c.step("botCount", 1, 1, 5),
+                SETTING_HINTS.botCount,
+              )}
+              ${c.segmented<BotDifficulty>(
+                "Difficulty",
+                draft.botDifficulty,
+                DIFFS.map((diff) => ({ value: diff, text: diff })),
+                (v) => c.set("botDifficulty", v),
+                SETTING_HINTS.botDifficulty,
+              )}
+            `
+          : nothing}
+        ${opts.hostPlays
+          ? c.segmented(
+              "Host Plays",
+              draft.hostPlays ? "play" : "watch",
+              [
+                { value: "play", text: "yes" },
+                { value: "watch", text: "spectate" },
+              ],
+              (v) => c.set("hostPlays", v === "play"),
+              SETTING_HINTS.hostPlays,
+            )
+          : nothing}
+        ${c.toggle(
+          "Tutorials",
+          draft.enableTutorials,
+          (v) => c.set("enableTutorials", v),
+          SETTING_HINTS.enableTutorials,
+        )}
+        ${c.stepper(
+          "Engine Animation Duration",
+          `${draft.engineAnimationSeconds.toFixed(1)}s`,
+          () => c.step("engineAnimationSeconds", -0.5, 0.5, 10),
+          () => c.step("engineAnimationSeconds", 0.5, 0.5, 10),
+          SETTING_HINTS.engineAnimationSeconds,
+        )}
+      </div>
+    </div>
+  </details>
 `;
 
 /** The MATCH RULES band — everything a preset owns. */

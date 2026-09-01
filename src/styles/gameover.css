@@ -25,8 +25,7 @@
   color: var(--ac-ink-soft);
 }
 .go-title.is-win {
-  color: var(--ac-mint);
-  text-shadow: var(--ac-glow-mint);
+  color: var(--state-good);
   animation: ac-num-bump 0.6s ease-out both;
 }
 .go-winner {
@@ -88,8 +87,8 @@
   margin-left: 0.4rem;
   padding: 0.05rem 0.4rem;
   border-radius: var(--r-xs);
-  background: color-mix(in srgb, var(--ac-danger) 22%, transparent);
-  color: var(--ac-danger);
+  background: color-mix(in srgb, var(--state-bad) 22%, transparent);
+  color: var(--state-bad);
   font-family: var(--font-mono);
   font-size: 0.62rem;
   font-weight: 700;
@@ -195,8 +194,8 @@ ac-word-history {
   color: var(--ac-ink);
 }
 .go-sort-btn.is-active {
-  background: color-mix(in srgb, var(--ac-cyan) 18%, transparent);
-  border-color: color-mix(in srgb, var(--ac-cyan) 40%, transparent);
+  background: color-mix(in srgb, var(--i-primary) 18%, transparent);
+  border-color: color-mix(in srgb, var(--i-primary) 40%, transparent);
   color: var(--ac-ink);
 }
 
@@ -238,7 +237,7 @@ ac-word-history {
   letter-spacing: 0.06em;
 }
 .go-wh-word.is-taxed {
-  color: var(--ac-danger);
+  color: var(--state-bad);
 }
 .go-wh-who {
   flex: 1;
@@ -248,13 +247,13 @@ ac-word-history {
 .go-wh-pts {
   font-family: var(--font-mono);
   font-weight: 800;
-  color: var(--ac-mint);
+  color: var(--state-good);
   font-variant-numeric: tabular-nums;
 }
 .go-wh-tax {
   font-family: var(--font-mono);
   font-weight: 800;
-  color: var(--ac-danger);
+  color: var(--state-bad);
 }
 
 /* ── Per-word engine fan (static mirror of <ac-score-replay>) ──────────── */
@@ -319,7 +318,7 @@ ac-word-history {
   background: rgba(255, 255, 255, 0.04);
 }
 .go-wh-final.is-taxed {
-  background: color-mix(in srgb, var(--ac-danger) 18%, transparent);
+  background: color-mix(in srgb, var(--state-bad) 18%, transparent);
 }
 .go-wh-op {
   font-size: 0.58rem;

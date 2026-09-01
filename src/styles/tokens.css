@@ -56,44 +56,42 @@
 :root {
   color-scheme: dark;
 
-  /* ── Steel: the warm gunmetal structure ────────────────────────────────
-     Low-chroma WARM gray. These must not drift toward chocolate — the moment
-     they read as wood or leather the "steel" is gone. */
-  --ac-steel-900: #14120f; /* page ground */
-  --ac-steel-800: #1c1916; /* recessed wells, input beds */
-  --ac-steel-700: #26221e; /* panel face */
-  --ac-steel-600: #332e28; /* raised panel, rail */
-  --ac-steel-500: #4a443c; /* machined edge, divider */
-  --ac-steel-400: #6e675d; /* strong border */
-  /* Secondary ink. Nudged up from #979083, which measured 4.25:1 on the panel
-     and so missed AA for small text — and this token sets every eyebrow and
-     caption in the game, all of it below the large-text threshold. */
-  --ac-steel-300: #9c9589; /* secondary ink on dark — 4.53:1 on panel */
-  --ac-well: #100e0c; /* deepest recess — under the stock tray */
+  /* ── Steel: deep pitch obsidian / anthracite structure ─────────────────
+     Maximum contrast framing: true deep darks with zero haze or mid-tone fog. */
+  --ac-steel-900: #08090c; /* deepest page ground */
+  --ac-steel-800: #0e1117; /* recessed wells, input beds */
+  --ac-steel-700: #151922; /* panel face */
+  --ac-steel-600: #1f2533; /* raised panel, rail */
+  --ac-steel-500: #333d52; /* machined edge, divider */
+  --ac-steel-400: #505e78; /* strong border */
+  --ac-steel-300: #cbd5e1; /* secondary ink on dark — 80%+ luminosity for crisp readability */
+  --ac-well: #030406; /* deepest pitch recess — under the stock tray */
 
-  /* ── Milled stock: the light warm mass ─────────────────────────────────
-     Tile and card faces. Load-bearing: these big warm masses are what keep the
-     UI from collapsing into "near-black plus one accent". */
-  --ac-stock-100: #dcd2be; /* bright milled face */
-  --ac-stock-200: #c4b9a3; /* shadowed side of stock */
-  --ac-stock-300: #a89d87; /* stock in shadow / disabled */
+  /* ── Milled stock: brilliant porcelain white ───────────────────────────
+     Tile and card faces. High-luminance white with pure pitch-black engraved text. */
+  --ac-stock-100: #ffffff; /* brilliant white face */
+  --ac-stock-200: #e2e8f0; /* crisp silver shadowed side */
+  --ac-stock-300: #94a3b8; /* defined bottom edge */
 
-  /* ── Accents ───────────────────────────────────────────────────────────── */
-  --ac-brass: #c08f3c; /* primary: active borders, engraving, required letter */
-  --ac-brass-dim: #8a6a2e;
-  --ac-brass-lit: #e0b25c;
-  --ac-copper: #a9603a; /* secondary */
-  --ac-oxide: #a33a2a; /* danger — rust, not red alert */
-  --ac-patina: #5f9e77; /* positive — verdigris on copper */
+  /* ── Accents & Signals (High-Voltage Chroma) ──────────────────────────── */
+  --ac-brass: #00f0ff; /* primary: saturated electric cyan */
+  --ac-brass-dim: #0099aa; /* machined cyan bottom bevel */
+  --ac-brass-lit: #70f8ff; /* radiant cyan specular highlight */
+  --ac-copper: #ff6d00; /* secondary / cost (Vivid Signal Orange) */
+  --ac-oxide: #ff1744; /* danger / banned / alert (Laser Crimson / Red) */
+  --ac-patina: #00e676; /* positive / gain / letter scoring (Electric Emerald) */
+
+  /* ── Starter letter tokens (Signal Green) ────────────────────────────── */
+  --ac-starter: #00e676; /* required starter tile face */
+  --ac-starter-lit: #69f0ae; /* bright specular highlight */
+  --ac-starter-dim: #00b050; /* bevel bottom edge */
+  --ink-on-starter: #002811; /* deep dark high-contrast text on green */
 
   /* Heat. The ONLY hues allowed to glow. */
-  --ac-ember: #e1552a;
-  --ac-ember-hot: #f4a23c;
+  --ac-ember: #ff1744;
+  --ac-ember-hot: #ff9100;
 
-  /* ── Surfaces (semantic; mapped onto the steel scale) ───────────────────
-     Note these are OPAQUE now. `.ac-panel` used to be a translucent navy with
-     backdrop-filter: blur(10px); frosted glass reads as a screenshot of a
-     design tool, not as a machine housing. */
+  /* ── Surfaces (semantic; mapped onto the steel scale) ─────────────────── */
   --ac-bg-0: var(--ac-steel-900);
   --ac-bg-1: var(--ac-steel-800);
   --ac-bg-2: var(--ac-steel-700);
@@ -101,29 +99,24 @@
   --ac-panel-2: var(--ac-steel-600);
   --ac-panel-solid: var(--ac-steel-800);
 
-  --ac-border: rgba(226, 214, 192, 0.1);
-  --ac-border-strong: rgba(226, 214, 192, 0.22);
-  --ac-hi: rgba(255, 238, 208, 0.085); /* specular top edge */
-  --ac-lo: rgba(0, 0, 0, 0.45); /* dark bottom edge */
+  --ac-border: rgba(255, 255, 255, 0.14);
+  --ac-border-strong: rgba(255, 255, 255, 0.28);
+  --ac-hi: rgba(255, 255, 255, 0.18); /* specular top edge */
+  --ac-lo: rgba(0, 0, 0, 0.85); /* deep dark bottom edge */
 
-  /* The metal edge, as one reusable pair. Anything that should read as a milled
-     face gets this instead of a glow. */
+  /* The metal edge, as one reusable pair. */
   --ac-edge: inset 0 1px 0 var(--ac-hi), inset 0 -1px 0 var(--ac-lo);
 
-  --ac-ink: #f0e9dc; /* warm off-white on dark */
-  --ac-ink-soft: rgba(240, 233, 220, 0.66);
-  --ac-ink-faint: rgba(240, 233, 220, 0.42);
-  --ac-ink-ghost: rgba(240, 233, 220, 0.16);
-  --ac-ink-dark: #191512; /* engraved letter / text on milled stock */
+  --ac-ink: #ffffff; /* pure 100% white on dark */
+  --ac-ink-soft: rgba(255, 255, 255, 0.85);
+  --ac-ink-faint: rgba(255, 255, 255, 0.62);
+  --ac-ink-ghost: rgba(255, 255, 255, 0.28);
+  --ac-ink-dark: #000000; /* 100% jet black text on milled stock */
 
   /* ── Roles ─────────────────────────────────────────────────────────────
-     What the surface sheets should actually consume. The old palette was named
-     by hue but used by role — `--ac-cyan` had 68 call sites and meant
-     "primary / interactive / you / go" — which is exactly why re-skinning it
-     looked like a 4,576-line job and why cyan kept coming back. Name the job,
-     and a re-skin is a handful of lines. */
+     What the surface sheets consume. */
   --i-primary: var(--ac-brass);
-  --i-primary-ink: #1a1408; /* ink on a brass fill */
+  --i-primary-ink: #001f24; /* deep obsidian ink on saturated cyan fills */
   --i-hover: var(--ac-brass-lit);
 
   --state-live: var(--ac-brass-lit); /* armed / your turn / selected */
@@ -132,110 +125,43 @@
   --state-cost: var(--ac-copper); /* pay-to-use, redraws */
   --state-inert: var(--ac-steel-400); /* disabled, spent, out */
 
-  --ink-on-brass: #1a1408;
+  --ink-on-brass: #001f24;
   --ink-on-stock: var(--ac-ink-dark);
-  --ink-on-ember: #1d0d05;
+  --ink-on-ember: #000000;
 
-  /* ── Legacy hue aliases — DEPRECATED ───────────────────────────────────
-     Each maps a hue-named token onto the role it was actually playing, so
-     every un-migrated sheet keeps rendering sanely. New code uses the role.
-     Migrate call sites per surface and delete these once
-     `grep -rn 'var(--ac-cyan' src/` comes back empty. */
-  --ac-cyan: var(--i-primary);
-  --ac-magenta: var(--state-cost);
-  --ac-violet: #7c6ca6;
-  --ac-amber: var(--state-live);
-  --ac-danger: var(--state-bad);
-  --ac-mint: var(--state-good);
-  --ac-go: var(--i-primary);
+  /* ── Card-family accents: High-Voltage Paint-Coded Tooling ───────────── */
+  --ac-accent-utility: #d500f9; /* Neon Violet — utility/defensive */
+  --ac-accent-neutral: #64748b; /* Machined Slate — inert/unknown */
+  --ac-accent-clock: #00f0ff; /* Saturated Cyan — shot-clock */
+  --ac-accent-letter: #00e676; /* Electric Emerald — word/letter scoring */
+  --ac-accent-economy: #ffd600; /* Pure Solar Gold — points/economy/aggression */
 
-  /* ── Card-family accents: paint-coded tooling ──────────────────────────
-     A machine shop paint-codes its tooling, which is exactly the job here —
-     and a paint stripe survives being small and peripheral in a way a tinted
-     glow does not.
-
-     The L* values are the design, not a by-product: 38 / 50 / 60 / 72 / 84, an
-     evenly spaced ramp with roughly 12 points between neighbours. A first warm
-     pass at this set put `letter` and `neutral` four points apart and they
-     collapsed to an RGB distance of 10 under deuteranopia — indistinguishable.
-     Hue is what a warm palette has least of to spend, so lightness carries the
-     separation and the two historically confusable pairs (green/grey and
-     green/plum) sit at opposite ends of the ramp on purpose.
-
-     Verified with protan/deutan/tritan simulation: worst-case pair distance 40.
-     Re-run that check before changing any value here. */
-  --ac-accent-utility: #8b4254; /* oxblood — utility/defensive     L* 38 */
-  --ac-accent-neutral: #7e7669; /* warm slate — inert/unknown      L* 50 */
-  --ac-accent-clock: #5d97c0; /* quench blue — shot-clock        L* 60 */
-  --ac-accent-letter: #7cbf98; /* verdigris — word/letter scoring L* 72 */
-  --ac-accent-economy: #efcf6e; /* straw — points/economy/aggression L* 84 */
-
-  /* ── Card rarity tiers: steel temper colors ────────────────────────────
-     The colors steel actually turns as you heat it — bronze, purple, straw.
-     They ramp monotonically in brightness (48 / 61 / 70 / 84), which is what
-     the rarity shine rides on: see the long note in cards.css, hue alone
-     collapses under protanopia so brightness and width carry the signal. The
-     ramp direction matters as much as the values — rarer must always be
-     brighter, or the shine tiers stop reading as tiers. */
-  --ac-rarity-common: #777168; /* plain steel — never shines  L* 48 */
-  --ac-rarity-uncommon: #c08856; /* bronze temper               L* 61 */
-  --ac-rarity-rare: #bea0d0; /* purple temper               L* 70 */
-  --ac-rarity-legendary: #f2ce65; /* bright straw                L* 84 */
+  /* ── Card rarity tiers: High-contrast finish tiers ───────────────────── */
+  --ac-rarity-common: #64748b; /* slate steel — never shines */
+  --ac-rarity-uncommon: #ff6d00; /* vivid bronze / signal orange */
+  --ac-rarity-rare: #d500f9; /* neon violet */
+  --ac-rarity-legendary: #ffd600; /* solar gold */
 
   /* ── Player accent rotation (assigned by turn-order index) ─────────────
-     Six warm hues that all stay distinguishable is more than this palette can
-     honestly carry on hue alone, so this set is also built as an L* ramp with
-     ~10 points between neighbours. It is consumed almost entirely as a 3–5px
-     left border and a 16–20% background tint — the hardest possible place to
-     tell six colours apart — so the separation has to be structural.
+     Maximum-contrast, vivid signal colors. */
+  --ac-p1: #00f0ff; /* P1 Saturated Cyan */
+  --ac-p2: #ff1744; /* P2 Laser Crimson */
+  --ac-p3: #00e676; /* P3 Electric Emerald */
+  --ac-p4: #ffd600; /* P4 Solar Gold */
+  --ac-p5: #d500f9; /* P5 Neon Violet */
+  --ac-p6: #ffffff; /* P6 Pure White */
 
-     Verified under protan/deutan/tritan: worst-case pair distance 50. */
-  --ac-p5: #753d61; /* plum         L* 34 */
-  --ac-p2: #b44e30; /* vermilion    L* 46 */
-  --ac-p4: #4d8dba; /* quench blue  L* 56 */
-  --ac-p3: #53b283; /* verdigris    L* 66 */
-  --ac-p1: #e5c890; /* brass        L* 82 */
-  --ac-p6: #eae8e3; /* bone         L* 92 */
-
-  /* ── Card operator colors ──────────────────────────────────────────────
-     Previously referenced by ac-card.ts but never defined, so every card chip
-     silently fell back to inheriting. Matched to the glyph SVGs in
-     public/assets/. */
+  /* ── Card operator colors ────────────────────────────────────────────── */
   --ac-additive: var(--ac-patina);
   --ac-multiplicative: var(--ac-accent-clock);
   --ac-action: var(--ac-brass);
 
-  /* Also referenced-but-undefined before now. */
+  /* Referenced helpers */
   --ac-fg: var(--ac-ink);
-  --ac-accent-mint: var(--ac-accent-letter);
-  --ac-accent-cyan: var(--ac-brass);
 
-  /* ── GLOW POLICY ───────────────────────────────────────────────────────
-     Glow is a budget of four sites. It always means "this metal is being
-     worked right now", which is why it is warm, why it escalates, and why it
-     cools back down:
-
-       1. the shot clock in its final seconds     (steel heating up)
-       2. ac-card[triggered] during the replay    (the die is striking)
-       3. the running + final score number        (the piece coming out hot)
-       4. the leaderboard score-pop delta         (same beat, in the rail)
-
-     Nothing else. Buttons, titles, borders, hover, selection, tiles and
-     eyebrows express state with brass, the specular edge, the hard shadow and
-     paint stripes — never with light.
-
-     The five --ac-glow-* tokens below are RETIRED. They resolve to `none` so
-     that the ~29 legacy call sites across the un-migrated surface sheets go
-     quiet on their own rather than glowing in a new color. Do not add new uses;
-     delete each one as its surface gets its pass. */
-  --ac-heat-1: 0 0 10px rgba(225, 85, 42, 0.35);
-  --ac-heat-2: 0 0 26px rgba(244, 162, 60, 0.55);
-
-  --ac-glow-cyan: none;
-  --ac-glow-mag: none;
-  --ac-glow-mint: none;
-  --ac-glow-danger: none;
-  --ac-glow-amber: none;
+  /* ── GLOW POLICY ─────────────────────────────────────────────────────── */
+  --ac-heat-1: 0 0 14px rgba(255, 23, 68, 0.55);
+  --ac-heat-2: 0 0 32px rgba(255, 145, 0, 0.75);
 
   /* ── Raised parts ──────────────────────────────────────────────────────
      One definition for every object that sits proud of the surface behind it:

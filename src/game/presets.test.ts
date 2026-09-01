@@ -117,6 +117,16 @@ describe("applyPreset / detectPreset", () => {
     }
     expect(after.survivalMode).toBe(true); // ...while the match rules did change
   });
+
+  it("switches back to picker mode and detects Normal after switching to Old-School", () => {
+    const oldSchool = applyPreset(DEFAULT_SETTINGS, PresetId.OldSchool);
+    expect(oldSchool.gameMode).toBe(GameMode.Classic);
+    expect(detectPreset(oldSchool)).toBe(PresetId.OldSchool);
+
+    const normalAgain = applyPreset(oldSchool, PresetId.Normal);
+    expect(normalAgain.gameMode).toBe(GameMode.Picker);
+    expect(detectPreset(normalAgain)).toBe(PresetId.Normal);
+  });
 });
 
 describe("the host-preference boundary", () => {
