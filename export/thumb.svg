@@ -1,259 +1,460 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 200" role="img" aria-label="Alpha Chain">
-  <defs>
-    <!-- Background Gunmetal Base -->
-    <linearGradient id="bgGrad" x1="0" y1="0" x2="0.3" y2="1">
-      <stop offset="0%" stop-color="#1c1916"/>
-      <stop offset="50%" stop-color="#14120f"/>
-      <stop offset="100%" stop-color="#0e0c0a"/>
-    </linearGradient>
+  <!--
+    Alpha Chain — marketplace lobby tile (export/GAME.json "thumbnail").
 
-    <!-- Warm Machine Shop Ambient Radial -->
-    <radialGradient id="ambientWarmth" cx="0.5" cy="0.45" r="0.65">
-      <stop offset="0%" stop-color="#3a3228" stop-opacity="0.35"/>
-      <stop offset="55%" stop-color="#26221e" stop-opacity="0.12"/>
-      <stop offset="100%" stop-color="#14120f" stop-opacity="0"/>
+    THE PALETTE HERE MIRRORS src/styles/tokens.css AND NOTHING ENFORCES THAT
+    MIRROR. Re-check this file whenever the tokens move; it has already drifted a
+    whole palette behind once (it was still painted in the retired warm
+    "Hot Metal" values through Release/1.0.0). Note also that the prose comments
+    in tokens.css still narrate that warm press-shop story — the hex values are
+    what renders, not the prose.
+
+    A NOTE ON NAMES BELOW: an XML comment may not contain a double hyphen, and a
+    standalone .svg is parsed as strict XML, so custom properties are written
+    here without their leading dashes (ac-steel-600, gc-card-color). Prefix them
+    again when you grep src/.
+
+    HOW FAITHFUL THIS IS. Every material is taken from the live UI: the exact
+    gradient stack, rim, specular edges, radii and drops, derived in two scale
+    zones — cards at s = 50/152 = 0.3289 of src/styles/cards.css `.gc`, and the
+    word builder at s2 = 0.729 of src/styles/hud.css `.ac-word-builder`.
+
+    The COMPOSITION is deliberately not a screenshot. A lobby tile is usually
+    seen about 150px wide, so this spells the title in game parts and drops
+    anything that turns to mush at that size:
+
+      * A real card face carries an icon top-left, a magnitude chip top-right,
+        the card name, and a rules teaser. Here the card is reduced to its
+        material — the gradient stack plus a watermark — with one big centred
+        letter where `.gc-name` would sit. No icon, no chip, and deliberately NO
+        paint-coded top stripe (the game has never had one; family colour
+        arrives as the 157deg bottom-right bloom and the watermark tint).
+      * The live watermark is the card's own icon from public/assets/cards.svg.
+        Here it is the card's LETTER instead, at the same size and corner
+        overhang. Once the chips and icons came off, five unrelated pictograms
+        were the only thing left on the faces that a viewer could not connect to
+        anything, so they read as arbitrary decoration; the letter doubles the
+        thing the tile is actually saying.
+      * The builder shows only the bed, its blanks and the SUBMIT key. The live
+        header row (the "Starts with X" chip, the live stat readout, shuffle and
+        redraw) and the clear key are dropped for the same reason.
+
+    So: trust this file for colour and material, not for card layout. Please
+    don't "restore" the chips, icons or a top stripe.
+
+    The five cards are still real library entries (src/game/cards/library.ts) and
+    carry their own `color` (gc-card-color) and rarity, which is what paints the
+    bloom, the watermark and the rarity sheen — so the faces stay five visibly
+    different cards even with nothing card-specific left on them:
+
+      A  Vanilla         #dcae4c  common
+      L  TheArchitect    #6699bd  rare
+      P  Sesquipedalian  #9878ae  legendary
+      H  HighRoller      #b56276  common
+      A  GutturalRoar    #b26a3a  uncommon
+
+    Nothing glows. tokens.css budgets glow to exactly four sites (the shot clock's
+    last seconds, a [triggered] card mid-strike, the running score, a leaderboard
+    delta) and none of them are in this composition.
+
+    Self-contained on purpose: no raster images, no cross-document references, no
+    remote fonts. The game ships as a .kbg to operator-run hosts that often have
+    no egress (see EXPORT.md).
+  -->
+  <defs>
+    <!-- Ground: #08090c under a cool specular top vignette and a black floor
+         pool. Mirrors base.css `body`. CSS names radial-gradient extents as
+         radii (130% 90%), which no single objectBoundingBox radius can express,
+         so each gets a gradientTransform that squashes y about its own center. -->
+    <radialGradient id="topSpec" cx="0.5" cy="-0.1" r="1.3"
+                    gradientTransform="matrix(1 0 0 0.6923 0 -0.03077)">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.04"/>
+      <stop offset="58%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="botPool" cx="0.5" cy="1.18" r="1.1"
+                    gradientTransform="matrix(1 0 0 0.9091 0 0.10727)">
+      <stop offset="0%" stop-color="#000000" stop-opacity="0.65"/>
+      <stop offset="62%" stop-color="#000000" stop-opacity="0"/>
     </radialGradient>
 
-    <!-- Hardened Steel Card Body (Lit from upper-left) -->
-    <linearGradient id="cardBody" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#352f28"/>
-      <stop offset="40%" stop-color="#2a2520"/>
-      <stop offset="100%" stop-color="#1c1916"/>
+    <!-- Card face, layer 3 of 3: the steel base.
+         `linear-gradient(178deg, ac-steel-600, ac-steel-800 78%)`. A CSS angle is
+         a direction of travel measured clockwise from north, not an SVG vector:
+         for 178deg on a 50x71 box the axis runs (23.73,-0.83) to (26.27,71.83).
+         userSpaceOnUse resolves inside each card's own translated group, so one
+         def serves all five. -->
+    <linearGradient id="cardBody" gradientUnits="userSpaceOnUse"
+                    x1="23.73" y1="-0.83" x2="26.27" y2="71.83">
+      <stop offset="0%" stop-color="#1f2533"/>
+      <stop offset="78%" stop-color="#0e1117"/>
     </linearGradient>
 
-    <!-- Milled Stock (Letter Tiles) -->
+    <!-- Card face, layer 1 of 3: the card's identity color blooming toward the
+         bottom-right. `linear-gradient(157deg, transparent 0%, transparent 40%,
+         color-mix(in srgb, gc-card-color 35%, transparent) 100%)`. 157deg on a
+         50x71 box gives the axis (8.41,-3.58) to (41.59,74.58).
+
+         The transparent stops carry the SAME color at stop-opacity 0, not a bare
+         "transparent": CSS gradients interpolate premultiplied, SVG does not, so
+         fading to transparent BLACK would dirty the ramp. -->
+    <linearGradient id="idVanilla" gradientUnits="userSpaceOnUse"
+                    x1="8.41" y1="-3.58" x2="41.59" y2="74.58">
+      <stop offset="0%" stop-color="#dcae4c" stop-opacity="0"/>
+      <stop offset="40%" stop-color="#dcae4c" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#dcae4c" stop-opacity="0.35"/>
+    </linearGradient>
+    <linearGradient id="idArchitect" gradientUnits="userSpaceOnUse"
+                    x1="8.41" y1="-3.58" x2="41.59" y2="74.58">
+      <stop offset="0%" stop-color="#6699bd" stop-opacity="0"/>
+      <stop offset="40%" stop-color="#6699bd" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#6699bd" stop-opacity="0.35"/>
+    </linearGradient>
+    <linearGradient id="idSesqui" gradientUnits="userSpaceOnUse"
+                    x1="8.41" y1="-3.58" x2="41.59" y2="74.58">
+      <stop offset="0%" stop-color="#9878ae" stop-opacity="0"/>
+      <stop offset="40%" stop-color="#9878ae" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#9878ae" stop-opacity="0.35"/>
+    </linearGradient>
+    <linearGradient id="idHighRoller" gradientUnits="userSpaceOnUse"
+                    x1="8.41" y1="-3.58" x2="41.59" y2="74.58">
+      <stop offset="0%" stop-color="#b56276" stop-opacity="0"/>
+      <stop offset="40%" stop-color="#b56276" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#b56276" stop-opacity="0.35"/>
+    </linearGradient>
+    <linearGradient id="idRoar" gradientUnits="userSpaceOnUse"
+                    x1="8.41" y1="-3.58" x2="41.59" y2="74.58">
+      <stop offset="0%" stop-color="#b26a3a" stop-opacity="0"/>
+      <stop offset="40%" stop-color="#b26a3a" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#b26a3a" stop-opacity="0.35"/>
+    </linearGradient>
+
+    <!-- Card face, layer 2 of 3: the pale rarity sheen on the top-left key
+         light. `color-mix(in srgb, color-mix(in srgb, gc-rarity 45%, #fff) 20%,
+         transparent)` to transparent at 60%, precomputed off ac-rarity-*:
+         common #64748b gives #b9c0cb, uncommon #ff6d00 gives #ffbd8c,
+         rare #d500f9 gives #ec8cfc, legendary #ffd600 gives #ffed8c. -->
+    <linearGradient id="sheenCommon" gradientUnits="userSpaceOnUse"
+                    x1="8.41" y1="-3.58" x2="41.59" y2="74.58">
+      <stop offset="0%" stop-color="#b9c0cb" stop-opacity="0.2"/>
+      <stop offset="60%" stop-color="#b9c0cb" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="sheenUncommon" gradientUnits="userSpaceOnUse"
+                    x1="8.41" y1="-3.58" x2="41.59" y2="74.58">
+      <stop offset="0%" stop-color="#ffbd8c" stop-opacity="0.2"/>
+      <stop offset="60%" stop-color="#ffbd8c" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="sheenRare" gradientUnits="userSpaceOnUse"
+                    x1="8.41" y1="-3.58" x2="41.59" y2="74.58">
+      <stop offset="0%" stop-color="#ec8cfc" stop-opacity="0.2"/>
+      <stop offset="60%" stop-color="#ec8cfc" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="sheenLegendary" gradientUnits="userSpaceOnUse"
+                    x1="8.41" y1="-3.58" x2="41.59" y2="74.58">
+      <stop offset="0%" stop-color="#ffed8c" stop-opacity="0.2"/>
+      <stop offset="60%" stop-color="#ffed8c" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- Word builder housing: `linear-gradient(178deg, ac-steel-600,
+         ac-steel-700 62%)`. 178deg on the 263x48.6 box gives the axis
+         (130.49,-4.55) to (132.51,53.15). -->
+    <linearGradient id="builderBody" gradientUnits="userSpaceOnUse"
+                    x1="130.49" y1="-4.55" x2="132.51" y2="53.15">
+      <stop offset="0%" stop-color="#1f2533"/>
+      <stop offset="62%" stop-color="#151922"/>
+    </linearGradient>
+
+    <!-- A blank of letter stock (.ac-tile). Brilliant white milled face;
+         `color-mix(ac-stock-100 84%, #fff)` resolves to plain #ffffff. -->
     <linearGradient id="stockFace" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#eae2d2"/>
-      <stop offset="35%" stop-color="#dcd2be"/>
-      <stop offset="100%" stop-color="#c4b9a3"/>
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="42%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#e2e8f0"/>
     </linearGradient>
 
-    <!-- Polished Brass (Starter Matrix Tile) -->
-    <linearGradient id="brassFace" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#fae09a"/>
-      <stop offset="30%" stop-color="#e0b25c"/>
-      <stop offset="100%" stop-color="#b88530"/>
+    <!-- The blank that has to lead (.ac-tile.is-starter). Signal green, not
+         brass. `color-mix(ac-starter-lit 80%, #fff)` gives #87f3be. -->
+    <linearGradient id="starterFace" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#87f3be"/>
+      <stop offset="45%" stop-color="#69f0ae"/>
+      <stop offset="100%" stop-color="#00e676"/>
     </linearGradient>
 
-    <!-- Brass Submit Button -->
-    <linearGradient id="btnBrassFace" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#f5d588"/>
-      <stop offset="35%" stop-color="#d9a548"/>
-      <stop offset="100%" stop-color="#aa7926"/>
+    <!-- The bed's `inset 0 2px 5px rgba(0,0,0,.75)`. Near-invisible over
+         ac-well, exactly as in the game: the recess reads from the bottom
+         specular hairline, not from a shadow with nothing darker to fall to. -->
+    <linearGradient id="bedRecess" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#000000" stop-opacity="0.75"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
     </linearGradient>
 
-    <!-- Card Shadow (Soft warm drop) -->
-    <filter id="cardDrop" x="-20%" y="-20%" width="140%" height="150%">
-      <feDropShadow dx="0" dy="4" stdDeviation="3.5" flood-color="#060402" flood-opacity="0.75"/>
+    <!-- Clips stand in for the `overflow: hidden` and inset-shadow feet that CSS
+         gets for free: the overhanging watermark and every bevel band below are
+         plain rects trimmed to their part's rounded outline. -->
+    <clipPath id="cardClip"><rect width="50" height="71" rx="2.1"/></clipPath>
+    <clipPath id="tileClip"><rect width="32" height="32" rx="3"/></clipPath>
+    <clipPath id="btnClip"><rect width="62" height="32" rx="3"/></clipPath>
+    <clipPath id="bedClip"><rect width="184.7" height="37" rx="3"/></clipPath>
+
+    <!-- Raised parts: ac-drop-sm and ac-lift-1, each scaled into its own zone.
+         feDropShadow's stdDeviation is half the CSS blur radius. -->
+    <filter id="cardDrop" x="-10%" y="-18%" width="120%" height="145%">
+      <feDropShadow dx="0" dy="2.6" stdDeviation="3.29" flood-color="#080503" flood-opacity="0.46"/>
     </filter>
-
-    <!-- Tile Shadow -->
-    <filter id="tileDrop" x="-25%" y="-25%" width="150%" height="160%">
-      <feDropShadow dx="0" dy="2.5" stdDeviation="2" flood-color="#040302" flood-opacity="0.7"/>
+    <filter id="builderDrop" x="-12%" y="-60%" width="124%" height="260%">
+      <feDropShadow dx="0" dy="5.83" stdDeviation="7.29" flood-color="#080503" flood-opacity="0.46"/>
+    </filter>
+    <filter id="tileDrop" x="-10%" y="-25%" width="120%" height="165%">
+      <feDropShadow dx="0" dy="2.2" stdDeviation="2.2" flood-color="#060402" flood-opacity="0.66"/>
     </filter>
 
     <style>
+      /* Both faces are self-hosted variable fonts (src/assets/fonts, declared in
+         tokens.css). A marketplace host will not have them, so the system
+         fallback chain here is load-bearing — keep it. */
       .font-disp {
         font-family: "Bricolage Grotesque", "Segoe UI", system-ui, -apple-system, sans-serif;
       }
       .font-mach {
         font-family: "Archivo", "Segoe UI", system-ui, -apple-system, sans-serif;
+        font-stretch: 112%;
+      }
+      /* --font-machine on its wide end: the tile letters. */
+      .font-mach-wide {
+        font-family: "Archivo", "Segoe UI", system-ui, -apple-system, sans-serif;
+        font-stretch: 125%;
       }
     </style>
   </defs>
 
-  <!-- ── 1. Page / Machine Ground ────────────────────────────────────────── -->
-  <rect width="300" height="200" fill="url(#bgGrad)"/>
-  <rect width="300" height="200" fill="url(#ambientWarmth)"/>
+  <!-- ── 1. The machine ground ──────────────────────────────────────────────── -->
+  <rect width="300" height="200" fill="#08090c"/>
+  <rect width="300" height="200" fill="url(#botPool)"/>
+  <rect width="300" height="200" fill="url(#topSpec)"/>
 
-  <!-- Outer Machined Housing Hairline Rim -->
-  <rect x="0.5" y="0.5" width="299" height="199" fill="none" stroke="rgba(226, 214, 192, 0.08)" stroke-width="1"/>
-  <line x1="1" y1="1" x2="299" y2="1" stroke="rgba(255, 238, 208, 0.12)" stroke-width="1"/>
+  <!-- Outer housing hairline (ac-border) with a specular top edge (ac-hi). -->
+  <rect x="0.5" y="0.5" width="299" height="199" fill="none"
+        stroke="#ffffff" stroke-opacity="0.14" stroke-width="1"/>
+  <line x1="1" y1="1" x2="299" y2="1" stroke="#ffffff" stroke-opacity="0.18" stroke-width="1"/>
 
-  <!-- ── 2. Top Deck: 5 Engine Bay Cards ("ALPHA") ──────────────────────── -->
+  <!-- ── 2. Engine bay: five cards reading A L P H A ─────────────────────────
+       50 x 71 (live 152 x 216), pitch 53.3 (50 plus FAN_GAP 10 times s). The row
+       is 263.2 wide and centred, so it sits on the same margin as the builder
+       below it. Each face is material plus watermark plus the letter; the letter
+       is centred on the card (font cap height is 0.72em, so a 46px glyph centres
+       on a baseline at 35.5 + 16.6 = 52). -->
   <g filter="url(#cardDrop)">
 
-    <!-- Card 1: A (Letter / Verdigris) -->
-    <g transform="translate(20, 16)">
-      <!-- Body -->
-      <rect width="46" height="66" rx="4.5" fill="url(#cardBody)" stroke="rgba(20, 14, 8, 0.85)" stroke-width="1.2"/>
-      <!-- Paint-coded top tooling stripe -->
-      <path d="M 0.6,4.5 A 4.5,4.5 0 0 1 4.5,0.6 L 41.5,0.6 A 4.5,4.5 0 0 1 45.4,4.5 L 45.4,5 L 0.6,5 Z" fill="#5f9e77"/>
-      <!-- Top specular highlight edge -->
-      <line x1="1.5" y1="6" x2="44.5" y2="6" stroke="rgba(255, 238, 208, 0.14)" stroke-width="0.8"/>
-      <!-- Bottom edge shade -->
-      <line x1="1.5" y1="64.5" x2="44.5" y2="64.5" stroke="rgba(0, 0, 0, 0.55)" stroke-width="0.8"/>
-      <!-- Icon: Vanilla / Scoop on cone -->
-      <g transform="translate(5, 8.5)" stroke="#5f9e77" fill="none" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="4.5" cy="3.5" r="2.8"/>
-        <path d="M2.5 5 L4.5 10 L6.5 5"/>
+    <!-- Card 1 — Vanilla · common -->
+    <g transform="translate(18.4,18)">
+      <g clip-path="url(#cardClip)">
+        <rect width="50" height="71" fill="url(#cardBody)"/>
+        <rect width="50" height="71" fill="url(#sheenCommon)"/>
+        <rect width="50" height="71" fill="url(#idVanilla)"/>
+        <!-- .gc-watermark, carrying the card's own letter instead of an icon.
+             Same box as the live one: 92% of the face, hung off the bottom-right
+             at -14%, so it spans x 11..57 and y 15.62..80.94 and bleeds past two
+             edges for the clip to trim. Sizing the cap height to fill that box
+             puts the baseline exactly on its bottom edge, and at 90px against
+             the 46px foreground the two read as layered type rather than as a
+             misaligned shadow. -->
+        <text class="font-disp" x="34" y="80.94" text-anchor="middle"
+              font-size="90" font-weight="800" fill="#dcae4c" opacity="0.1">A</text>
       </g>
-      <!-- Operator Chip: +1 -->
-      <rect x="23.5" y="8" width="17.5" height="8.5" rx="2" fill="#5f9e77" fill-opacity="0.18" stroke="#5f9e77" stroke-width="0.8"/>
-      <text class="font-mach" x="32.2" y="14.8" text-anchor="middle" font-size="5.8" font-weight="800" fill="#5f9e77">+1</text>
-      <!-- Engraved Glyphs / Letter A -->
-      <text class="font-disp" x="23" y="58" text-anchor="middle" font-size="31" font-weight="800" fill="#f0e9dc">A</text>
+      <rect x="0.425" y="0.425" width="49.15" height="70.15" rx="1.9"
+            fill="none" stroke="#000000" stroke-width="0.85"/>
+      <line x1="1.3" y1="1.28" x2="48.7" y2="1.28" stroke="#ffffff" stroke-opacity="0.18" stroke-width="0.85"/>
+      <line x1="1.3" y1="69.72" x2="48.7" y2="69.72" stroke="#000000" stroke-opacity="0.85" stroke-width="0.85"/>
+      <text class="font-disp" x="25" y="52" text-anchor="middle"
+            font-size="46" font-weight="800" fill="#ffffff">A</text>
     </g>
 
-    <!-- Card 2: L (Clock / Quench Blue) -->
-    <g transform="translate(73, 16)">
-      <!-- Body -->
-      <rect width="46" height="66" rx="4.5" fill="url(#cardBody)" stroke="rgba(20, 14, 8, 0.85)" stroke-width="1.2"/>
-      <!-- Tooling stripe -->
-      <path d="M 0.6,4.5 A 4.5,4.5 0 0 1 4.5,0.6 L 41.5,0.6 A 4.5,4.5 0 0 1 45.4,4.5 L 45.4,5 L 0.6,5 Z" fill="#5d97c0"/>
-      <!-- Specular & Shade -->
-      <line x1="1.5" y1="6" x2="44.5" y2="6" stroke="rgba(255, 238, 208, 0.14)" stroke-width="0.8"/>
-      <line x1="1.5" y1="64.5" x2="44.5" y2="64.5" stroke="rgba(0, 0, 0, 0.55)" stroke-width="0.8"/>
-      <!-- Icon: Clock -->
-      <g transform="translate(5, 8.5)" stroke="#5d97c0" fill="none" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="4.5" cy="4.5" r="3.6"/>
-        <path d="M4.5 2.5 V4.5 H6.5"/>
+    <!-- Card 2 — Architect · rare -->
+    <g transform="translate(71.7,18)">
+      <g clip-path="url(#cardClip)">
+        <rect width="50" height="71" fill="url(#cardBody)"/>
+        <rect width="50" height="71" fill="url(#sheenRare)"/>
+        <rect width="50" height="71" fill="url(#idArchitect)"/>
+        <text class="font-disp" x="34" y="80.94" text-anchor="middle"
+              font-size="90" font-weight="800" fill="#6699bd" opacity="0.1">L</text>
       </g>
-      <!-- Operator Chip: x1.5 -->
-      <rect x="21" y="8" width="20" height="8.5" rx="2" fill="#5d97c0" fill-opacity="0.18" stroke="#5d97c0" stroke-width="0.8"/>
-      <text class="font-mach" x="31" y="14.8" text-anchor="middle" font-size="5.6" font-weight="800" fill="#5d97c0">×1.5</text>
-      <!-- Engraved Glyphs / Letter L -->
-      <text class="font-disp" x="23" y="58" text-anchor="middle" font-size="31" font-weight="800" fill="#f0e9dc">L</text>
+      <rect x="0.425" y="0.425" width="49.15" height="70.15" rx="1.9"
+            fill="none" stroke="#000000" stroke-width="0.85"/>
+      <line x1="1.3" y1="1.28" x2="48.7" y2="1.28" stroke="#ffffff" stroke-opacity="0.18" stroke-width="0.85"/>
+      <line x1="1.3" y1="69.72" x2="48.7" y2="69.72" stroke="#000000" stroke-opacity="0.85" stroke-width="0.85"/>
+      <text class="font-disp" x="25" y="52" text-anchor="middle"
+            font-size="46" font-weight="800" fill="#ffffff">L</text>
     </g>
 
-    <!-- Card 3: P (Economy / Straw) -->
-    <g transform="translate(127, 16)">
-      <!-- Body -->
-      <rect width="46" height="66" rx="4.5" fill="url(#cardBody)" stroke="rgba(20, 14, 8, 0.85)" stroke-width="1.2"/>
-      <!-- Tooling stripe -->
-      <path d="M 0.6,4.5 A 4.5,4.5 0 0 1 4.5,0.6 L 41.5,0.6 A 4.5,4.5 0 0 1 45.4,4.5 L 45.4,5 L 0.6,5 Z" fill="#efcf6e"/>
-      <!-- Specular & Shade -->
-      <line x1="1.5" y1="6" x2="44.5" y2="6" stroke="rgba(255, 238, 208, 0.14)" stroke-width="0.8"/>
-      <line x1="1.5" y1="64.5" x2="44.5" y2="64.5" stroke="rgba(0, 0, 0, 0.55)" stroke-width="0.8"/>
-      <!-- Icon: Coin Stack -->
-      <g transform="translate(5, 8.5)" stroke="#efcf6e" fill="none" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
-        <ellipse cx="4.5" cy="2.5" rx="3.5" ry="1.4"/>
-        <path d="M1 2.5 V5 C1 6 8 6 8 5 V2.5"/>
-        <path d="M1 5 V7.5 C1 8.5 8 8.5 8 7.5 V5"/>
+    <!-- Card 3 — Deca-Quint · legendary -->
+    <g transform="translate(125,18)">
+      <g clip-path="url(#cardClip)">
+        <rect width="50" height="71" fill="url(#cardBody)"/>
+        <rect width="50" height="71" fill="url(#sheenLegendary)"/>
+        <rect width="50" height="71" fill="url(#idSesqui)"/>
+        <text class="font-disp" x="34" y="80.94" text-anchor="middle"
+              font-size="90" font-weight="800" fill="#9878ae" opacity="0.1">P</text>
       </g>
-      <!-- Operator Chip: x3 -->
-      <rect x="23.5" y="8" width="17.5" height="8.5" rx="2" fill="#efcf6e" fill-opacity="0.18" stroke="#efcf6e" stroke-width="0.8"/>
-      <text class="font-mach" x="32.2" y="14.8" text-anchor="middle" font-size="5.8" font-weight="800" fill="#efcf6e">×3</text>
-      <!-- Engraved Glyphs / Letter P -->
-      <text class="font-disp" x="23" y="58" text-anchor="middle" font-size="31" font-weight="800" fill="#f0e9dc">P</text>
+      <rect x="0.425" y="0.425" width="49.15" height="70.15" rx="1.9"
+            fill="none" stroke="#000000" stroke-width="0.85"/>
+      <line x1="1.3" y1="1.28" x2="48.7" y2="1.28" stroke="#ffffff" stroke-opacity="0.18" stroke-width="0.85"/>
+      <line x1="1.3" y1="69.72" x2="48.7" y2="69.72" stroke="#000000" stroke-opacity="0.85" stroke-width="0.85"/>
+      <text class="font-disp" x="25" y="52" text-anchor="middle"
+            font-size="46" font-weight="800" fill="#ffffff">P</text>
     </g>
 
-    <!-- Card 4: H (Utility / Oxblood) -->
-    <g transform="translate(181, 16)">
-      <!-- Body -->
-      <rect width="46" height="66" rx="4.5" fill="url(#cardBody)" stroke="rgba(20, 14, 8, 0.85)" stroke-width="1.2"/>
-      <!-- Tooling stripe -->
-      <path d="M 0.6,4.5 A 4.5,4.5 0 0 1 4.5,0.6 L 41.5,0.6 A 4.5,4.5 0 0 1 45.4,4.5 L 45.4,5 L 0.6,5 Z" fill="#8b4254"/>
-      <!-- Specular & Shade -->
-      <line x1="1.5" y1="6" x2="44.5" y2="6" stroke="rgba(255, 238, 208, 0.14)" stroke-width="0.8"/>
-      <line x1="1.5" y1="64.5" x2="44.5" y2="64.5" stroke="rgba(0, 0, 0, 0.55)" stroke-width="0.8"/>
-      <!-- Icon: Vault / Brick safe -->
-      <g transform="translate(5, 8.5)" stroke="#8b4254" fill="none" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="0.8" y="1" width="7.4" height="7" rx="1"/>
-        <circle cx="4.5" cy="4.5" r="1.8"/>
+    <!-- Card 4 — High Roller · common -->
+    <g transform="translate(178.3,18)">
+      <g clip-path="url(#cardClip)">
+        <rect width="50" height="71" fill="url(#cardBody)"/>
+        <rect width="50" height="71" fill="url(#sheenCommon)"/>
+        <rect width="50" height="71" fill="url(#idHighRoller)"/>
+        <text class="font-disp" x="34" y="80.94" text-anchor="middle"
+              font-size="90" font-weight="800" fill="#b56276" opacity="0.1">H</text>
       </g>
-      <!-- Operator Chip: +5 -->
-      <rect x="23.5" y="8" width="17.5" height="8.5" rx="2" fill="#8b4254" fill-opacity="0.18" stroke="#8b4254" stroke-width="0.8"/>
-      <text class="font-mach" x="32.2" y="14.8" text-anchor="middle" font-size="5.8" font-weight="800" fill="#c47a8c">+5</text>
-      <!-- Engraved Glyphs / Letter H -->
-      <text class="font-disp" x="23" y="58" text-anchor="middle" font-size="31" font-weight="800" fill="#f0e9dc">H</text>
+      <rect x="0.425" y="0.425" width="49.15" height="70.15" rx="1.9"
+            fill="none" stroke="#000000" stroke-width="0.85"/>
+      <line x1="1.3" y1="1.28" x2="48.7" y2="1.28" stroke="#ffffff" stroke-opacity="0.18" stroke-width="0.85"/>
+      <line x1="1.3" y1="69.72" x2="48.7" y2="69.72" stroke="#000000" stroke-opacity="0.85" stroke-width="0.85"/>
+      <text class="font-disp" x="25" y="52" text-anchor="middle"
+            font-size="46" font-weight="800" fill="#ffffff">H</text>
     </g>
 
-    <!-- Card 5: A (Action / Brass Anchor) -->
-    <g transform="translate(234, 16)">
-      <!-- Body -->
-      <rect width="46" height="66" rx="4.5" fill="url(#cardBody)" stroke="rgba(20, 14, 8, 0.85)" stroke-width="1.2"/>
-      <!-- Tooling stripe -->
-      <path d="M 0.6,4.5 A 4.5,4.5 0 0 1 4.5,0.6 L 41.5,0.6 A 4.5,4.5 0 0 1 45.4,4.5 L 45.4,5 L 0.6,5 Z" fill="#c08f3c"/>
-      <!-- Specular & Shade -->
-      <line x1="1.5" y1="6" x2="44.5" y2="6" stroke="rgba(255, 238, 208, 0.14)" stroke-width="0.8"/>
-      <line x1="1.5" y1="64.5" x2="44.5" y2="64.5" stroke="rgba(0, 0, 0, 0.55)" stroke-width="0.8"/>
-      <!-- Icon: Anchor -->
-      <g transform="translate(5, 8.5)" stroke="#c08f3c" fill="none" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="4.5" cy="2" r="1.1"/>
-        <line x1="4.5" y1="3.1" x2="4.5" y2="8.2"/>
-        <line x1="2.5" y1="4.6" x2="6.5" y2="4.6"/>
-        <path d="M1.5 5.5 C1.5 8.5 7.5 8.5 7.5 5.5"/>
+    <!-- Card 5 — Chant · uncommon -->
+    <g transform="translate(231.6,18)">
+      <g clip-path="url(#cardClip)">
+        <rect width="50" height="71" fill="url(#cardBody)"/>
+        <rect width="50" height="71" fill="url(#sheenUncommon)"/>
+        <rect width="50" height="71" fill="url(#idRoar)"/>
+        <text class="font-disp" x="34" y="80.94" text-anchor="middle"
+              font-size="90" font-weight="800" fill="#b26a3a" opacity="0.1">A</text>
       </g>
-      <!-- Operator Chip: +10 -->
-      <rect x="21" y="8" width="20" height="8.5" rx="2" fill="#c08f3c" fill-opacity="0.18" stroke="#c08f3c" stroke-width="0.8"/>
-      <text class="font-mach" x="31" y="14.8" text-anchor="middle" font-size="5.6" font-weight="800" fill="#e0b25c">+10</text>
-      <!-- Engraved Glyphs / Letter A -->
-      <text class="font-disp" x="23" y="58" text-anchor="middle" font-size="31" font-weight="800" fill="#f0e9dc">A</text>
+      <rect x="0.425" y="0.425" width="49.15" height="70.15" rx="1.9"
+            fill="none" stroke="#000000" stroke-width="0.85"/>
+      <line x1="1.3" y1="1.28" x2="48.7" y2="1.28" stroke="#ffffff" stroke-opacity="0.18" stroke-width="0.85"/>
+      <line x1="1.3" y1="69.72" x2="48.7" y2="69.72" stroke="#000000" stroke-opacity="0.85" stroke-width="0.85"/>
+      <text class="font-disp" x="25" y="52" text-anchor="middle"
+            font-size="46" font-weight="800" fill="#ffffff">A</text>
     </g>
 
   </g>
 
-  <!-- ── 3. Bottom Composing Stick: Word Builder Track ("CHAIN") ────────── -->
+  <!-- ── 3. Word builder: the bed of blanks reading C H A I N, plus the key ───
+       s2 = 0.729 of .ac-word-builder / .ac-staging-track / .ac-tile / .ac-btn. -->
+  <g transform="translate(18.5,104)">
 
-  <!-- Recessed Steel Bed (The Staging Well) -->
-  <g>
-    <rect x="20" y="96" width="260" height="52" rx="5.5" fill="#100e0c" stroke="rgba(226, 214, 192, 0.12)" stroke-width="1"/>
-    <!-- Cavity inner drop shade -->
-    <rect x="21" y="97" width="258" height="3" fill="#050403" opacity="0.75"/>
-    <line x1="21" y1="147.5" x2="279" y2="147.5" stroke="rgba(255, 238, 208, 0.06)" stroke-width="1"/>
+    <!-- Housing (.ac-word-builder) -->
+    <g filter="url(#builderDrop)">
+      <rect width="263" height="48.6" rx="4.7" fill="url(#builderBody)"/>
+    </g>
+    <rect x="0.5" y="0.5" width="262" height="47.6" rx="4.2"
+          fill="none" stroke="#ffffff" stroke-opacity="0.14" stroke-width="1"/>
+    <line x1="1.5" y1="1" x2="261.5" y2="1" stroke="#ffffff" stroke-opacity="0.18" stroke-width="1"/>
+    <line x1="1.5" y1="47.6" x2="261.5" y2="47.6" stroke="#000000" stroke-opacity="0.85" stroke-width="1"/>
+
+    <!-- The bed (.ac-staging-track): a milled channel at ac-well -->
+    <g transform="translate(6.4,5.8)">
+      <rect width="184.7" height="37" rx="3" fill="#030406"/>
+      <g clip-path="url(#bedClip)">
+        <rect width="184.7" height="3.65" fill="url(#bedRecess)"/>
+        <rect y="36.27" width="184.7" height="0.73" fill="#ffffff" fill-opacity="0.18"/>
+      </g>
+      <rect x="0.365" y="0.365" width="183.97" height="36.27" rx="2.8"
+            fill="none" stroke="#18100a" stroke-opacity="0.55" stroke-width="0.73"/>
+    </g>
+
+    <!-- Blanks and the key. Blanks are 32 square (live 44), pitch 35.5. -->
+    <g filter="url(#tileDrop)">
+
+      <!-- C — the blank that has to lead (.ac-tile.is-starter): signal green -->
+      <g transform="translate(11.65,8.3)">
+        <rect width="32" height="32" rx="3" fill="url(#starterFace)"/>
+        <g clip-path="url(#tileClip)">
+          <rect width="32" height="0.73" fill="#ffffff" fill-opacity="0.45"/>
+          <rect y="29.8" width="32" height="2.2" fill="#00b050"/>
+        </g>
+        <rect x="0.365" y="0.365" width="31.27" height="31.27" rx="2.8"
+              fill="none" stroke="#18100a" stroke-opacity="0.55" stroke-width="0.73"/>
+        <!-- The glyph is cut INTO the stock: a light lip a pixel below, then the ink. -->
+        <text class="font-mach-wide" x="16" y="21.2" text-anchor="middle"
+              font-size="13.4" font-weight="800" fill="#ffffff" fill-opacity="0.42">C</text>
+        <text class="font-mach-wide" x="16" y="20.5" text-anchor="middle"
+              font-size="13.4" font-weight="800" fill="#002811">C</text>
+      </g>
+
+      <!-- H A I N — plain milled stock -->
+      <g transform="translate(47.15,8.3)">
+        <rect width="32" height="32" rx="3" fill="url(#stockFace)"/>
+        <g clip-path="url(#tileClip)">
+          <rect width="32" height="0.73" fill="#ffffff" fill-opacity="0.5"/>
+          <rect y="29.1" width="32" height="2.9" fill="#94a3b8"/>
+        </g>
+        <rect x="0.365" y="0.365" width="31.27" height="31.27" rx="2.8"
+              fill="none" stroke="#18100a" stroke-opacity="0.55" stroke-width="0.73"/>
+        <text class="font-mach-wide" x="16" y="21.2" text-anchor="middle"
+              font-size="13.4" font-weight="800" fill="#ffffff" fill-opacity="0.42">H</text>
+        <text class="font-mach-wide" x="16" y="20.5" text-anchor="middle"
+              font-size="13.4" font-weight="800" fill="#000000">H</text>
+      </g>
+
+      <g transform="translate(82.65,8.3)">
+        <rect width="32" height="32" rx="3" fill="url(#stockFace)"/>
+        <g clip-path="url(#tileClip)">
+          <rect width="32" height="0.73" fill="#ffffff" fill-opacity="0.5"/>
+          <rect y="29.1" width="32" height="2.9" fill="#94a3b8"/>
+        </g>
+        <rect x="0.365" y="0.365" width="31.27" height="31.27" rx="2.8"
+              fill="none" stroke="#18100a" stroke-opacity="0.55" stroke-width="0.73"/>
+        <text class="font-mach-wide" x="16" y="21.2" text-anchor="middle"
+              font-size="13.4" font-weight="800" fill="#ffffff" fill-opacity="0.42">A</text>
+        <text class="font-mach-wide" x="16" y="20.5" text-anchor="middle"
+              font-size="13.4" font-weight="800" fill="#000000">A</text>
+      </g>
+
+      <g transform="translate(118.15,8.3)">
+        <rect width="32" height="32" rx="3" fill="url(#stockFace)"/>
+        <g clip-path="url(#tileClip)">
+          <rect width="32" height="0.73" fill="#ffffff" fill-opacity="0.5"/>
+          <rect y="29.1" width="32" height="2.9" fill="#94a3b8"/>
+        </g>
+        <rect x="0.365" y="0.365" width="31.27" height="31.27" rx="2.8"
+              fill="none" stroke="#18100a" stroke-opacity="0.55" stroke-width="0.73"/>
+        <text class="font-mach-wide" x="16" y="21.2" text-anchor="middle"
+              font-size="13.4" font-weight="800" fill="#ffffff" fill-opacity="0.42">I</text>
+        <text class="font-mach-wide" x="16" y="20.5" text-anchor="middle"
+              font-size="13.4" font-weight="800" fill="#000000">I</text>
+      </g>
+
+      <g transform="translate(153.65,8.3)">
+        <rect width="32" height="32" rx="3" fill="url(#stockFace)"/>
+        <g clip-path="url(#tileClip)">
+          <rect width="32" height="0.73" fill="#ffffff" fill-opacity="0.5"/>
+          <rect y="29.1" width="32" height="2.9" fill="#94a3b8"/>
+        </g>
+        <rect x="0.365" y="0.365" width="31.27" height="31.27" rx="2.8"
+              fill="none" stroke="#18100a" stroke-opacity="0.55" stroke-width="0.73"/>
+        <text class="font-mach-wide" x="16" y="21.2" text-anchor="middle"
+              font-size="13.4" font-weight="800" fill="#ffffff" fill-opacity="0.42">N</text>
+        <text class="font-mach-wide" x="16" y="20.5" text-anchor="middle"
+              font-size="13.4" font-weight="800" fill="#000000">N</text>
+      </g>
+
+      <!-- SUBMIT: the primary .ac-btn, a milled cyan key with a cut foot -->
+      <g transform="translate(194.6,8.3)">
+        <rect width="62" height="32" rx="3" fill="#00f0ff"/>
+        <g clip-path="url(#btnClip)">
+          <rect width="62" height="0.73" fill="#ffffff" fill-opacity="0.28"/>
+          <rect y="29.8" width="62" height="2.2" fill="#0099aa"/>
+        </g>
+        <rect x="0.365" y="0.365" width="61.27" height="31.27" rx="2.8"
+              fill="none" stroke="#18100a" stroke-opacity="0.55" stroke-width="0.73"/>
+        <text class="font-mach" x="31.2" y="19.6" text-anchor="middle"
+              font-size="9.9" font-weight="800" letter-spacing="0.05em" fill="#001f24">SUBMIT</text>
+      </g>
+
+    </g>
   </g>
 
-  <!-- Tiles & Submit Button Group with Tile Drops -->
-  <g filter="url(#tileDrop)">
-
-    <!-- TILE 1: Lead Succession Tile "C" (Polished Brass Matrix) -->
-    <g transform="translate(27, 103)">
-      <!-- Face -->
-      <rect width="32" height="38" rx="3.5" fill="url(#brassFace)" stroke="rgba(24, 16, 10, 0.75)" stroke-width="0.9"/>
-      <!-- Top Specular Edge -->
-      <line x1="1" y1="1" x2="31" y2="1" stroke="rgba(255, 255, 255, 0.6)" stroke-width="0.9"/>
-      <!-- Machined Bottom Foot / Bevel -->
-      <path d="M 0.5,34.5 L 0.5,34.5 A 3.5,3.5 0 0 0 3.5,37.5 L 28.5,37.5 A 3.5,3.5 0 0 0 31.5,34.5 L 31.5,34.5 Z" fill="#8a6a2e"/>
-      <!-- Incised Letter "C" -->
-      <text class="font-mach" x="16" y="27" text-anchor="middle" font-size="20" font-weight="900" fill="#1a1408">C</text>
-    </g>
-
-    <!-- TILE 2: "H" (Milled Stock Tile) -->
-    <g transform="translate(64, 103)">
-      <rect width="32" height="38" rx="3.5" fill="url(#stockFace)" stroke="rgba(24, 16, 10, 0.65)" stroke-width="0.9"/>
-      <line x1="1" y1="1" x2="31" y2="1" stroke="rgba(255, 255, 255, 0.65)" stroke-width="0.9"/>
-      <path d="M 0.5,34.5 L 0.5,34.5 A 3.5,3.5 0 0 0 3.5,37.5 L 28.5,37.5 A 3.5,3.5 0 0 0 31.5,34.5 L 31.5,34.5 Z" fill="#a89d87"/>
-      <text class="font-mach" x="16" y="27" text-anchor="middle" font-size="20" font-weight="900" fill="#191512">H</text>
-    </g>
-
-    <!-- TILE 3: "A" (Milled Stock Tile) -->
-    <g transform="translate(101, 103)">
-      <rect width="32" height="38" rx="3.5" fill="url(#stockFace)" stroke="rgba(24, 16, 10, 0.65)" stroke-width="0.9"/>
-      <line x1="1" y1="1" x2="31" y2="1" stroke="rgba(255, 255, 255, 0.65)" stroke-width="0.9"/>
-      <path d="M 0.5,34.5 L 0.5,34.5 A 3.5,3.5 0 0 0 3.5,37.5 L 28.5,37.5 A 3.5,3.5 0 0 0 31.5,34.5 L 31.5,34.5 Z" fill="#a89d87"/>
-      <text class="font-mach" x="16" y="27" text-anchor="middle" font-size="20" font-weight="900" fill="#191512">A</text>
-    </g>
-
-    <!-- TILE 4: "I" (Milled Stock Tile) -->
-    <g transform="translate(138, 103)">
-      <rect width="32" height="38" rx="3.5" fill="url(#stockFace)" stroke="rgba(24, 16, 10, 0.65)" stroke-width="0.9"/>
-      <line x1="1" y1="1" x2="31" y2="1" stroke="rgba(255, 255, 255, 0.65)" stroke-width="0.9"/>
-      <path d="M 0.5,34.5 L 0.5,34.5 A 3.5,3.5 0 0 0 3.5,37.5 L 28.5,37.5 A 3.5,3.5 0 0 0 31.5,34.5 L 31.5,34.5 Z" fill="#a89d87"/>
-      <text class="font-mach" x="16" y="27" text-anchor="middle" font-size="20" font-weight="900" fill="#191512">I</text>
-    </g>
-
-    <!-- TILE 5: "N" (Milled Stock Tile) -->
-    <g transform="translate(175, 103)">
-      <rect width="32" height="38" rx="3.5" fill="url(#stockFace)" stroke="rgba(24, 16, 10, 0.65)" stroke-width="0.9"/>
-      <line x1="1" y1="1" x2="31" y2="1" stroke="rgba(255, 255, 255, 0.65)" stroke-width="0.9"/>
-      <path d="M 0.5,34.5 L 0.5,34.5 A 3.5,3.5 0 0 0 3.5,37.5 L 28.5,37.5 A 3.5,3.5 0 0 0 31.5,34.5 L 31.5,34.5 Z" fill="#a89d87"/>
-      <text class="font-mach" x="16" y="27" text-anchor="middle" font-size="20" font-weight="900" fill="#191512">N</text>
-    </g>
-
-    <!-- SUBMIT Button (Tactile Brass Stamp) -->
-    <g transform="translate(213, 103)">
-      <rect width="60" height="38" rx="3.5" fill="url(#btnBrassFace)" stroke="rgba(24, 16, 10, 0.75)" stroke-width="0.9"/>
-      <!-- Top specular edge -->
-      <line x1="1" y1="1" x2="59" y2="1" stroke="rgba(255, 255, 255, 0.65)" stroke-width="0.9"/>
-      <!-- Bottom cut foot -->
-      <path d="M 0.5,34.5 L 0.5,34.5 A 3.5,3.5 0 0 0 3.5,37.5 L 56.5,37.5 A 3.5,3.5 0 0 0 59.5,34.5 L 59.5,34.5 Z" fill="#8a6a2e"/>
-      <!-- Submit Text -->
-      <text class="font-mach" x="30" y="25" text-anchor="middle" font-size="11.5" font-weight="900" letter-spacing="0.08em" fill="#1a1408">SUBMIT</text>
-    </g>
-
-  </g>
-
-  <!-- ── 4. Tagline / Metadata ──────────────────────────────────────────── -->
-  <text class="font-mach" x="150" y="176" text-anchor="middle" font-size="8.8" font-weight="700" letter-spacing="0.24em" fill="#9c9589">WORD CHAIN <tspan fill="#c08f3c">·</tspan> ENGINE BUILDER</text>
+  <!-- ── 4. Tagline ─────────────────────────────────────────────────────────── -->
+  <text class="font-mach" x="150" y="176" text-anchor="middle" font-size="8.8"
+        font-weight="700" letter-spacing="0.24em" fill="#cbd5e1">WORD CHAIN <tspan fill="#00f0ff">·</tspan> ENGINE BUILDER</text>
 </svg>
