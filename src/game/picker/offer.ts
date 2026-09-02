@@ -210,12 +210,23 @@ export function buildPoolIndex(pool: WordPool): PoolIndex {
     lengthsFor,
     atLeastStarting: (letter, n) => (n <= 0 ? true : advance(letter, n).sum >= n),
     startTotal: (letter) => advance(letter, Infinity).sum,
+    // Asks each letter only "is ANY offerable bucket non-empty?", and stops at the first one that
+    // is. The old `advance(ch, 1)` routed through `lengthsFor`, which eagerly ranges EVERY length
+    // (2 binary searches each) for all 26 letters — ~5,900 pool calls to answer 26 yes/no
+    // questions, and it landed on the era-opener tick, where it was 65% of the work that timed the
+    // authority out. Same answer: a letter is listed iff some offerable length is non-empty.
     startLetters: () => {
       if (letters) return letters;
       const out: string[] = [];
       for (let c = 97; c <= 122; c++) {
         const ch = String.fromCharCode(c);
-        if (advance(ch, 1).sum > 0) out.push(ch);
+        for (let len = MIN_OFFER_LENGTH; len <= MAX_OFFER_LENGTH; len++) {
+          const r = range(ch, len);
+          if (r.end > r.start) {
+            out.push(ch);
+            break;
+          }
+        }
       }
       return (letters = out);
     },

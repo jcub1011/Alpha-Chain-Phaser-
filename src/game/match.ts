@@ -28,6 +28,7 @@ import {
   letterSupportsRack,
   subWordFinder,
   type RackShaping,
+  type ScanBudget,
 } from "./builder/rack";
 import type { WordPool } from "./picker/wordPool";
 import { shuffle } from "./rng";
@@ -106,6 +107,19 @@ const ROUND_SETTLE_BUFFER = 1.0;
  *  full-dictionary sweep (386k words under Sudden Death's Full tier) on the expiry tick, inside the
  *  server's Jint sandbox where there is no JIT. Matches the cap the bench getter already uses. */
 const NO_SHOW_CANDIDATE_CAP = 24;
+
+/** Pool candidates the no-show auto-pick may examine, shared across every letter it tries.
+ *
+ *  NO_SHOW_CANDIDATE_CAP bounds what the scan RETURNS, which is no bound at all on a rack that
+ *  returns nothing: the free-letter branch walks all 26 start letters, so an unbuildable rack cost
+ *  a full-pool sweep — 8,920 words on the Reduced list, 386,633 on the Full one — on the
+ *  shot-clock expiry tick, inside a 250ms Jint call whose overrun kills the lobby. Measured at
+ *  26,258 pool crossings in one tick before this cap.
+ *
+ *  Binding out returns null, which resolves the turn as the "—" no-show with the chain letter
+ *  unmoved. That is the same outcome an honest exhaustive scan reaches on a rack that spells
+ *  nothing, and it is an existing, tested path. */
+const NO_SHOW_SCAN_BUDGET = 2500;
 
 export interface PlayerSeed {
   id: string;
@@ -201,6 +215,8 @@ export class MatchController {
   /** The stream Offer generation draws from; `rng` unless a caller separated them. */
   private readonly offerRng: () => number;
   private poolIndex?: PoolIndex;
+  /** Whether `warmPoolIndex` has already run for this match. */
+  private poolIndexWarmed = false;
   private warnedMissingPool = false;
   /** Host-side leeway (s) the turn lingers at clockRemaining 0 before timing out,
    *  so a buzzer-time submit still in flight over the network can land. 0 ⇒ the
@@ -429,6 +445,22 @@ export class MatchController {
     return (this.poolIndex ??= buildPoolIndex(this.wordPool!));
   }
 
+  /** Pay the index's one-time cost on a Countdown tick instead of on the tick that arms the era.
+   *
+   *  `startLetters()` is the index's most expensive query — it settles all 26 letters — and until
+   *  it was warmed it landed on the tick that also runs `beginEra` -> `armCurrentTurn` ->
+   *  `generateRack`, which is already the most expensive tick of the match and the one the server's
+   *  250ms Jint timeout killed. Countdown ticks do nothing else and there are
+   *  `preRoundCountdownSeconds` x tickHz of them (80 at the defaults), so the work goes there.
+   *
+   *  Pure memo population: PoolIndex consumes no rng and holds no match state, so this moves WHEN
+   *  the cost is paid and can never move an outcome. */
+  private warmPoolIndex(): void {
+    if (this.poolIndexWarmed || !this.isPicker || !this.wordPool) return;
+    this.poolIndexWarmed = true;
+    this.offerIndex.startLetters();
+  }
+
   /**
    * The next turn's required letter, given the letter the accepted word ended on.
    *
@@ -530,6 +562,7 @@ export class MatchController {
       this.events.emit("subTimerTick", s.subTimerRemaining);
       if (s.subTimerRemaining <= 0) this.advanceTutorialPhase();
     } else if (s.phase === "Countdown") {
+      this.warmPoolIndex();
       const prev = Math.ceil(this.countdownRemaining);
       this.countdownRemaining -= dt;
       const now = Math.ceil(Math.max(0, this.countdownRemaining));
@@ -1222,8 +1255,12 @@ export class MatchController {
    *     letter `subWordFinder` walks `startLetters()` in order, so the first N hits are all "a"
    *     words and every free-letter no-show would commit one. The letters are therefore visited in
    *     a RANDOM order and the first that yields anything wins — the same shape as the bot's own
-   *     candidate gathering (`botCandidateTiers`, bots.ts). A rack that can spell nothing still
-   *     costs a full sweep, but each letter is capped and the honest answer there IS "nothing".
+   *     candidate gathering (`botCandidateTiers`, bots.ts).
+   *  4. A bounded COST — `NO_SHOW_SCAN_BUDGET`. `maxResults` bounds what the scan returns, which
+   *     is no bound at all on the case that actually hurts: a rack whose words are nearly all
+   *     played walks every letter to the end and finds nothing. subWordFinder now skips buckets no
+   *     tile can start, which is most of them, but the budget is what makes the ceiling a number
+   *     rather than a hope.
    */
   private randomBuildableWord(): string | null {
     const s = this.state;
@@ -1232,12 +1269,18 @@ export class MatchController {
       this.offerIgnoresSuccession || s.requiredLetter === ""
         ? shuffle(this.offerIndex.startLetters(), this.rng)
         : [s.requiredLetter];
+    // One budget threaded across every letter, so the random visit order still decides WHICH
+    // letters get looked at while the total work stays bounded. subWordFinder writes the budget
+    // back at its single exit, so the remainder carries correctly from one letter to the next.
+    const budget: ScanBudget = { remaining: NO_SHOW_SCAN_BUDGET };
     for (const letter of letters) {
       const candidates = subWordFinder(s.rack, this.wordPool, this.offerIndex, letter, {
         usedWords: s.usedWords,
         maxResults: NO_SHOW_CANDIDATE_CAP,
+        budget,
       });
       if (candidates.length > 0) return candidates[Math.floor(this.rng() * candidates.length)];
+      if (budget.remaining <= 0) return null;
     }
     return null;
   }

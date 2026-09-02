@@ -13,6 +13,7 @@ import {
   generateRack,
   MAX_RACK_SIZE,
   MIN_RACK_SIZE,
+  RACK_SCAN_BUDGET,
   scoreSeedFertility,
   subWordFinder,
   verifyRackDiversity,
@@ -734,5 +735,79 @@ describe("effectiveRackSize", () => {
     expect(effectiveRackSize(MIN_RACK_SIZE, -2)).toBe(MIN_RACK_SIZE);
     expect(effectiveRackSize(MAX_RACK_SIZE, 2)).toBe(MAX_RACK_SIZE);
     expect(effectiveRackSize(undefined, undefined)).toBe(DEFAULT_RACK_SIZE);
+  });
+});
+
+
+describe("Word Builder — free-letter draw cost", () => {
+  /* THE REGRESSION THIS PINS. Every era opens on a free Succession letter (beginEra sets
+   * requiredLetter = ""), and so does every Wildcard draw and every exhausted-letter redraw. The
+   * generator used to answer "" by fanning out over all 26 start letters — index.startLetters(),
+   * then 26x the seed sampling, then a 26-bucket sub-word sweep — all inside the single tick that
+   * also runs beginEra -> armCurrentTurn -> generateRack. On the server that tick is a Jint call
+   * with a 250 ms budget whose overrun KILLS THE LOBBY, and it did: measured at 8,947 pool queries
+   * against ~500 for an ordinary constrained turn.
+   *
+   * `examined` is the deterministic proxy for that cost. It counts pool candidates looked at, which
+   * is both a sandbox crossing and the per-candidate bitmask / frequency / exact-cover work. A
+   * wall-clock assertion here would flake in a 35-file run; this shape will not. */
+  it("costs a free required letter no more than a constrained one", () => {
+    const draw = (requiredLetter: string, rng: () => number): number =>
+      generateRack({ pool, index, requiredLetter, usedWords: new Set(), rng }).examined;
+
+    const freeRng = makeRng(8675309);
+    const free: number[] = [];
+    for (let i = 0; i < 120; i++) free.push(draw("", freeRng));
+
+    const letters = index.startLetters();
+    const conRng = makeRng(8675309);
+    const constrained: number[] = [];
+    for (let i = 0; i < 120; i++) constrained.push(draw(letters[i % letters.length], conRng));
+
+    const median = (xs: number[]): number => [...xs].sort((a, b) => a - b)[xs.length >> 1];
+
+    // The asymmetry is the bug, not the absolute number: a free draw must sit in the same league as
+    // a constrained one, because it now runs the very same code path on one resolved letter.
+    expect(median(free)).toBeLessThanOrEqual(median(constrained) * 3 + 100);
+    // ...and neither may exceed the per-draw ceiling the server budget is sized around.
+    expect(Math.max(...free)).toBeLessThanOrEqual(RACK_SCAN_BUDGET);
+    expect(Math.max(...constrained)).toBeLessThanOrEqual(RACK_SCAN_BUDGET);
+  });
+
+  it("still produces a seeded, buildable rack on a free letter", () => {
+    // Narrowing to one start letter must not cost the draw its result. A "" seed is how
+    // generateRackForTurn detects an exhausted letter, so an empty one here would free the
+    // Succession letter every single turn.
+    const rng = makeRng(24601);
+    for (let i = 0; i < 120; i++) {
+      const r = generateRack({ pool, index, requiredLetter: "", usedWords: new Set(), rng });
+      expect(r.seedWord).not.toBe("");
+      expect(r.tiles.length).toBe(DEFAULT_RACK_SIZE);
+      // The rack is seeded from ONE letter now; the seed must still be buildable from it, which is
+      // what makes verifying diversity against that letter sound.
+      expect(canConstructWordFromTiles(r.seedWord, r.tiles)).toBe(true);
+    }
+  });
+
+  it("skips start letters no tile can begin", () => {
+    /* subWordFinder only returns words STARTING with the scanned letter, and building such a word
+     * has to place a tile at offset 0 — so a letter no tile begins names a bucket that provably
+     * yields nothing. Skipping it is exact, and it is what keeps the free-letter no-show sweep
+     * (randomBuildableWord) off 26 buckets. */
+    const rack: Tile[] = [
+      { id: "t0", text: "c", isChunk: false },
+      { id: "t1", text: "a", isChunk: false },
+      { id: "t2", text: "t", isChunk: false },
+      { id: "t3", text: "s", isChunk: false },
+    ];
+    const found = subWordFinder(rack, pool, index, "", {});
+    expect(found.length).toBeGreaterThan(0);
+    const initials = new Set(rack.map((t) => t.text[0]));
+    for (const w of found) expect(initials.has(w[0])).toBe(true);
+
+    // A letter outside the rack costs nothing and finds nothing.
+    const budget = { remaining: 5000 };
+    expect(subWordFinder(rack, pool, index, "z", { budget })).toEqual([]);
+    expect(budget.remaining).toBe(5000);
   });
 });

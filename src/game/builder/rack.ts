@@ -20,7 +20,7 @@
 
 import { RARE_START } from "../cards/card";
 import { isVowel, MAX_BUILDER_RACK_SIZE, MIN_BUILDER_RACK_SIZE } from "../settings";
-import { MIN_OFFER_LENGTH, type PoolIndex } from "../picker/offer";
+import { MAX_OFFER_LENGTH, MIN_OFFER_LENGTH, type PoolIndex } from "../picker/offer";
 import type { WordPool } from "../picker/wordPool";
 
 /** The largest tile count the exact-cover DFS below can memoize.
@@ -44,6 +44,8 @@ export interface Tile {
 
 /** Configuration and context for generating a rack. */
 export interface RackRequest {
+  /** Override the per-draw examination ceiling (see RACK_SCAN_BUDGET). Diagnostics and tests. */
+  scanBudget?: number;
   pool: WordPool;
   index: PoolIndex;
   /** Required first letter of the word ("" = free choice). */
@@ -543,9 +545,19 @@ export function subWordFinder(
   // and an allocation is comparatively far more expensive.
   const wordCounts = new Int32Array(26);
 
-  const lettersToScan = requiredLetter
-    ? [requiredLetter.toLowerCase()]
-    : index.startLetters();
+  // A buildable word must BEGIN with the first character of some tile. Without chunks every tile is
+  // a single letter, so the frequency check already demands `w[0]` be one of them; with chunks
+  // `matchAgainstTexts` additionally has to place a tile at offset 0, which is the same condition.
+  // So a start letter no tile begins names a bucket that provably cannot yield a word, and walking
+  // it is pure loss — which is what a free-letter scan did for ~18 of the 26 letters, on the
+  // shot-clock tick, inside Jint. Exact, not heuristic: it only ever skips buckets whose every
+  // candidate the checks below would have rejected one at a time.
+  const tileInitials = new Set<string>();
+  for (const t of rack) if (t.text.length > 0) tileInitials.add(t.text[0].toLowerCase());
+
+  const lettersToScan = (
+    requiredLetter ? [requiredLetter.toLowerCase()] : index.startLetters()
+  ).filter((l) => tileInitials.has(l));
 
   const stopWhen = options.stopWhen;
   // Tracked locally and written back once at the single exit, so no early return can skip the
@@ -675,8 +687,20 @@ export function letterSupportsRack(
   // DEAD_END_POOL_SHARE. Compared against the per-letter mean over letters that appear at all.
   const starts = index.startLetters();
   if (starts.length === 0) return true;
+  // `buildable` summed over every start letter IS the whole of each length bucket in the window —
+  // the per-letter ranges partition it — so the total costs a handful of memoized `countOfLength`
+  // crossings (`range("", len)` is the whole bucket, never a binary search) instead of
+  // `lengthsFor` x 26, which is ~5,900 pool calls. That mattered because this runs on the SUBMIT
+  // tick inside Jint, where the authority gets 250ms per call before the lobby is killed.
+  //
+  // Exact for an a-z pool, which both shipped lists are; a pool with non-letter initials would
+  // over-count slightly, and that only makes a thin letter likelier to be waived — the safe
+  // direction for a threshold that already carries a 0.5 share.
   let total = 0;
-  for (const l of starts) total += buildable(l);
+  for (let len = MIN_OFFER_LENGTH; len <= Math.min(rackSize, MAX_OFFER_LENGTH); len++) {
+    const r = index.range("", len);
+    total += r.end - r.start;
+  }
   return count >= (total / starts.length) * DEAD_END_POOL_SHARE;
 }
 
@@ -710,6 +734,21 @@ const DIVERSITY_MAX_PROGRESS = 1 + DIVERSITY_MID_NEEDED + DIVERSITY_ENDINGS_NEED
  *  exactly the draws where verifying costs the most. Raising this buys a fraction of a percent of
  *  rack quality for a proportional rise in the worst case. */
 const DIVERSITY_EXAMINE_BUDGET = 4000;
+
+/** Pool candidates ONE draw may examine, summed across every attempt's diversity probes.
+ *
+ *  DIVERSITY_EXAMINE_BUDGET bounds a single verification; this bounds the TURN, which is the unit
+ *  the server actually has to fit. A draw used to hand each of its MAX_ATTEMPTS attempts a fresh
+ *  budget, so one turn-arm could spend 48,000 examinations — and measured under real Jint that is
+ *  where the remaining time went once the free-letter fan-out was gone. Examinations are the right
+ *  unit because they bound BOTH costs: each one is a sandbox crossing AND the per-candidate bitmask
+ *  / frequency / exact-cover work, and on a chunked rack the latter dominates.
+ *
+ *  Sized from the suites: the p50 draw examines ~194 and p90 ~2,295, so this leaves the ordinary
+ *  draw untouched and binds only on the tail — which is exactly where verifying costs the most and
+ *  buys the least. Exhaustion returns the best-progress rack, still seeded and still buildable,
+ *  just not contract-verified — an outcome generateRack already produces and rack.test.ts pins. */
+export const RACK_SCAN_BUDGET = 3000;
 
 export interface RackDiversity {
   valid: boolean;
@@ -936,6 +975,66 @@ function lastCatalystIndex(tiles: readonly DraftTile[]): number {
   return -1;
 }
 
+/** Pool candidates the exhausted-letter fallback sweep may examine before giving up.
+ *
+ *  The sweep is the one part of seed selection that walks a bucket rather than sampling it, so it
+ *  is the one part whose cost scales with the dictionary: a whole starting letter is 947 words on
+ *  the Reduced list and ~40,000 on the Full one, and it runs inside a 250ms Jint call. Reaching
+ *  the cap returns the taxed fallback (or null), which is the same answer the sweep gives when it
+ *  finds nothing — and `generateRack` re-rolls the letter on the next attempt either way. */
+const SEED_FALLBACK_EXAMINE_BUDGET = 1500;
+
+/**
+ * Resolve a free ("") required letter to ONE concrete start letter, weighted by how many words the
+ * pool actually holds in the seed-length window this draw is about to sample.
+ *
+ * WHY THIS EXISTS. Every era opens on a free letter (`beginEra`, match.ts) and so does every
+ * Wildcard draw, and the generator used to answer `""` by fanning out over all 26 start letters —
+ * `index.startLetters()` (~5,900 pool calls before any work at all), then 26x the seed sampling,
+ * then a 26-bucket `subWordFinder` sweep. That is a 15-60x spike landed on the single tick that
+ * also runs `beginEra` -> `armCurrentTurn` -> `generateRack`, and under Jint it exceeded the
+ * server's 250ms per-call timeout and killed the lobby outright.
+ *
+ * The trick is that a word drawn uniformly from a length bucket already carries a support-weighted
+ * start letter in its first character, so ONE rng draw and ONE pool crossing buy the same
+ * distribution the fan-out was approximating. Everything downstream then runs the ordinary
+ * constrained path, which is why a free draw now costs what a normal turn costs.
+ *
+ * Returns "" when the window is empty, which puts the caller back on the old all-letters path —
+ * the degenerate hand-built pools in the tests reach exactly that.
+ */
+function resolveSeedLetter(
+  pool: WordPool,
+  index: PoolIndex,
+  minLen: number,
+  maxLen: number,
+  rng: () => number,
+): string {
+  let total = 0;
+  for (let len = minLen; len <= maxLen; len++) {
+    const r = index.range("", len);
+    total += r.end - r.start;
+  }
+  if (total <= 0) return "";
+
+  // One draw, walked into the concatenated buckets: a letter's probability is exactly its share of
+  // the window, so a thin letter stays reachable without being over-represented the way sampling a
+  // fixed 15 per (letter, length) used to make it.
+  let offset = Math.floor(rng() * total);
+  for (let len = minLen; len <= maxLen; len++) {
+    const r = index.range("", len);
+    const n = r.end - r.start;
+    if (offset >= n) {
+      offset -= n;
+      continue;
+    }
+    const w = pool.pickOfLength(len, r.start + offset);
+    const ch = w ? w[0] : "";
+    return ch >= "a" && ch <= "z" ? ch : "";
+  }
+  return "";
+}
+
 /**
  * Pick a Golden Seed word for the given required letter.
  */
@@ -955,8 +1054,11 @@ export function selectGoldenSeed(
    *  occupy more than that many slots, and a chunky seed frees extra slots for nothing. Yields to
    *  `minLen`, so Sieve's guarantee outranks Prospector's and Tide's. */
   reservedSlots = 0,
+  /** The DRAW's remaining examination allowance, threaded in by generateRack so the fallback sweep
+   *  cannot spend a fresh SEED_FALLBACK_EXAMINE_BUDGET on each of its twelve attempts. Omitted by a
+   *  direct caller, which then gets one sweep's worth. */
+  budget?: ScanBudget,
 ): string | null {
-  const startLetters = requiredLetter ? [requiredLetter.toLowerCase()] : index.startLetters();
   // Floored at the shortest length the pool actually indexes. Below it the whole search window is
   // empty, and at the smallest rack sizes that is where the window lands — which used to mean no
   // seed at all, a degenerate fixed rack, and a succession letter freed every single turn.
@@ -966,13 +1068,34 @@ export function selectGoldenSeed(
   );
   const maxLen = Math.max(minLen, Math.min(8, targetRackSize - reservedSlots));
 
+  // A free letter is narrowed to ONE letter rather than answered by fanning out over all 26 (see
+  // resolveSeedLetter for why that fan-out was fatal on the server). Resolved per CALL, and
+  // generateRack calls this once per attempt, so a single draw still sees up to MAX_ATTEMPTS
+  // independent letters — which is what keeps a letter emptied by Sentinel or by `usedWords` from
+  // ending the draw. Only a pool with nothing in the seed-length window falls back to all letters.
+  const freeLetter = requiredLetter ? "" : resolveSeedLetter(pool, index, minLen, maxLen, rng);
+  const startLetters = requiredLetter
+    ? [requiredLetter.toLowerCase()]
+    : freeLetter
+      ? [freeLetter]
+      : index.startLetters();
+
   /** A seed is only usable if its decomposition fits the rack — otherwise the catalyst loop never
    *  runs and the rack overflows the size the host asked for. Chunk extraction means letters are an
    *  upper bound on tiles, not the tile count itself, so this has to ask decomposeSeed rather than
    *  compare lengths: at a rack size of 2 the only usable seeds are the 3-letter words that split
-   *  into a letter plus a chunk ("t" + "ed"). Never rejects anything at rack sizes 6 and up, where
-   *  maxLen already binds below the rack size. */
-  const fits = (w: string): boolean => decomposeSeed(w).length <= targetRackSize;
+   *  into a letter plus a chunk ("t" + "ed").
+   *
+   *  The length test is not an approximation of that call, it is the case where the call cannot
+   *  say no: decomposeSeed emits `s[0]` plus tiles of at least one character covering the rest, so
+   *  `decomposeSeed(w).length <= w.length` always — and a seed no longer than the rack therefore
+   *  fits without asking. Since `maxLen` already binds at `min(8, targetRackSize - reservedSlots)`,
+   *  that is EVERY candidate at rack sizes 3 and up, leaving the call for the rack-size-2 window
+   *  and the fallback sweep below. It is worth spelling out because decomposeSeed is where the Jint
+   *  stack trace landed: ~450 interpreted string ops per candidate, ~1,170 candidates per attempt,
+   *  ~12 attempts, on the tick that arms the era opener. */
+  const fits = (w: string): boolean =>
+    w.length <= targetRackSize || decomposeSeed(w).length <= targetRackSize;
 
   // Gather candidate seeds
   const candidates: { word: string; score: number }[] = [];
@@ -1018,12 +1141,19 @@ export function selectGoldenSeed(
     // reads null as "this letter is exhausted" and frees the succession letter entirely.
     //
     // Bounded by maxLen so a seed can never be longer than the rack it has to decompose into.
+    //
+    // Budgeted, unlike the sampling loop above: this one WALKS buckets instead of sampling them, so
+    // its cost is the dictionary's rather than a fixed 15 per length. See
+    // SEED_FALLBACK_EXAMINE_BUDGET.
     let taxedFallback: string | null = null;
+    const sweep = budget ?? { remaining: SEED_FALLBACK_EXAMINE_BUDGET };
     for (const letter of startLetters) {
       for (const len of index.lengthsFor(letter)) {
         if (len > Math.max(maxLen, MIN_OFFER_LENGTH)) continue;
         const r = index.range(letter, len);
         for (let i = r.start; i < r.end; i++) {
+          if (sweep.remaining <= 0) return taxedFallback;
+          sweep.remaining--;
           const w = pool.pickOfLength(len, i);
           if (!w || usedWords.has(w) || !fits(w)) continue;
           if (!shaping?.excludeBannedLetters) return w;
@@ -1094,6 +1224,11 @@ export function generateRack(req: RackRequest): RackResult {
   let bestUnmet: ("rare" | "vowels")[] = [];
   let exhaustedStreak = 0;
 
+  // One budget for the whole draw, threaded through every attempt's verification. See
+  // RACK_SCAN_BUDGET — the per-call default this replaces was per ATTEMPT, which is what let a
+  // single turn-arm spend twelve of them.
+  const scanBudget: ScanBudget = { remaining: req.scanBudget ?? RACK_SCAN_BUDGET };
+
   const MAX_ATTEMPTS = 12;
   /** Consecutive budget-exhausted attempts before giving up on the contract for this draw. A rack
    *  the verifier could not settle within budget is a Full-dictionary symptom rather than a bad
@@ -1113,9 +1248,20 @@ export function generateRack(req: RackRequest): RackResult {
       targetRackSize,
       rng,
       reservedSlots,
+      scanBudget,
     );
 
-    if (!seedWord) break;
+    // A free draw resolves a DIFFERENT start letter next attempt, so a letter that Sentinel's ban
+    // filter or `usedWords` has emptied is not the end of the draw — only an exhausted CONSTRAINED
+    // letter is, and that is what generateRackForTurn reads a "" seed as. Without this, narrowing
+    // the free path to one letter would turn a recoverable turn into the degenerate rack.
+    //
+    // Guarded by the shared budget so a pool that can seed NOTHING cannot re-roll twelve times over
+    // twelve fallback sweeps — the one way the retry above could have cost more than it saves.
+    if (!seedWord) {
+      if (requiredLetter === "" && scanBudget.remaining > 0) continue;
+      break;
+    }
 
     // 2. Decompose Seed into Tiles
     const seedTiles = decomposeSeed(seedWord);
@@ -1208,8 +1354,17 @@ export function generateRack(req: RackRequest): RackResult {
     }));
 
     // 6. Sub-Word Diversity Check
-    const diversity = verifyRackDiversity(finalTiles, pool, index, requiredLetter, usedWords, {
+    //
+    // Verified against the letter the rack was actually SEEDED on, which on a free draw is the one
+    // selectGoldenSeed narrowed to rather than "". decomposeSeed always emits `seed[0]` as its own
+    // single-letter tile, so the seed starts with this letter and is buildable from the finished
+    // rack. Asking about one letter instead of all 26 is strictly STRONGER than the contract needs:
+    // free choice can build a superset of what that letter can, so the verifier may only
+    // under-report, never pass a rack the player cannot work with.
+    const seedLetter = requiredLetter || seedWord[0];
+    const diversity = verifyRackDiversity(finalTiles, pool, index, seedLetter, usedWords, {
       seedWord,
+      budget: scanBudget,
     });
 
     examined += diversity.examined;
@@ -1240,8 +1395,10 @@ export function generateRack(req: RackRequest): RackResult {
       bestUnmet = [...unmet];
     }
 
+    // The shared budget subsumes the streak heuristic: once it is spent there is nothing left to
+    // verify with, so a further attempt could only ever return the same unverified verdict.
     exhaustedStreak = diversity.budgetExhausted ? exhaustedStreak + 1 : 0;
-    if (exhaustedStreak >= MAX_EXHAUSTED_STREAK) break;
+    if (scanBudget.remaining <= 0 || exhaustedStreak >= MAX_EXHAUSTED_STREAK) break;
   }
 
   // Fallback to best rack generated. The hand-built rack is the last resort for a required letter
