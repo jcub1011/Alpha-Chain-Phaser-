@@ -169,7 +169,7 @@ ac-card[flipped] .gc-flip {
     linear-gradient(
       157deg,
       transparent 0%,
-      transparent 50%,
+      transparent 40%,
       color-mix(in srgb, var(--gc-card-color, var(--gc-accent)) 35%, transparent) 100%
     ),
     linear-gradient(
@@ -179,7 +179,7 @@ ac-card[flipped] .gc-flip {
         color-mix(in srgb, var(--gc-rarity, var(--gc-card-color, var(--gc-accent))) 45%, #fff) 20%,
         transparent
       ),
-      transparent 58%
+      transparent 60%
     ),
     linear-gradient(178deg, var(--ac-steel-600), var(--ac-steel-800) 78%);
   background-repeat: no-repeat;
