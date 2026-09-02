@@ -19,6 +19,8 @@
   ],
   "entry": "index.html",
   "thumbnail": "thumb.svg",
+  "themeColor": "#08090c",
+  "themeTextColor": "#ffffff",
   "minPlayers": 2,
   "maxPlayers": 8,
   "serverAuthority": "authority.js",
