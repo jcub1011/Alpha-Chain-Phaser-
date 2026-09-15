@@ -57,7 +57,8 @@ const CLASSIC_RULES = BUILDER_RULES.flatMap((l) =>
 );
 
 const SOLO_PREFS = ["Opponents", "Difficulty", "Tutorials", "Engine Animation Duration"];
-const NET_PREFS = ["Host Plays", "Tutorials", "Engine Animation Duration"];
+// No Host Plays: the owner picks player-vs-spectator with the two start buttons instead.
+const NET_PREFS = ["Tutorials", "Engine Animation Duration"];
 
 /** Every settings-row label in the panel, in document order. Scoped to `.net-settings` so the
  *  multiplayer roster's own "Players" readout — which is not a setting — stays out of it. */

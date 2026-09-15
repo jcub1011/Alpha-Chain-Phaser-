@@ -146,8 +146,11 @@ describe("the host-preference boundary", () => {
     // If these drift, either a setting a preset refuses to touch becomes unreachable by hand,
     // or a match rule gets filed under "Host Preferences" where a preset then overwrites it
     // behind a heading promising it would not.
+    //
+    // Exception: `hostPlays` is button-driven in the net lobby (Start Match as
+    // player/spectator), not a Host Preferences row — so it is reachable without being shown.
     const shown = new Set([...HOST_PREFERENCE_KEYS.solo, ...HOST_PREFERENCE_KEYS.net]);
-    expect([...shown].sort()).toEqual(Object.keys(PRESET_EXCLUDED_KEYS).sort());
+    expect([...shown, "hostPlays"].sort()).toEqual(Object.keys(PRESET_EXCLUDED_KEYS).sort());
     expect(PRESET_KEYS.filter((k) => shown.has(k as never))).toEqual([]);
   });
 

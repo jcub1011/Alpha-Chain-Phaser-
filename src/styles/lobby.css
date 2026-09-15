@@ -470,8 +470,23 @@
   padding: 1rem;
   animation: ac-rise 0.5s 0.1s ease-out both;
 }
+/* The net lobby's player/spectator start pair: stacked, sharing one column width. */
+.lobby-start-group {
+  width: min(100%, 460px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  animation: ac-rise 0.5s 0.1s ease-out both;
+}
+.lobby-start-group .lobby-start {
+  width: 100%;
+  animation: none;
+}
 .lobby-bay {
   appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
   margin-top: -0.4rem;
   padding: 0.5rem 1rem;
   border: 1px solid var(--ac-rim);
@@ -498,6 +513,12 @@
 }
 .lobby-bay:active {
   transform: translateY(1px);
+}
+/* Flask glyph in the Testing Bay button: inherits the button text colour. */
+.lobby-bay-ico {
+  width: 1em;
+  height: 1em;
+  flex: none;
 }
 
 .lobby-rules {
