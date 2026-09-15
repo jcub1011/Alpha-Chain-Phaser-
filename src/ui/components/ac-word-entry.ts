@@ -81,6 +81,10 @@ export class AcWordEntry extends AcElement {
       // the word from under the extended turn. Skip and let the engine rescue.
       this.listen(e, "clockTick", (remaining) => {
         if (!this.live || remaining > 0) return;
+        // Flush the in-box word before the rescue check: the streamed draft is
+        // throttled (120ms), so without this a spent-Prism mirror would skip its
+        // submit and leave the authority with a stale draft. No-op in solo.
+        if (this.input) this.controller.reportDraft(this.input.value.trim());
         if (this.controller.match.canRescueClock(human)) return;
         this.submit();
       });

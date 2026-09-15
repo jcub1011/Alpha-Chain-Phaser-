@@ -325,7 +325,7 @@ export function activeBannedLetters(
 ): string[] {
   if (rule === "Accumulate") {
     const seen = new Set<string>();
-    for (const l of history) {
+    for (const l of [...history, bannedLetter]) {
       const c = l.toLowerCase();
       if (c && !seen.has(c)) seen.add(c);
     }

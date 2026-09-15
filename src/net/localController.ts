@@ -146,7 +146,7 @@ export class LocalController implements GameController {
     return this.match.submitWord(this.humanId, word);
   }
 
-  reportDraft(): void {
+  reportDraft(_word: string): void {
     // No-op: solo auto-submits on timeout via the synchronous UI clockTick path
     // (ac-word-entry), so the engine's draft auto-submit never needs to fire here.
   }
@@ -193,8 +193,10 @@ export class LocalController implements GameController {
     const scoreOpts = this.botScoreOpts(player?.slots ?? 0);
     const bay = player?.bay ?? [];
     // Under Accumulate every past ban stays in force — bots dodge the whole set.
+    // Single source: `bans` already equals [bannedLetter] under the single-ban
+    // rules, so pass it as the set and leave `bannedLetter` empty (botBans unions).
     const bans = activeBannedLetters(s.settings.banRepeatRule, s.bannedLetter, s.bannedLetterHistory);
-    const bannedLetter = s.settings.banRepeatRule === "Accumulate" ? "" : s.bannedLetter;
+    const bannedLetter = "";
 
     // Picker / Word Builder: evaluate candidates through the bot's bay and commit.
     if (this.match.effectiveMode === GameMode.Picker) {

@@ -206,8 +206,9 @@ export class NetMatch implements MatchLike {
     // Mirror-side approximation: the snapshot carries the bay but not the per-era
     // guard state, so this reports whether a rescue card is held rather than whether
     // its charge is still armed. Over-reporting (charge already spent) is safe: the
-    // suppressed UI submit was also streamed as a draft, so the authority's
-    // timeout still auto-submits it after its own (precise) rescue check fails.
+    // UI flushes the in-box word as a draft on clockTick before skipping its submit,
+    // so the authority's timeout still auto-submits fresh text after its own
+    // (precise) rescue check fails.
     const p = this._state.players.find((x) => x.id === playerId);
     if (!p || p.eliminated) return false;
     return p.bay.some((b) => getCard(b.id, this.effectiveMode)?.rescueClock !== undefined);

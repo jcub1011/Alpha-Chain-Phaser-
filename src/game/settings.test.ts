@@ -283,6 +283,12 @@ describe("activeBannedLetters — the letters taxing words", () => {
   it("returns every past ban in era order under Accumulate", () => {
     expect(activeBannedLetters("Accumulate", "c", ["a", "b", "c", "a"])).toEqual(["a", "b", "c"]);
   });
+
+  it("unions a diverged bannedLetter with history under Accumulate", () => {
+    expect(activeBannedLetters("Accumulate", "z", ["a", "b"])).toEqual(["a", "b", "z"]);
+    expect(activeBannedLetters("Accumulate", "a", ["b"])).toEqual(["b", "a"]);
+    expect(activeBannedLetters("Accumulate", "q", [])).toEqual(["q"]);
+  });
 });
 
 describe("banPoolExhausted — early end under Accumulate", () => {

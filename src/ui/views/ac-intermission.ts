@@ -280,7 +280,7 @@ export class AcIntermission extends AcElement {
     this.lastAnchorX = anchor.x;
     this.lastAnchorY = anchor.y;
     this.updateInsertionIndicator(anchor.x, anchor.y);
-    this.maybeAutoScroll(anchor.x, anchor.y);
+    this.maybeAutoScroll(anchor.y);
   }
 
   private handlePointerUp(e: PointerEvent): void {
@@ -500,7 +500,7 @@ export class AcIntermission extends AcElement {
   }
 
   /** Edge auto-scroll while dragging near the top/bottom of the panel. */
-  private maybeAutoScroll(_x: number, y: number): void {
+  private maybeAutoScroll(y: number): void {
     const panel = this.querySelector(".im-card");
     if (!panel) return;
     const r = panel.getBoundingClientRect();
