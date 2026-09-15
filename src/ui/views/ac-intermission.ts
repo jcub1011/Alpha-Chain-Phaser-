@@ -9,6 +9,8 @@
  *     random legal ban if the timer runs out.
  * The tutorial sub-phases render the optimize bay underneath the <ac-tutorial>
  * overlay (mounted by <ac-app>). The countdown shown is the synced sub-timer.
+ * A spectating host (hostPlays=false, no player entry) sees a ready-list
+ * (X/Y active humans + per-player lock-in) instead of the configurator.
  */
 
 import { html, nothing, type PropertyValues, type TemplateResult } from "lit";
@@ -92,7 +94,19 @@ export class AcIntermission extends AcElement {
 
   override willUpdate(changed: PropertyValues): void {
     if (changed.has("controller") && this.controller) {
+      // Re-render the countdown whenever the synced sub-timer ticks; the FSM owns
+      // the authoritative dwell (per-frame event, never broadcast over the network).
+      // Spectators have no bay to split — subscribe and return early.
+      this.clearSubs();
+      this.listen(this.controller.match.events, "subTimerTick", () => this.requestUpdate());
       const me = this.controller.match.state.players.find((p) => p.id === this.controller.humanId);
+      if (!me) {
+        this.cardIdByUid = new Map();
+        this.engine = [];
+        this.discard = [];
+        this.slots = 3;
+        return;
+      }
       // Split the bay into the two zones. Before any edit a card has no explicit
       // flag, so newly-dealt cards (isNew) default into the discard bin; once the
       // player commits, the stored `discarded` flag drives the split.
@@ -108,10 +122,6 @@ export class AcIntermission extends AcElement {
       this.engine = engine;
       this.discard = discard;
       this.slots = me?.slots ?? 3;
-      // Re-render the countdown whenever the synced sub-timer ticks; the FSM owns
-      // the authoritative dwell (per-frame event, never broadcast over the network).
-      this.clearSubs();
-      this.listen(this.controller.match.events, "subTimerTick", () => this.requestUpdate());
     }
   }
 
@@ -123,6 +133,18 @@ export class AcIntermission extends AcElement {
   private get locked(): boolean {
     return !!this.controller.match.state.players.find((p) => p.id === this.controller.humanId)
       ?.lockedIn;
+  }
+
+  /** Whether the local client is spectating (e.g. a host with hostPlays=false):
+   *  their id has no entry in `match.state.players`, so there is no engine to
+   *  configure. Spectators get a ready-list instead of the configurator. */
+  private get isSpectator(): boolean {
+    return !this.controller.match.state.players.some((p) => p.id === this.controller.humanId);
+  }
+
+  /** Active humans only: bots never optimize and eliminated players can't lock in. */
+  private get activeHumans(): { id: string; name: string; lockedIn?: boolean }[] {
+    return this.controller.match.state.players.filter((p) => !p.isBot && !p.eliminated);
   }
 
   // ── Reorder / discard (committed to the host on every change) ────────────────
@@ -559,6 +581,41 @@ export class AcIntermission extends AcElement {
   }
 
   // ── Render ───────────────────────────────────────────────────────────────
+  /** Padlock glyph for lock-in states (inline SVG, currentColor). */
+  private renderLockIcon(): TemplateResult {
+    return html`<svg
+      class="im-ico"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="3" y="11" width="18" height="11" rx="2" />
+      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+    </svg>`;
+  }
+
+  /** Hourglass glyph for players still tuning (inline SVG, currentColor). */
+  private renderTuningIcon(): TemplateResult {
+    return html`<svg
+      class="im-ico"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M5 22h14" />
+      <path d="M5 2h14" />
+      <path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12 7.586 16.414A2 2 0 0 0 7 17.828V22" />
+      <path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2" />
+    </svg>`;
+  }
   private renderEngineSlot(id: string, i: number, locked: boolean): TemplateResult {
     return html`
       <div
@@ -619,8 +676,7 @@ export class AcIntermission extends AcElement {
     // Lock-in is per-player: optimize ends once every active human locks in (or the
     // timer elapses). Once you've locked in, wait on the rest rather than ending it
     // for everyone. (Solo never sets these, so it always shows a live LOCK IN button.)
-    const players = this.controller.match.state.players;
-    const humans = players.filter((p) => !p.isBot && !p.eliminated);
+    const humans = this.activeHumans;
     const lockedCount = humans.filter((p) => p.lockedIn).length;
     const locked = this.locked;
     return html`
@@ -638,7 +694,7 @@ export class AcIntermission extends AcElement {
         </header>
 
         ${locked
-          ? html`<p class="im-locked-note">🔒 Engine locked — tap UNLOCK to edit.</p>`
+          ? html`<p class="im-locked-note">${this.renderLockIcon()}<span>Engine locked — tap UNLOCK to edit.</span></p>`
           : nothing}
 
         <div class="im-zone im-engine" data-zone="engine">
@@ -670,6 +726,35 @@ export class AcIntermission extends AcElement {
               >
             </div>`
           : html`<button class="ac-btn im-lock" @click=${() => this.lockIn()}>LOCK IN</button>`}
+      </div>
+    `;
+  }
+
+  /** Spectating host (hostPlays=false): no engine of their own, so show the
+   *  active humans' lock-in progress instead of the configurator. */
+  private renderSpectatorOptimize(): TemplateResult {
+    const humans = this.activeHumans;
+    const lockedCount = humans.filter((p) => p.lockedIn).length;
+    return html`
+      <div class="im-card ac-panel im-spectate">
+        <header class="im-head">
+          <span class="ac-eyebrow">intermission · optimize</span>
+          <h2 class="im-title">Players are tuning their engines</h2>
+          <p class="im-ready-count" aria-live="polite">${lockedCount}/${humans.length} players ready</p>
+          <span class="im-timer">${this.seconds}s</span>
+        </header>
+        <ul class="im-ready-list">
+          ${humans.map(
+            (p) => html`<li class="im-ready-row ${p.lockedIn ? "is-locked" : ""}">
+              <span class="im-ready-name">${p.name}</span>
+              <span class="im-ready-status"
+                >${p.lockedIn ? this.renderLockIcon() : this.renderTuningIcon()}<span
+                  >${p.lockedIn ? "Locked in" : "Tuning…"}</span
+                ></span
+              >
+            </li>`,
+          )}
+        </ul>
       </div>
     `;
   }
@@ -768,7 +853,7 @@ export class AcIntermission extends AcElement {
     const sub = m.state.intermissionPhase;
     let body: TemplateResult | typeof nothing = nothing;
     if (sub === "optimize" || sub === "tutorial") {
-      body = this.renderOptimize();
+      body = this.isSpectator ? this.renderSpectatorOptimize() : this.renderOptimize();
     } else if (sub === "sniperBan") {
       body =
         m.computeLastPlaceId() === this.controller.humanId
