@@ -386,10 +386,74 @@
   text-shadow: var(--ac-heat-1);
   animation: ac-num-bump 0.45s ease-out;
 }
-/* Taxed: the piece is scrap. Cold, and rusted. */
+/* Taxed: the piece is scrap. Cold, and rusted. The missed (pre-tax) total stays
+   visible, struck through — players see what the word would have scored. */
 .sr-num.is-taxed {
+  position: relative;
   color: var(--state-bad);
   text-shadow: none;
+  text-decoration: line-through;
+  text-decoration-thickness: 0.12em;
+}
+/* Strike sweep: a diagonal bar wipes across the number when the tax lands. */
+.sr-num.is-taxed.is-strike::after {
+  content: "";
+  position: absolute;
+  left: -4%;
+  top: 52%;
+  width: 108%;
+  height: 0.14em;
+  background: var(--state-bad);
+  border-radius: 2px;
+  transform: rotate(-6deg) scaleX(0);
+  transform-origin: left center;
+  animation: ac-strike 0.45s ease-out forwards;
+  pointer-events: none;
+}
+@keyframes ac-strike {
+  from {
+    transform: rotate(-6deg) scaleX(0);
+  }
+  to {
+    transform: rotate(-6deg) scaleX(1);
+  }
+}
+/* Partial salvage: the struck missed total (red) beside the kept score (amber). */
+.sr-num .sr-was {
+  color: var(--state-bad);
+  text-decoration: line-through;
+  text-decoration-thickness: 0.12em;
+  margin-right: 0.35em;
+}
+.sr-num .sr-net.is-partial {
+  color: var(--ac-brass-lit);
+}
+/* Tax chip beside the settled total. */
+.sr-tax-chip {
+  align-self: center;
+  padding: 0.15em 0.55em;
+  border-radius: var(--r-xs);
+  border: 1px solid color-mix(in srgb, var(--state-bad) 60%, transparent);
+  background: color-mix(in srgb, var(--state-bad) 18%, transparent);
+  color: var(--state-bad);
+  font-family: var(--font-machine);
+  font-stretch: var(--stretch-machine);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  animation: ac-num-bump 0.4s ease-out;
+}
+.sr-tax-chip.is-partial {
+  border-color: color-mix(in srgb, var(--ac-brass-lit) 60%, transparent);
+  background: color-mix(in srgb, var(--ac-brass-lit) 16%, transparent);
+  color: var(--ac-brass-lit);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sr-num.is-taxed.is-strike::after {
+    animation: none;
+    transform: rotate(-6deg) scaleX(1);
+  }
 }
 /* Off-turn effects that fired as this word resolved (siphons banked + aggression
    hits) — every player's, named to its card and target. */
@@ -722,13 +786,15 @@ ac-recent-words[vertical] .recent-item {
 }
 .recent-item.is-taxed .recent-word {
   text-decoration: line-through;
-  opacity: 0.6;
+  color: var(--state-bad);
+  opacity: 0.85;
 }
 .recent-meta {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.4rem;
+  flex-wrap: wrap;
 }
 .recent-who {
   font-size: 0.6rem;
@@ -737,6 +803,16 @@ ac-recent-words[vertical] .recent-item {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* Score cluster: chip(s) sit to the left of the score, both pinned right so
+   the scores line up across chips. */
+.recent-scores {
+  margin-left: auto;
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 0.35rem;
+  text-align: right;
 }
 .recent-pts {
   font-family: var(--font-mono);
@@ -747,11 +823,33 @@ ac-recent-words[vertical] .recent-item {
 .recent-pts.is-partial {
   color: var(--state-live);
 }
-.recent-tag {
+/* Missed (pre-tax) total: red + struck so players see what the word lost. */
+.recent-missed {
   font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 0.62rem;
+  font-size: 0.72rem;
   color: var(--state-bad);
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+  font-variant-numeric: tabular-nums;
+}
+.recent-tag {
+  font-family: var(--font-mono);
+  font-weight: 800;
+  font-size: 0.6rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--state-bad);
+  padding: 0.1em 0.45em;
+  border-radius: var(--r-xs);
+  border: 1px solid color-mix(in srgb, var(--state-bad) 60%, transparent);
+  background: color-mix(in srgb, var(--state-bad) 16%, transparent);
+  white-space: nowrap;
+}
+.recent-tag.is-partial {
+  color: var(--state-live);
+  border-color: color-mix(in srgb, var(--state-live) 60%, transparent);
+  background: color-mix(in srgb, var(--state-live) 14%, transparent);
 }
 
 /* ── Opponent engine bays ──────────────────────────────────────────────── */
@@ -861,10 +959,21 @@ ac-recent-words[vertical] .recent-item {
   font-family: var(--font-mono);
   font-weight: 800;
   font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+/* Right-aligned cluster: delta chip(s) sit to the left of the score, both
+   pinned right so columns line up down the standings. */
+.lb-right {
+  margin-left: auto;
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 0.45rem;
+  min-width: 0;
 }
 /* Score change: a full-row tint flash + a bump of the score number, with the
-   signed delta ghosting in over the row. All three are contained within the row
-   so the standings' overflow-y scroll never clips them (the old upward float did).
+   signed delta ghosting in to the left of the score, right-aligned with it.
    --pop-color drives the tint/number/delta color; set by the is-pop* classes. */
 .lb-row.is-pop {
   --pop-color: var(--state-good);
@@ -897,22 +1006,52 @@ ac-recent-words[vertical] .recent-item {
    the same weight and colour treatment with no light at all, which is also what
    keeps the two readable apart at a glance in the corner of your eye. */
 .lb-pop {
-  position: absolute;
-  left: 50%;
-  top: 50%;
   font-family: var(--font-machine);
   font-stretch: var(--stretch-machine);
   font-weight: 800; /* match the normal score's weight + size */
   font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
   color: var(--pop-color, var(--state-good));
   text-shadow: var(--ac-heat-1);
   pointer-events: none;
-  animation: ac-lb-pop 0.9s ease-out forwards;
+  animation: ac-lb-pop-inline 0.9s ease-out forwards;
+}
+@keyframes ac-lb-pop-inline {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  20% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1);
+  }
 }
 /* A point loss (e.g. a shot-clock timeout penalty). */
 .lb-pop.is-neg {
   color: var(--state-bad);
   text-shadow: none;
+}
+/* A taxed word's missed total: rust, struck — informational, not a deduction. */
+.lb-pop.is-taxed {
+  color: var(--state-bad);
+  text-shadow: none;
+}
+.lb-pop.is-taxed s {
+  text-decoration-thickness: 2px;
+}
+/* Taxed rows keep the pop readable but skip the green gain flash. */
+.lb-row.is-pop-taxed {
+  --pop-color: var(--state-bad);
+  --pop-flash: color-mix(in srgb, var(--state-bad) 72%, #000);
 }
 
 /* Mobile leaderboard strip (hidden on desktop). */
@@ -931,8 +1070,8 @@ ac-leaderboard[strip] .lb {
 ac-leaderboard[strip] .lb-row {
   flex: 0 0 auto;
 }
-/* The score-pop is the same contained in-chip animation as the rail (row tint +
-   score bump + centered delta), so the strip needs no special override now. */
+/* The score-pop is the same inline animation as the rail (row tint +
+   score bump + delta left of the score), so the strip needs no special override now. */
 
 /* ── Responsive ────────────────────────────────────────────────────────── */
 @media (max-width: 60rem) {

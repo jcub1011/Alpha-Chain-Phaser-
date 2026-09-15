@@ -26,8 +26,11 @@ export class AcWordHistory extends AcElement {
   @state() private sort: SortOrder = "high";
 
   /** Pair each entry with its chronological index so ties (and the time-based
-   *  orders) stay stable, mirroring the Blazor Resort(). */
+   *  orders) stay stable, mirroring the Blazor Resort(). The "Highest" order
+   *  ranks taxed words by their missed (pre-tax) potential, not the zeroed net,
+   *  so players can see what the biggest lost plays were. */
   private sorted(): Submission[] {
+    const rankOf = (s: Submission): number => (s.taxed ? s.breakdown.finalBeforeTax : s.score);
     const indexed = this.history.map((s, i) => ({ s, i }));
     switch (this.sort) {
       case "old":
@@ -37,7 +40,7 @@ export class AcWordHistory extends AcElement {
         indexed.sort((a, b) => b.i - a.i);
         break;
       default:
-        indexed.sort((a, b) => b.s.score - a.s.score || a.i - b.i);
+        indexed.sort((a, b) => rankOf(b.s) - rankOf(a.s) || a.i - b.i);
     }
     return indexed.map((x) => x.s);
   }
@@ -60,11 +63,16 @@ export class AcWordHistory extends AcElement {
         <div class="go-wh-main">
           <span class="go-wh-word ${s.taxed ? "is-taxed" : ""}">${s.word.toUpperCase()}</span>
           <span class="go-wh-who">${s.displayName}</span>
-          ${s.taxed
-            ? html`<span class="go-wh-tax"
-                >${s.score > 0 ? `tax +${fmtScore(s.score)}` : "tax"}</span
-              >`
-            : html`<span class="go-wh-pts">+${fmtScore(s.score)}</span>`}
+          <span class="go-wh-scores">
+            ${s.taxed && s.score > 0
+              ? html`<span class="go-wh-tax-chip is-partial">Partial Tax</span
+                  ><s class="go-wh-missed">+${fmtScore(b.finalBeforeTax)}</s
+                  ><span class="go-wh-pts is-partial">+${fmtScore(s.score)}</span>`
+              : s.taxed
+                ? html`<span class="go-wh-tax-chip">Taxed</span
+                    ><s class="go-wh-missed">+${fmtScore(b.finalBeforeTax)}</s>`
+                : html`<span class="go-wh-pts">+${fmtScore(s.score)}</span>`}
+          </span>
         </div>
 
         <div class="go-wh-strip">
@@ -77,9 +85,12 @@ export class AcWordHistory extends AcElement {
             : html`<ac-card-fan mini .cards=${fanCards}></ac-card-fan>`}
           <span class="go-wh-final ${b.taxed ? "is-taxed" : ""}">
             <span class="go-wh-op">${b.taxed ? "tax" : "score"}</span>
-            <span class="go-wh-run"
-              >${b.taxed && b.finalScore <= 0 ? "0" : `+${fmtScore(b.finalScore)}`}</span
-            >
+            ${b.taxed && b.finalScore > 0
+              ? html`<s class="go-wh-run is-missed">+${fmtScore(b.finalBeforeTax)}</s
+                  ><span class="go-wh-run is-partial">+${fmtScore(b.finalScore)}</span>`
+              : b.taxed
+                ? html`<s class="go-wh-run is-missed">+${fmtScore(b.finalBeforeTax)}</s>`
+                : html`<span class="go-wh-run">+${fmtScore(b.finalScore)}</span>`}
           </span>
         </div>
 

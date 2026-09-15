@@ -316,7 +316,16 @@ export class AcSandbox extends AcElement {
           <span>Seed: <b>${bd.seed}</b></span>
           <span>Pre-tax: <b>${bd.finalBeforeTax}</b></span>
           <span class="big ${bd.taxed ? "taxed" : ""}">
-            ${bd.taxed ? "Taxed" : "Score"}: <b>${bd.finalScore}</b>
+            ${bd.taxed && bd.finalScore > 0
+              ? html`Taxed:
+                  <s class="sandbox-missed">${bd.finalBeforeTax}</s>
+                  <b class="sandbox-kept">+${bd.finalScore}</b>
+                  <span class="sandbox-tax-chip is-partial">Partial Tax</span>`
+              : bd.taxed
+                ? html`Taxed:
+                    <s class="sandbox-missed">+${bd.finalBeforeTax}</s>
+                    <span class="sandbox-tax-chip">Taxed</span>`
+                : html`Score: <b>+${bd.finalScore}</b>`}
           </span>
         </div>
         <ol class="sandbox-steps">
@@ -364,9 +373,14 @@ export class AcSandbox extends AcElement {
                 <span class="sandbox-history-num">#${hist.length - idx}</span>
                 <span class="sandbox-history-who">${sub.displayName}</span>
                 <span class="sandbox-history-word">${sub.word.toUpperCase()}</span>
-                ${sub.taxed
-                  ? html`<span class="sandbox-history-tax">taxed · 0</span>`
-                  : html`<span class="sandbox-history-score">+${sub.score}</span>`}
+                ${sub.taxed && sub.score > 0
+                  ? html`<s class="sandbox-history-missed">+${sub.breakdown.finalBeforeTax}</s
+                      ><span class="sandbox-history-score is-partial">+${sub.score}</span
+                      ><span class="sandbox-history-tax is-partial">Partial Tax</span>`
+                  : sub.taxed
+                    ? html`<s class="sandbox-history-missed">+${sub.breakdown.finalBeforeTax}</s
+                        ><span class="sandbox-history-tax">Taxed</span>`
+                    : html`<span class="sandbox-history-score">+${sub.score}</span>`}
                 ${sub.taxBounty > 0
                   ? html`<span class="sandbox-history-bounty">bounty +${sub.taxBounty}</span>`
                   : nothing}
