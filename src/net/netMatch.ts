@@ -202,6 +202,17 @@ export class NetMatch implements MatchLike {
     return p.bay.some((b) => getCard(b.id, this.effectiveMode)?.hidesInput?.() ?? false);
   }
 
+  canRescueClock(playerId: string): boolean {
+    // Mirror-side approximation: the snapshot carries the bay but not the per-era
+    // guard state, so this reports whether a rescue card is held rather than whether
+    // its charge is still armed. Over-reporting (charge already spent) is safe: the
+    // suppressed UI submit was also streamed as a draft, so the authority's
+    // timeout still auto-submits it after its own (precise) rescue check fails.
+    const p = this._state.players.find((x) => x.id === playerId);
+    if (!p || p.eliminated) return false;
+    return p.bay.some((b) => getCard(b.id, this.effectiveMode)?.rescueClock !== undefined);
+  }
+
   // ── Mutators → authority intents (clients never mutate authoritative state) ──
   setPlayerBay(_playerId: string, engineUids: string[], discardUids: string[]): void {
     // engine/discard carry BayCard uids (read from this client's synced state), which

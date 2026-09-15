@@ -361,6 +361,22 @@ export class MatchController {
     return p.bay.some((b) => getCard(b.id, this.effectiveMode)?.hidesInput?.() ?? false);
   }
 
+  /** Whether `playerId` holds an unused clock-rescue charge (Prism).
+   *
+   *  Non-consuming read of the same charge `tryClockRescue` would consume: the bay
+   *  holds a card with a `rescueClock` hook and its once-per-era guard is still
+   *  armed. The solo input surface (`ac-word-entry`) checks this on its timeout
+   *  auto-submit path so a held Prism refills the clock instead of submitting
+   *  whatever is in the box. */
+  canRescueClock(playerId: string): boolean {
+    const p = this.state.players.find((x) => x.id === playerId);
+    if (!p || p.eliminated) return false;
+    const holdsRescue = p.bay.some(
+      (b) => getCard(b.id, this.effectiveMode)?.rescueClock !== undefined,
+    );
+    return holdsRescue && this.services.prismGuard.isAvailable(p.id);
+  }
+
   // ── Accessors ──────────────────────────────────────────────────────────────
   get current(): PlayerState {
     return this.state.players[this.state.currentPlayerIndex];
@@ -1202,6 +1218,10 @@ export class MatchController {
     // Picker's clock means something different, so it gets its own path and Classic's stays
     // byte-identical below.
     if (this.isPicker) return this.pickerTimeoutCurrent();
+    // A held Prism refills the clock INSTEAD of auto-submitting: the card's purpose is
+    // more time to think, so the draft is kept for the extended turn rather than
+    // submitted from under the player. Consumes the once-per-era charge.
+    if (this.tryClockRescue(this.current)) return;
     // Auto-submit the live player's drafted word if it stands on its own; a blank or
     // illegal draft falls through to a real timeout below.
     const draft = this.currentDraft.trim();
@@ -1211,8 +1231,6 @@ export class MatchController {
       // auto-submit (clock refilled): either way the turn continues, no timeout.
       if (res.accepted || res.reason === "prism-saved") return;
     }
-    // Otherwise, give a held Prism its timeout save: refill to full instead of the penalty.
-    if (this.tryClockRescue(this.current)) return;
     const s = this.state;
     const p = this.current;
 

@@ -31,6 +31,9 @@ export interface MatchLike {
   readonly effectiveMode: GameMode;
   /** Whether the player's own input should be masked while typing (Blindfold). */
   hidesInput(playerId: string): boolean;
+  /** Whether the player holds an unused clock-rescue charge (Prism). Non-consuming;
+   *  the solo input surface checks this so a timeout refills instead of auto-submitting. */
+  canRescueClock(playerId: string): boolean;
   /** Commit a player's bay split. The arrays hold per-card uids (BayCard.uid),
    *  not card ids, so duplicate cards stay distinct. */
   setPlayerBay(playerId: string, engineUids: string[], discardUids: string[]): void;
