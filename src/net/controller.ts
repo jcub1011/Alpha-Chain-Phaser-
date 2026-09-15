@@ -38,6 +38,8 @@ export interface MatchLike {
    *  layer — never read `state.settings.gameMode` to resolve a card, because a Picker match that
    *  fell back for want of a word pool scores on Classic's values. */
   readonly effectiveMode: GameMode;
+  /** Length of the previous accepted word (Blueprint scoring context). */
+  readonly lastWordLength: number;
   /** Whether the player's own input should be masked while typing (Blindfold). */
   hidesInput(playerId: string): boolean;
   /** Whether the player holds an unused clock-rescue charge (Prism). Non-consuming;

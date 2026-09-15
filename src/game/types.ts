@@ -356,7 +356,10 @@ export interface EngineSnapshot {
    *  prior streak — the increment lands after scoring). */
   streak: number;
   slots: number;
-  era: number;
+  /** The mode whose card values this engine scored with — frozen faces re-resolve
+   *  under it, never the ambient display mode. Absent on legacy entries (falls
+   *  back to the current effective mode). */
+  mode?: GameMode;
   wildcardAvailable: boolean;
   /** The scored word consumed the Wildcard charge. */
   wildcardUsed: boolean;

@@ -194,7 +194,9 @@ export class AcScoreReplay extends AcElement {
   private frozenFacesFor(sub: Submission): (LiveCardText | undefined)[] | undefined {
     const eng = sub.engine;
     if (!eng || eng.bay.length !== sub.breakdown.steps.length) return undefined;
-    const mode = this.controller.match.effectiveMode;
+    // Frozen faces re-resolve under the mode they scored with, never the ambient
+    // display mode (legacy entries predate the field — fall back to effective).
+    const mode = eng.mode ?? this.controller.match.effectiveMode;
     const bayIds = eng.bay.map((slot) => slot.id);
     const steps = sub.breakdown.steps;
     return eng.bay.map((slot, i) =>

@@ -209,6 +209,13 @@ export class NetMatch implements MatchLike {
     return this._state.settings.gameMode;
   }
 
+  get lastWordLength(): number {
+    // Mirrors MatchController.prevWordLength: timeout pseudo-submissions never enter
+    // history, so the last history word is the last accepted word.
+    const h = this._state.history;
+    return h.length > 0 ? (h[h.length - 1]?.word.length ?? 0) : 0;
+  }
+
   hidesInput(playerId: string): boolean {
     const p = this._state.players.find((x) => x.id === playerId);
     if (!p) return false;

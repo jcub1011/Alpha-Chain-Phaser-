@@ -16,6 +16,7 @@ import type { PlayerState } from "../../game/types";
 import { getCard } from "../../game/cards/library";
 import { buildMagnifier } from "../../game/cards/magnifier";
 import { describeCardLive } from "../../game/cards/liveText";
+import type { RoomServices } from "../../game/cards/roomServices";
 import { scoreWord } from "../../game/scoring";
 import type { FanCard } from "../components/ac-card-fan";
 import { playerAccentVar } from "../app/util";
@@ -56,22 +57,17 @@ export class AcHud extends AcElement {
       this.clearSubs();
       const e = this.controller.events;
       const refresh = (): void => this.refresh();
-      // A resolved turn leaves nothing staged: drop the projection before the
-      // refresh below re-derives the bays, so last turn's highlights never
-      // linger into the next turn (or the game-over screen).
-      const clearPreview = (): void => {
-        if (this.previewWord !== null) {
-          this.previewWord = null;
-          this.refresh();
-        }
+      // A resolved turn leaves nothing staged: drop the projection, then re-derive
+      // the bays once, so last turn's highlights never linger into the next turn
+      // (or the game-over screen) — and each event refreshes exactly once.
+      const onSettled = (): void => {
+        if (this.previewWord !== null) this.previewWord = null;
+        this.refresh();
       };
-      this.listen(e, "submission", clearPreview);
-      this.listen(e, "timeout", clearPreview);
-      this.listen(e, "phaseChanged", clearPreview);
+      this.listen(e, "submission", onSettled);
+      this.listen(e, "timeout", onSettled);
+      this.listen(e, "phaseChanged", onSettled);
       this.listen(e, "turnArmed", refresh);
-      this.listen(e, "submission", refresh);
-      this.listen(e, "timeout", refresh);
-      this.listen(e, "phaseChanged", refresh);
       this.listen(e, "intermission", refresh);
       this.refresh();
     }
@@ -121,16 +117,16 @@ export class AcHud extends AcElement {
    * magnification, bay-size magnitudes, streak, guard badges, rolled bans).
    *
    * When `withPreview` and a word is staged/typed, each card ALSO projects the
-   * exact step outcome (`scoreWord` on the pure, service-free shape — a preview
+   * exact step outcome (`scoreWord` with a read-only Crescendo stub — a preview
    * that ran on every keystroke must never touch room state), which both lights
    * the card and replaces its chip with the accurate fired magnitude.
    *
    * THE NUMBER IS DISCARDED ON PURPOSE. Only `steps[].triggered/valueText` are
    * read — showing the projected total would turn evaluation into a lookup.
    *
-   * Called with the PURE scoreOpts shape only. `makeBayEvaluator` is side-effect-free until it is
-   * handed `services` / `effects` / `clock`, at which point card hooks can mutate room state — a
-   * preview that ran on every tap must never do that.
+   * Called WITHOUT `effects` / `clock`, and with a `services` stub that only
+   * implements `crescendoStreak.get()` — card hooks that mutate (rescueClock,
+   * guard consumes, ban rolls, siphons) can never fire from it.
    */
   private projectBayLive(me: PlayerState, withPreview: boolean): FanCard[] {
     const m = this.controller.match;
@@ -145,16 +141,26 @@ export class AcHud extends AcElement {
     const word = withPreview ? this.previewWord : null;
     // Index-aligned to the bay: both flow from the same player state, the same contract
     // <ac-score-replay> relies on.
+    // The preview is service-free EXCEPT a read-only Crescendo stub: Crescendo's fold
+    // reads services.crescendoStreak, so without it a streaking word never lights.
+    // The stub only implements get() (no guards/effects/clock), so it can never
+    // consume charges or mutate room state on a keystroke.
+    const previewServices = word
+      ? ({ crescendoStreak: { get: () => live.streak } } as unknown as RoomServices)
+      : undefined;
+    const previewPlayer = word ? ({ id: me.id } as PlayerState) : undefined;
     const fired = word
       ? scoreWord(word, bay, {
           mode,
-          prevWordLength: 0,
+          prevWordLength: m.lastWordLength,
           clockRemaining: s.clockRemaining,
           clockTotal: s.clockTotal,
           taxed: false,
           era: s.era,
           slots: me.slots,
           history: s.history,
+          services: previewServices,
+          player: previewPlayer,
         }).steps
       : undefined;
     return bay.map((c, i) => ({

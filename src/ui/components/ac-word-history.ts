@@ -10,7 +10,7 @@
 
 import { html, nothing, type TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import type { Submission } from "../../game/types";
+import type { GameMode, Submission } from "../../game/types";
 import { describeCardLive } from "../../game/cards/liveText";
 import { fmtScore, playerAccentVar } from "../app/util";
 import { AcElement } from "../app/AcElement";
@@ -24,6 +24,9 @@ type SortOrder = "high" | "old" | "new";
 export class AcWordHistory extends AcElement {
   /** The match's full submission history (chronological, oldest → newest). */
   @property({ attribute: false }) history: Submission[] = [];
+  /** The mode the match scored with. Frozen faces prefer each snapshot's own
+   *  mode; this is the fallback for legacy entries — pass effectiveMode. */
+  @property({ attribute: false }) mode?: GameMode;
 
   @state() private sort: SortOrder = "high";
 
@@ -53,7 +56,9 @@ export class AcWordHistory extends AcElement {
     // the frozen score-time order + faces (exact fired chips); otherwise it
     // falls back to the step order with neutral faces (legacy entries).
     const eng = s.engine && s.engine.bay.length === b.steps.length ? s.engine : undefined;
-    const mode = cardDisplayMode();
+    // Frozen faces re-resolve under the mode they scored with (legacy entries
+    // predate the snapshot mode — fall back to the passed-in match mode, then ambient).
+    const mode = eng?.mode ?? this.mode ?? cardDisplayMode();
     const bayIds = eng ? eng.bay.map((slot) => slot.id) : b.steps.map((step) => step.cardId);
     const fanCards: FanCard[] = bayIds.map((id, i) => {
       const step = b.steps[i];

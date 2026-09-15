@@ -948,7 +948,7 @@ export class MatchController {
       bay,
       streak: this.services.crescendoStreak.get(player.id),
       slots: player.slots,
-      era: this.state.era,
+      mode: this.effectiveMode,
       wildcardAvailable: wildcardUsed ? true : this.services.wildcardGuard.isAvailable(player.id),
       wildcardUsed,
       prismAvailable: this.services.prismGuard.isAvailable(player.id),
@@ -1257,7 +1257,10 @@ export class MatchController {
    *  returns true if one fired (consumed its charge and refilled the clock). */
   private tryClockRescue(player: PlayerState): boolean {
     const ev = this.bayEval(player, "", false);
-    return ev.resolved.some((c, i) => c?.rescueClock?.(ev.ctxFor(i)) ?? false);
+    const rescued = ev.resolved.some((c, i) => c?.rescueClock?.(ev.ctxFor(i)) ?? false);
+    // The rescue consumes the Prism guard; stamp so guests see SPENT instead of a stale READY.
+    if (rescued) this.stampLiveState(player);
+    return rescued;
   }
 
   private timeoutCurrent(): void {
