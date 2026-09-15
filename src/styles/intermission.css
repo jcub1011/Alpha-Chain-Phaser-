@@ -84,7 +84,17 @@
   align-items: center;
   gap: 0.3rem;
   cursor: grab;
-  /* Pointer-drag owns the gesture; stop touch from scrolling the panel mid-drag. */
+  /* Scroll wins by default so touch can pan the panel starting on a card; the
+     long-press drag explicitly blocks scrolling only while armed (below). */
+  touch-action: pan-x pan-y;
+  -webkit-touch-callout: none;
+}
+/* Armed touch drag in flight: blocks scroll for touches that start mid-drag (e.g. a
+   second finger). The in-flight touch itself is held off scrolling by a non-passive
+   touchmove preventDefault in ac-intermission — touch-action locks in at touch-start,
+   so flipping it mid-gesture alone would not stop the browser taking the drag. */
+.im-card.is-touch-dragging,
+.im-card.is-touch-dragging .im-slot {
   touch-action: none;
 }
 .im-slot:active {
@@ -113,6 +123,21 @@
   opacity: 0.9;
   transform: rotate(-2deg);
   filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.5));
+}
+.im-drag-ghost.is-touch {
+  opacity: 0.95;
+  transform: rotate(-2deg) scale(1.05);
+}
+/* Live insertion marker: the gap the card will land in on release. */
+.im-drop-line {
+  position: fixed;
+  z-index: 1001;
+  width: 4px;
+  margin-left: -2px;
+  border-radius: 2px;
+  background: var(--i-primary);
+  box-shadow: 0 0 4px color-mix(in srgb, var(--i-primary) 35%, transparent);
+  pointer-events: none;
 }
 .im-drag-ghost .im-actions,
 .im-drag-ghost .im-slot-no {
