@@ -13,11 +13,12 @@
  * scoring stays in `fold()`; side-effecting state lives in the room services
  * (roomServices.ts), reached through `ctx.services` inside the hooks.
  *
- * ModifierCard is the RESOLVED shape: `description` / `magnitudeText` / `clock` are already
- * concrete for one game mode by the time anything sees one. A card whose values differ per mode
- * declares them once in a tuning bag instead — see {@link TunedCardDef} below, and note that
- * EvalContext deliberately carries no mode or tuning: a tuned fold closes over its numbers, which
- * keeps this the single channel by which a card can be mode-aware.
+ * ModifierCard is the RESOLVED shape: `clock` is already concrete for one game mode by the
+ * time anything sees one, and card text is read exclusively through `renderText` (required —
+ * there are no static `description` / `magnitudeText` fields to drift). A card whose values
+ * differ per mode declares them once in a tuning bag instead — see {@link TunedCardDef} below,
+ * and note that EvalContext deliberately carries no mode or tuning: a tuned fold closes over its
+ * numbers, which keeps this the single channel by which a card can be mode-aware.
  */
 
 import { isVowel, MAX_WORD_SCORE } from "../settings";
@@ -148,6 +149,36 @@ export interface CardFaceText {
   clockText?: string;
 }
 
+/**
+ * Neutral display context for context-free surfaces (sandbox palette, legacy history).
+ * Every `renderText` template must produce reasonable output under this context with no
+ * null special-casing: ×1 magnification, empty bay position, zero streak, all guard
+ * charges available. Bay-size reads resolve to single-card-bay semantics
+ * (`scoringCount` 1, `cardsToRight` 0, `otherMultipliers` 0), so e.g. Dividend reads
+ * "+2" and Booster Pack reads "+0 (no cards to its right)" rather than blanking.
+ */
+export const DEFAULT_CARD_RENDER_CONTEXT: CardRenderContext = {
+  magnification: 1,
+  streak: 0,
+  slots: 3,
+  cardsToRight: 0,
+  scoringCount: 1,
+  otherMultipliers: 0,
+  wildcardAvailable: true,
+  prismAvailable: true,
+  winnowerAvailable: true,
+};
+
+/**
+ * A constant face for cards whose prose states no magnitude (pure-FX / capability
+ * cards). Keeps those definitions one-liners while still going through the single
+ * `renderText` channel — the context is accepted and ignored.
+ */
+export const staticFace = (magnitudeText: string, description: string): CardFaceText => ({
+  magnitudeText,
+  description,
+});
+
 /** A permanent shot-clock adjustment the card applies when its owner's turn arms. */
 export interface ClockModifier {
   /** Fractional delta applied first, e.g. -0.10 (Vault) or +0.30 (Heat Sink). */
@@ -170,9 +201,6 @@ export interface ModifierCard {
    *  Independent of {@link maxInstances}. Required so every card declares one
    *  (compile-time safety, like {@link family}). */
   rarity: CardRarity;
-  /** Static chip shown on the card face, e.g. "+10", "×1.5", "FX". */
-  magnitudeText: string;
-  description: string;
   /**
    * Hand-tuned per-card identity color (the `--gc-card-color` that tints the
    * gradient / icon box / watermark), distinct from the standardized family
@@ -262,11 +290,11 @@ export interface ModifierCard {
   submitMagnifications?(reg: EffectMagnifier, selfIndex: number): void;
   /** Reactive face copy: the chip + description (+ optional state badge) as
    *  interpolated strings over the display context — the `fold` twin for READING
-   *  a card rather than SCORING it. A tuned card closes over the same `t` bag its
-   *  fold does, so a retune moves the face and the score together. Optional;
-   *  a card without it renders its static catalogue copy (plus the resolver's
-   *  generic staged-word projection). Pure display — never mutates room state. */
-  renderText?(ctx: CardRenderContext): CardFaceText;
+   *  a card rather than SCORING it, and the ONLY way to obtain card text. A tuned
+   *  card closes over the same `t` bag its fold does, so a retune moves the face
+   *  and the score together. Required; context-free surfaces render through
+   *  {@link DEFAULT_CARD_RENDER_CONTEXT}. Pure display — never mutates room state. */
+  renderText(ctx: CardRenderContext): CardFaceText;
 
   // ── Lifecycle hooks (default no-op; only override what a card needs) ──
   onEraStart?(ctx: EvalContext): void;

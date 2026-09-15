@@ -15,7 +15,7 @@
 import { html, nothing, type TemplateResult } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import { getCard } from "../../game/cards/library";
-import type { ClockModifier } from "../../game/cards/card";
+import { DEFAULT_CARD_RENDER_CONTEXT } from "../../game/cards/card";
 import type { LiveCardText } from "../../game/cards/liveText";
 import { CardOp, type GameMode } from "../../game/types";
 import { familyAccentVar, rarityAccentVar } from "../app/util";
@@ -28,16 +28,6 @@ const chipVar = (op: CardOp): string =>
     : op === CardOp.Multiplicative
       ? "var(--ac-multiplicative)"
       : "var(--ac-action)";
-
-/** A compact "−20% ⏱" / "+5s ⏱" clock chip for glass-cannon / utility cards. */
-const clockText = (clock: ClockModifier): string => {
-  const parts: string[] = [];
-  if (clock.pctDelta)
-    parts.push(`${clock.pctDelta > 0 ? "+" : "−"}${Math.round(Math.abs(clock.pctDelta) * 100)}%`);
-  if (clock.flatDelta)
-    parts.push(`${clock.flatDelta > 0 ? "+" : "−"}${Math.abs(clock.flatDelta)}s`);
-  return `${parts.join(" ")} ⏱`;
-};
 
 @customElement("ac-card")
 export class AcCard extends AcElement {
@@ -57,7 +47,7 @@ export class AcCard extends AcElement {
   @property({ type: Boolean, reflect: true }) dimmed = false;
   @property({ type: Boolean, reflect: true }) triggered = false;
   /** Live face copy (chip + description + badge), resolved for this card's bay
-   *  slot via `describeCardLive`. Absent = static catalogue copy (sandbox
+   *  slot via `describeCardLive`. Absent = neutral resting face (sandbox
    *  palette, legacy history entries). */
   @property({ attribute: false }) live?: LiveCardText;
 
@@ -126,10 +116,12 @@ export class AcCard extends AcElement {
     const cardColor = card.color ?? accent;
     const chip = chipVar(card.op);
     const rarity = card.rarity;
-    const magnitudeText = this.live?.magnitudeText ?? card.magnitudeText;
-    const description = this.live?.description ?? card.description;
-    // A template-provided clock chip (glass-scaled) wins over the static one.
-    const clockChip = this.live?.clockText ?? (card.clock ? clockText(card.clock) : null);
+    // The card's template is the only source of text; without a live slot face
+    // the neutral resting face stands in.
+    const face = this.live ?? card.renderText(DEFAULT_CARD_RENDER_CONTEXT);
+    const magnitudeText = face.magnitudeText;
+    const description = face.description;
+    const clockChip = face.clockText ?? null;
     return html`
       <div
         class="gc-flip ${this.live?.spent ? "is-spent" : ""}"

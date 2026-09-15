@@ -187,7 +187,7 @@ export class NetMatch implements MatchLike {
   }
   liveStateFor(playerId: string): PlayerLiveState {
     // Same pattern: the host stamps liveState after every guard/streak mutation.
-    // Absent on older snapshots — fall back to a fresh era (static faces, no crash).
+    // Absent on older snapshots — fall back to a fresh era (neutral faces, no crash).
     return (
       this._state.players.find((p) => p.id === playerId)?.liveState ?? {
         streak: 0,

@@ -51,7 +51,7 @@ export class AcWordHistory extends AcElement {
     const b = s.breakdown;
     // The engine cards as an overlapping fan. With a snapshot the strip shows
     // the frozen score-time order + faces (exact fired chips); otherwise it
-    // falls back to the step order with static faces (legacy entries).
+    // falls back to the step order with neutral faces (legacy entries).
     const eng = s.engine && s.engine.bay.length === b.steps.length ? s.engine : undefined;
     const mode = cardDisplayMode();
     const bayIds = eng ? eng.bay.map((slot) => slot.id) : b.steps.map((step) => step.cardId);

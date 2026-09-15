@@ -1,18 +1,17 @@
 /*
- * Live engine-card faces. The catalogue (`library.ts`) holds STATIC copy — one
- * chip + description per card per mode — and each card additionally owns a
- * `renderText` template: the `fold` twin for READING, interpolating the same
- * numbers over the display context (glass magnification, bay counts, streak,
- * guard charges, rolled bans). This module is the seam between the two: it
- * derives the per-slot context (bay position, glass chain, bay-size counts)
- * from caller-supplied primitives, hands it to the card's template, and
- * applies the generic staged-word projection on top.
+ * Live engine-card faces. Each card owns a `renderText` template: the `fold`
+ * twin for READING, interpolating the same numbers over the display context
+ * (glass magnification, bay counts, streak, guard charges, rolled bans) — and
+ * the ONLY source of card text. This module is the seam between the catalogue
+ * and the face: it derives the per-slot context (bay position, glass chain,
+ * bay-size counts) from caller-supplied primitives, hands it to the card's
+ * template, and applies the generic staged-word projection on top.
  *
  * DISPLAY ONLY. Every value here is a pre-read primitive (numbers/booleans),
  * never a RoomService — so a networked guest feeds it from snapshot fields and
  * can never mutate host state through it. When no context is available (sandbox
- * palette, legacy history entries) the resolver returns the static catalogue
- * copy unchanged.
+ * palette, legacy history entries) the resolver renders the neutral face via
+ * DEFAULT_CARD_RENDER_CONTEXT.
  *
  * The same resolver backs live bays AND frozen history playback: a Submission
  * stores the primitives (magnification, streak, guard states) captured at score
@@ -23,6 +22,7 @@
 import { getCard, cardIdentity } from "./library";
 import { isInertPreference } from "../picker/preference";
 import { CardOp, GameMode } from "../types";
+import { DEFAULT_CARD_RENDER_CONTEXT } from "./card";
 import type { CardFaceText, CardRenderContext } from "./card";
 
 /** Everything the face of one card needs, pre-read by the caller. */
@@ -79,32 +79,32 @@ function otherMultipliers(bayIds: readonly string[], index: number): number {
 export function describeCardLive(id: string, mode: GameMode, ctx?: LiveCardCtx): LiveCardText {
   const card = getCard(id, mode);
   if (!card) return { magnitudeText: "?", description: "Unknown card." };
-  if (!ctx) return { magnitudeText: card.magnitudeText, description: card.description };
 
-  // The card owns its resting face; a card without a template renders static.
-  const renderCtx: CardRenderContext = {
-    magnification: ctx.magnification,
-    streak: ctx.streak,
-    slots: ctx.slots,
-    cardsToRight: scoringRightOf(ctx.bayIds, ctx.index),
-    scoringCount: scoringCount(ctx.bayIds),
-    otherMultipliers: otherMultipliers(ctx.bayIds, ctx.index),
-    wildcardAvailable: ctx.wildcardAvailable,
-    wildcardUsed: ctx.wildcardUsed,
-    prismAvailable: ctx.prismAvailable,
-    winnowerAvailable: ctx.winnowerAvailable,
-    personalBan: ctx.personalBan,
-    previewValueText: ctx.previewValueText,
-    previewTriggered: ctx.previewTriggered,
-  };
-  const face: LiveCardText = card.renderText?.(renderCtx) ?? {
-    magnitudeText: card.magnitudeText,
-    description: card.description,
-  };
+  // The card owns its resting face. Without caller context (sandbox palette,
+  // legacy history) the neutral context stands in, so every template still
+  // produces a reasonable face with no null special-casing.
+  const renderCtx: CardRenderContext = ctx
+    ? {
+        magnification: ctx.magnification,
+        streak: ctx.streak,
+        slots: ctx.slots,
+        cardsToRight: scoringRightOf(ctx.bayIds, ctx.index),
+        scoringCount: scoringCount(ctx.bayIds),
+        otherMultipliers: otherMultipliers(ctx.bayIds, ctx.index),
+        wildcardAvailable: ctx.wildcardAvailable,
+        wildcardUsed: ctx.wildcardUsed,
+        prismAvailable: ctx.prismAvailable,
+        winnowerAvailable: ctx.winnowerAvailable,
+        personalBan: ctx.personalBan,
+        previewValueText: ctx.previewValueText,
+        previewTriggered: ctx.previewTriggered,
+      }
+    : { ...DEFAULT_CARD_RENDER_CONTEXT };
+  const face: LiveCardText = card.renderText(renderCtx);
   // A staged/typed word fired this card: the exact step outcome (glass already
   // baked in) replaces whatever the resting template computed — uniformly, so
   // no template repeats this branch.
-  if (ctx.previewTriggered === true && ctx.previewValueText) {
+  if (ctx?.previewTriggered === true && ctx.previewValueText) {
     return { ...face, magnitudeText: ctx.previewValueText };
   }
   return face;

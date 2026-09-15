@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { describeCardLive, type LiveCardCtx } from "./liveText";
+import { DEFAULT_CARD_RENDER_CONTEXT } from "./card";
 import { getCard } from "./library";
 import { scoreWord } from "../scoring";
 import { BanLetterService, RoomServices } from "./roomServices";
@@ -18,7 +19,8 @@ const base = (over: Partial<LiveCardCtx> = {}): LiveCardCtx => ({
   ...over,
 });
 
-/** At ×1 every plain template reproduces the static chip + prose byte-identically. */
+/** Bay-independent templates: nothing in this list reads bay position/counts or
+ *  streak, so the ×1 contextual face equals the neutral face. */
 const PLAIN_IDS = [
   "TheAnchor",
   "Vanilla",
@@ -60,35 +62,40 @@ const PLAIN_IDS = [
 ];
 
 describe("describeCardLive", () => {
-  it("falls back to static copy without context", () => {
+  it("renders the neutral face without context", () => {
     const card = getCard("Redline", GameMode.Classic)!;
-    expect(describeCardLive("Redline", GameMode.Classic)).toEqual({
-      magnitudeText: card.magnitudeText,
-      description: card.description,
-    });
+    expect(describeCardLive("Redline", GameMode.Classic)).toEqual(
+      card.renderText(DEFAULT_CARD_RENDER_CONTEXT),
+    );
   });
 
-  it("renders static copy with context for cards without a template", () => {
-    // No renderText: pure-FX / capability cards whose prose states no magnitude.
-    for (const id of ["Catalyst", "Insurance", "IrsAgent", "BaitAndSwitch"]) {
-      const card = getCard(id, GameMode.Classic)!;
+  it("renders constant faces for stateless cards, even under glass", () => {
+    // Pure-FX / capability cards whose prose states no magnitude: the template
+    // is constant, so magnification must not move it.
+    const EXPECTED: Record<string, string> = {
+      Catalyst:
+        "For every card placed to its right: Y, W and H count as vowels as well as consonants.",
+      Insurance: "If you time out, you lose no points.",
+      IrsAgent: "When your word is taxed, no Tax Collector collects from you.",
+      BaitAndSwitch:
+        "When your word is taxed, the next player must use that banned letter for their turn.",
+    };
+    for (const [id, prose] of Object.entries(EXPECTED)) {
       const live = describeCardLive(
         id,
         GameMode.Classic,
         base({ bayIds: [id], magnification: 1.5 }),
       );
-      expect(live.magnitudeText, `${id} chip`).toBe(card.magnitudeText);
-      expect(live.description, `${id} prose`).toBe(card.description);
+      expect(live.magnitudeText, `${id} chip`).toBe("FX");
+      expect(live.description, `${id} prose`).toBe(prose);
       expect(live.badge, `${id} badge`).toBeUndefined();
     }
   });
 
-  it("reproduces the static copy at ×1 for plain templates", () => {
+  it("matches the neutral face at ×1 for bay-independent templates", () => {
     for (const id of PLAIN_IDS) {
-      const card = getCard(id, GameMode.Classic)!;
       const live = describeCardLive(id, GameMode.Classic, base({ bayIds: [id] }));
-      expect(live.magnitudeText, `${id} chip`).toBe(card.magnitudeText);
-      expect(live.description, `${id} prose`).toBe(card.description);
+      expect(live, `${id} face`).toEqual(describeCardLive(id, GameMode.Classic));
     }
   });
 

@@ -28,7 +28,7 @@ export interface FanCard extends BayCard {
    *  word, which is the main way a player learns what their engine wants. Distinct from the score
    *  replay's transient `triggered`, which walks one card at a time after the fact. */
   triggered?: boolean;
-  /** Live face copy for this slot (see `describeCardLive`). Absent = static faces. */
+  /** Live face copy for this slot (see `describeCardLive`). Absent = neutral resting faces. */
   live?: LiveCardText;
   /** Content revealed in a chip above the card while it's hovered/lifted. */
   hover?: TemplateResult;
