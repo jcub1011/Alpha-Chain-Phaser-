@@ -264,8 +264,8 @@ every card whose downside is a timeout drain loses that downside entirely.
 
 *   **Panic Button**, **Speedracer** — multipliers scaling with remaining clock. Both approach their
     caps routinely in Picker. Retune the curves, not the caps.
-*   **Chrono Syphon** — banks per whole second left on an *opponent's* clock. Fast commits inflate
-    this substantially; it is the most affected card in the catalogue.
+*   **Chrono Syphon** — banks per whole second *taken* on an *opponent's* clock (capped),
+    plus its cap on a real timeout. Fast commits starve it, so Picker needs no retune.
 *   **The Vault**, **Redline** — their clock costs still bite, because evaluation genuinely takes
     time, but their timeout drains never fire. Both are net **buffed** in Picker and should be
     re-costed.

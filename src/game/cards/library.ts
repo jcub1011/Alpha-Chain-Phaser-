@@ -647,10 +647,11 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     },
   },
 
-  /* Tuned: the GDD calls this "the most affected card in the catalogue" in Picker (§4.4), since a
-   * fast commit leaves far more seconds on an opponent's clock than typing a word does. */
+  /* Tuned: pure elapsed-time payout — fast submits deny the card, slow submits feed
+   * it (capped), and real timeouts bounty the cap (see timeoutCurrent/pickerTimeoutCurrent).
+   * Inverts the old remaining-time formula, whose dominant response was stalling to ~0s. */
   ChronoSyphon: tuned({
-    tune: { perSecond: 2 },
+    tune: { perSecond: 1, cap: 30 },
     build: (t) => ({
       name: "Chrono Syphon",
       rarity: CardRarity.Uncommon,
@@ -658,14 +659,16 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
       family: CardFamily.Economy,
       op: CardOp.Fx,
       magnitudeText: "FX",
-      description: `+${t.perSecond} per whole second left on an opponent's shot clock when they submit.`,
+      description: `+${t.perSecond} per whole second taken on an opponent's shot clock when they submit, max ${t.cap}.`,
       fold: (v) => fx(v),
       onOpponentWordResolved: (c) => {
         const res = c.resolution;
-        if (!res || res.remainingSeconds <= 0) return;
+        if (!res) return;
         const owner = c.player;
         if (!owner || owner.id === res.submitterId) return;
-        const amount = clampScore(res.remainingSeconds * t.perSecond * c.magnification());
+        const elapsed = Math.floor(c.clockTotal - c.clockRemaining);
+        if (elapsed <= 0) return;
+        const amount = clampScore(Math.min(t.cap, elapsed * t.perSecond) * c.magnification());
         if (amount > 0) {
           owner.score += amount;
           c.effects?.bankSiphon(owner.id, amount, "Chrono Syphon");

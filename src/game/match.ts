@@ -1073,6 +1073,30 @@ export class MatchController {
     fireBayHook(this.bayEval(owner, word, taxed), "onTurnEnded", { resolution: res });
   }
 
+  /**
+   * Chrono Syphon timeout bounty. A real timeout leaves the clock at 0, so elapsed
+   * time equals the full armed clock — the shared hook below computes the capped
+   * amount from its own closure (rate, cap, magnification), keeping one source of
+   * truth for the numbers. Other reactive-economy hooks self-skip on this synthetic
+   * shape (untaxed, zero scores); only Chrono Syphon banks.
+   */
+  private fireChronoTimeoutBounty(timedOut: PlayerState): void {
+    const resolution: WordResolution = {
+      submitterId: timedOut.id,
+      word: "",
+      taxed: false,
+      wouldBeScore: 0,
+      earnedScore: 0,
+      offendingLetter: null,
+      siphonSuppressed: false,
+      remainingSeconds: 0,
+    };
+    for (const opp of this.state.players) {
+      if (opp.id === timedOut.id || opp.eliminated) continue;
+      fireBayHook(this.bayEval(opp, "", false), "onOpponentWordResolved", { resolution });
+    }
+  }
+
   /** Record the current player's in-progress word so a shot-clock timeout can
    *  auto-submit it. The authoritative twin of the solo UI's clockTick auto-submit
    *  (ac-word-entry): over the network the display mirror can't outrace the real
@@ -1225,6 +1249,12 @@ export class MatchController {
     // A timeout is not a clean submission: it breaks the Crescendo run, same as a tax.
     this.services.crescendoStreak.reset(p.id);
 
+    // Pure-elapsed Chrono Syphon still collects on a real timeout (its cap): stalling
+    // out the clock must cost the victim, not deny the holder.
+    this.fireChronoTimeoutBounty(p);
+    const bounties = this.effects.takeSiphons();
+    const notices = this.effects.takeNotices();
+
     // A synthetic "timed-out" submission drives the same theater + leaderboard
     // reveal as a scored word. It is NOT pushed to history (no real word, so it
     // never feeds Scavenger / the word feed / the used-word set).
@@ -1236,15 +1266,17 @@ export class MatchController {
       word: draft || "—",
       score: breakdown.finalScore,
       taxed: false,
-      taxBounty: 0,
+      taxBounty: bounties.reduce((a, b) => a + b.amount, 0),
       breakdown,
       timedOut: true,
+      siphonedBy: bounties.map((b) => b.playerId),
+      effects: notices.length ? notices : undefined,
     };
 
     if (s.settings.survivalMode) p.eliminated = true;
     // Required letter is unchanged: the next player still faces it.
     this.events.emit("timeout", { playerId: p.id, penalty });
-    this.events.emit("submission", { submission, bounties: [] });
+    this.events.emit("submission", { submission, bounties });
     // There is now a replay to watch (the penalty walk), so settle like a real
     // submission — an era-ending timeout waits it out before transitioning.
     this.endTurn(true);
@@ -1306,6 +1338,12 @@ export class MatchController {
     // A timeout is not a clean submission: it breaks the Crescendo run, same as a tax.
     this.services.crescendoStreak.reset(p.id);
 
+    // Pure-elapsed Chrono Syphon still collects on a real timeout (its cap): stalling
+    // out the clock must cost the victim, not deny the holder.
+    this.fireChronoTimeoutBounty(p);
+    const pickerBounties = this.effects.takeSiphons();
+    const pickerNotices = this.effects.takeNotices();
+
     // A synthetic "timed-out" submission drives the same theater + leaderboard
     // reveal as a scored word. It is NOT pushed to history (no real word, so it
     // never feeds Scavenger / the word feed / the used-word set).
@@ -1317,15 +1355,17 @@ export class MatchController {
       word: staged || "—",
       score: breakdown.finalScore,
       taxed: false,
-      taxBounty: 0,
+      taxBounty: pickerBounties.reduce((a, b) => a + b.amount, 0),
       breakdown,
       timedOut: true,
+      siphonedBy: pickerBounties.map((b) => b.playerId),
+      effects: pickerNotices.length ? pickerNotices : undefined,
     };
 
     if (s.settings.survivalMode) p.eliminated = true;
     // Required letter is unchanged: the next player still faces it.
     this.events.emit("timeout", { playerId: p.id, penalty });
-    this.events.emit("submission", { submission, bounties: [] });
+    this.events.emit("submission", { submission, bounties: pickerBounties });
     // There is now a replay to watch (the penalty walk), so settle like a real
     // submission — an era-ending timeout waits it out before transitioning.
     this.endTurn(true);

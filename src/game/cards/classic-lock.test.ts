@@ -198,7 +198,7 @@ const EXPECTED: Record<string, string> = {
   TaxCollector:
     "chip=FX | desc=When an opponent is taxed, collect 60% of their would-be score. | clock=- | armed=20 | hooks=onOpponentWordResolved | alone=FX:3 FX:6 FX:7 FX:8 FX:10 FX:4 FX:6 FX:6 | full=FX FX FX FX FX FX FX FX | glass=FX | right=FX | timeout=—",
   ChronoSyphon:
-    "chip=FX | desc=+2 per whole second left on an opponent's shot clock when they submit. | clock=- | armed=20 | hooks=onOpponentWordResolved | alone=FX:3 FX:6 FX:7 FX:8 FX:10 FX:4 FX:6 FX:6 | full=FX FX FX FX FX FX FX FX | glass=FX | right=FX | timeout=—",
+    "chip=FX | desc=+1 per whole second taken on an opponent's shot clock when they submit, max 30. | clock=- | armed=20 | hooks=onOpponentWordResolved | alone=FX:3 FX:6 FX:7 FX:8 FX:10 FX:4 FX:6 FX:6 | full=FX FX FX FX FX FX FX FX | glass=FX | right=FX | timeout=—",
   BaitAndSwitch:
     "chip=FX | desc=When your word is taxed, curse the next player with that banned letter for their next turn. | clock=- | armed=20 | hooks=onTurnEnded | alone=FX:3 FX:6 FX:7 FX:8 FX:10 FX:4 FX:6 FX:6 | full=FX FX FX FX FX FX FX FX | glass=FX | right=FX | timeout=—",
   TheLexicon:

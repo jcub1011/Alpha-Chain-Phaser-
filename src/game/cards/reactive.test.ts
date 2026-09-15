@@ -149,30 +149,30 @@ describe("The Toll Booth — no toll on an opponent's taxed word", () => {
   });
 });
 
-describe("Chrono Syphon — every opponent banks the leftover seconds", () => {
-  it("two opponents each gain the submitter's whole remaining seconds", () => {
+describe("Chrono Syphon — every opponent banks the elapsed seconds", () => {
+  it("two opponents each gain the submitter's whole elapsed seconds", () => {
     const m = make(3);
     m.state.players[1].bay = [{ id: "ChronoSyphon" }];
     m.state.players[2].bay = [{ id: "ChronoSyphon" }];
-    m.tick(5); // burn 5s of p1's 20s clock → 15 remaining
-    const remaining = Math.floor(m.state.clockRemaining);
-    expect(remaining).toBe(15);
+    m.tick(5); // burn 5s of p1's 20s clock → 5s elapsed
+    const elapsed = Math.floor(m.state.clockTotal - m.state.clockRemaining);
+    expect(elapsed).toBe(5);
     const r = m.submitWord("p1", "cat");
-    expect(m.state.players[1].score).toBe(remaining * 2); // +2 per whole second
-    expect(m.state.players[2].score).toBe(remaining * 2);
+    expect(m.state.players[1].score).toBe(elapsed); // +1 per whole second taken
+    expect(m.state.players[2].score).toBe(elapsed);
     expect(r.submission!.effects).toEqual(
       expect.arrayContaining([
         {
           source: "Chrono Syphon",
           targetId: "p2",
-          text: `+${remaining * 2} banked`,
-          amount: remaining * 2,
+          text: `+${elapsed} banked`,
+          amount: elapsed,
         },
         {
           source: "Chrono Syphon",
           targetId: "p3",
-          text: `+${remaining * 2} banked`,
-          amount: remaining * 2,
+          text: `+${elapsed} banked`,
+          amount: elapsed,
         },
       ]),
     );

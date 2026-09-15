@@ -533,8 +533,9 @@ timeout drain loses that downside entirely.
 
 - **Panic Button**, **Speedracer** — multipliers scaling with remaining clock; both approach their
   caps routinely in Picker. Retune the curves, not the caps.
-- **Chrono Syphon** — banks per whole second left on an opponent's clock. Fast commits inflate this
-  substantially; the most affected card in the catalogue.
+- **Chrono Syphon** — banks per whole second taken on an opponent's clock (capped), plus
+  its cap on a real timeout. Fast commits starve it, so no per-mode patch; formerly the most
+  affected card in the catalogue when it read time left.
 - **The Vault**, **Redline** — clock costs still bite (evaluation genuinely takes time), but their
   timeout drains never fire. Both are net buffed and should be re-costed.
 - **The Sniper** — its leader clock-shave is stronger in Picker. No change expected, but it is the one
