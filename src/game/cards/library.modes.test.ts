@@ -17,7 +17,7 @@ import {
   getCard,
   tunedCardEntries,
 } from "./library";
-import { tuned, type TuneValue } from "./card";
+import { tuned, type CardRenderContext, type TuneValue } from "./card";
 
 const bay = (...ids: string[]): BayCard[] => ids.map((id) => ({ id }));
 const ids = () => Object.keys(CARD_CATALOGUE) as CardId[];
@@ -154,6 +154,19 @@ describe("tuning is load-bearing — every declared knob must reach the rendered
   const perturb = (v: TuneValue): TuneValue =>
     typeof v === "number" ? v * 1.5 + 1 : typeof v === "boolean" ? !v : `${v}x`;
 
+  /** Neutral display context for the face template (×1 and glassed). */
+  const renderCtx = (magnification: number): CardRenderContext => ({
+    magnification,
+    streak: 0,
+    slots: 3,
+    cardsToRight: 0,
+    scoringCount: 1,
+    otherMultipliers: 0,
+    wildcardAvailable: true,
+    prismAvailable: true,
+    winnowerAvailable: true,
+  });
+
   /** Everything a knob could plausibly drive, rendered from a freshly built card. */
   const signature = (
     card: ReturnType<ReturnType<typeof tunedCardEntries>[0][1]["build"]>,
@@ -168,6 +181,14 @@ describe("tuning is load-bearing — every declared knob must reach the rendered
     const ctx = ev.ctxFor(0);
     const fold = card.fold(10, ctx);
     const timeout = card.timeoutFold?.(-10, ctx);
+    // The face template is part of the rendered card too: a knob the prose and
+    // chip ignore is a retune the player never sees. Read at ×1 and under glass.
+    const face = (m: number): string => {
+      const r = card.renderText?.(renderCtx(m));
+      return r
+        ? `${r.magnitudeText} | ${r.description} | ${r.badge ?? "-"} | ${r.clockText ?? "-"}`
+        : "-";
+    };
     return [
       card.magnitudeText,
       card.description,
@@ -175,6 +196,8 @@ describe("tuning is load-bearing — every declared knob must reach the rendered
       card.preference?.redraw?.clockCostFraction ?? "-",
       `${fold.valueText}@${fold.value}`,
       timeout ? `${timeout.valueText}@${timeout.value}` : "-",
+      face(1),
+      face(1.5),
     ].join(" | ");
   };
 

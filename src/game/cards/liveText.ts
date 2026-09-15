@@ -1,11 +1,12 @@
 /*
  * Live engine-card faces. The catalogue (`library.ts`) holds STATIC copy — one
- * chip + description per card per mode — but a card's real magnitude depends on
- * its bay position (Magnifying Glass chain), its owner's slot count (Booster
- * Pack), the other multipliers around it (Flywheel), and room state that moves
- * every turn (Crescendo streak, once-per-era/turn guards, rolled personal
- * bans). This module resolves the DISPLAY copy for one card in one bay: the
- * chip, the description, and an optional state badge (READY / SPENT / STREAK).
+ * chip + description per card per mode — and each card additionally owns a
+ * `renderText` template: the `fold` twin for READING, interpolating the same
+ * numbers over the display context (glass magnification, bay counts, streak,
+ * guard charges, rolled bans). This module is the seam between the two: it
+ * derives the per-slot context (bay position, glass chain, bay-size counts)
+ * from caller-supplied primitives, hands it to the card's template, and
+ * applies the generic staged-word projection on top.
  *
  * DISPLAY ONLY. Every value here is a pre-read primitive (numbers/booleans),
  * never a RoomService — so a networked guest feeds it from snapshot fields and
@@ -22,6 +23,7 @@
 import { getCard, cardIdentity } from "./library";
 import { isInertPreference } from "../picker/preference";
 import { CardOp, GameMode } from "../types";
+import type { CardFaceText, CardRenderContext } from "./card";
 
 /** Everything the face of one card needs, pre-read by the caller. */
 export interface LiveCardCtx {
@@ -49,24 +51,7 @@ export interface LiveCardCtx {
 }
 
 /** Display copy for one card face. */
-export interface LiveCardText {
-  magnitudeText: string;
-  description: string;
-  /** State pill, e.g. "READY", "SPENT", "STREAK 2", "USED". Omitted when N/A. */
-  badge?: string;
-  /** True when the charge is spent (lets the face dim the card). */
-  spent?: boolean;
-  /** True when a glass magnifies this slot (face shows the ×N glass chip). */
-  magnified?: boolean;
-  /** The glass factor (set when magnified), for the ×N chip. */
-  magFactor?: number;
-}
-
-/** Round for DISPLAY (per-letter steps are 0.1; glass stacking yields float dust). */
-const round1 = (n: number): number => Math.round(n * 10) / 10;
-const fmt2 = (n: number): string => `${Math.round(n * 100) / 100}`;
-
-const isMag = (magnification: number): boolean => magnification > 1.001;
+export type LiveCardText = CardFaceText;
 
 /** Scoring cards in the bay (inert Preference Cards are invisible to bay-size
  *  scoring — the same masking `makeBayEvaluator` applies, so the numbers here
@@ -91,145 +76,36 @@ function otherMultipliers(bayIds: readonly string[], index: number): number {
     .length;
 }
 
-function describeCardInner(id: string, mode: GameMode, ctx?: LiveCardCtx): LiveCardText {
+export function describeCardLive(id: string, mode: GameMode, ctx?: LiveCardCtx): LiveCardText {
   const card = getCard(id, mode);
   if (!card) return { magnitudeText: "?", description: "Unknown card." };
   if (!ctx) return { magnitudeText: card.magnitudeText, description: card.description };
 
-  const mag = ctx.magnification;
-  const magnified = isMag(mag);
-  const previewHit = ctx.previewTriggered === true && !!ctx.previewValueText;
-  // A projected step outcome already bakes the glass in — prefer it whenever the
-  // staged/typed word actually fires this card.
-  const projected = (resting: string): string => (previewHit ? ctx.previewValueText! : resting);
-
-  switch (id) {
-    case "Crescendo": {
-      const factor = ctx.streak > 0 ? Math.min(2, 1 + 0.25 * ctx.streak) : 1;
-      const next = Math.min(2, 1 + 0.25 * (ctx.streak + 1));
-      return {
-        magnitudeText: projected(`×${fmt2(factor)}`),
-        description:
-          `${card.description} Streak ${ctx.streak}` +
-          (ctx.streak > 0 ? ` (next word ×${fmt2(next)}).` : " — play clean to start it."),
-        badge: `STREAK ${ctx.streak}`,
-        magnified,
-      };
-    }
-
-    case "Wildcard": {
-      if (ctx.wildcardUsed) {
-        return {
-          magnitudeText: card.magnitudeText,
-          description: `${card.description} Used by this word.`,
-          badge: "USED",
-          magnified,
-        };
-      }
-      const ready = ctx.wildcardAvailable;
-      return {
-        magnitudeText: card.magnitudeText,
-        description: `${card.description} ${ready ? "Charge available." : "Spent this era."}`,
-        badge: ready ? "READY" : "SPENT",
-        spent: !ready,
-        magnified,
-      };
-    }
-
-    case "Prism": {
-      const ready = ctx.prismAvailable;
-      return {
-        magnitudeText: card.magnitudeText,
-        description: `${card.description} ${ready ? "Charge available." : "Spent this era."}`,
-        badge: ready ? "READY" : "SPENT",
-        spent: !ready,
-        magnified,
-      };
-    }
-
-    case "Winnower": {
-      const ready = ctx.winnowerAvailable;
-      return {
-        magnitudeText: card.magnitudeText,
-        description: `${card.description} ${ready ? "Redraw available." : "Spent this turn."}`,
-        badge: ready ? "READY" : "SPENT",
-        spent: !ready,
-        magnified,
-      };
-    }
-
-    case "BoosterPack": {
-      const right = scoringRightOf(ctx.bayIds, ctx.index);
-      return {
-        magnitudeText: projected(`+${2 * right * ctx.slots}`),
-        description:
-          right > 0
-            ? `${card.description} (${right} right × ${ctx.slots} slots = +${2 * right * ctx.slots}).`
-            : `${card.description} (no cards to its right).`,
-        magnified,
-      };
-    }
-
-    case "Dividend": {
-      const count = scoringCount(ctx.bayIds);
-      return {
-        magnitudeText: projected(`+${2 * count}`),
-        description: `${card.description} (${count} cards = +${2 * count}).`,
-        magnified,
-      };
-    }
-
-    case "TheFlywheel": {
-      const others = otherMultipliers(ctx.bayIds, ctx.index);
-      if (others === 0) {
-        return {
-          magnitudeText: "—",
-          description: `${card.description} (no other multipliers in your bay).`,
-          magnified,
-        };
-      }
-      const factor = Math.min(2.3, round1(1 + 0.15 * others));
-      return {
-        magnitudeText: projected(`×${fmt2(factor)}`),
-        description: `${card.description} (${others} other multiplier${others === 1 ? "" : "s"}).`,
-        magnified,
-      };
-    }
-
-    case "RouletteWheel":
-    case "TollBooth": {
-      return {
-        magnitudeText: projected(card.magnitudeText),
-        description: ctx.personalBan
-          ? `${card.description} (ban: ${ctx.personalBan.toUpperCase()}).`
-          : card.description,
-        magnified,
-      };
-    }
-
-    case "Forgery": {
-      return {
-        magnitudeText: card.magnitudeText,
-        description: magnified
-          ? `${card.description} (magnified ×${fmt2(mag)}).`
-          : card.description,
-        magnified,
-      };
-    }
-
-    default: {
-      return {
-        magnitudeText: projected(card.magnitudeText),
-        description: card.description,
-        magnified,
-      };
-    }
+  // The card owns its resting face; a card without a template renders static.
+  const renderCtx: CardRenderContext = {
+    magnification: ctx.magnification,
+    streak: ctx.streak,
+    slots: ctx.slots,
+    cardsToRight: scoringRightOf(ctx.bayIds, ctx.index),
+    scoringCount: scoringCount(ctx.bayIds),
+    otherMultipliers: otherMultipliers(ctx.bayIds, ctx.index),
+    wildcardAvailable: ctx.wildcardAvailable,
+    wildcardUsed: ctx.wildcardUsed,
+    prismAvailable: ctx.prismAvailable,
+    winnowerAvailable: ctx.winnowerAvailable,
+    personalBan: ctx.personalBan,
+    previewValueText: ctx.previewValueText,
+    previewTriggered: ctx.previewTriggered,
+  };
+  const face: LiveCardText = card.renderText?.(renderCtx) ?? {
+    magnitudeText: card.magnitudeText,
+    description: card.description,
+  };
+  // A staged/typed word fired this card: the exact step outcome (glass already
+  // baked in) replaces whatever the resting template computed — uniformly, so
+  // no template repeats this branch.
+  if (ctx.previewTriggered === true && ctx.previewValueText) {
+    return { ...face, magnitudeText: ctx.previewValueText };
   }
-}
-
-export function describeCardLive(id: string, mode: GameMode, ctx?: LiveCardCtx): LiveCardText {
-  const out = describeCardInner(id, mode, ctx);
-  // The glass factor rides alongside (the chip needs the number, not just the flag).
-  if (ctx && out.magnified) out.magFactor = ctx.magnification;
-  return out;
+  return face;
 }

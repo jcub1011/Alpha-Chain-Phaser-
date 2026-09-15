@@ -128,11 +128,8 @@ export class AcCard extends AcElement {
     const rarity = card.rarity;
     const magnitudeText = this.live?.magnitudeText ?? card.magnitudeText;
     const description = this.live?.description ?? card.description;
-    // Glass factor chip, e.g. "×2.25" — rounded like the fold's display values.
-    const magChip =
-      this.live?.magnified && this.live.magFactor
-        ? `×${Math.round(this.live.magFactor * 100) / 100}`
-        : null;
+    // A template-provided clock chip (glass-scaled) wins over the static one.
+    const clockChip = this.live?.clockText ?? (card.clock ? clockText(card.clock) : null);
     return html`
       <div
         class="gc-flip ${this.live?.spent ? "is-spent" : ""}"
@@ -172,19 +169,14 @@ export class AcCard extends AcElement {
             </span>
             <div class="gc-chips">
               <span class="gc-chip" style="--chip:${chip};">${magnitudeText}</span>
-              ${magChip
-                ? html`<span class="gc-chip gc-mag" style="--chip:var(--ac-accent-utility);"
-                    >${magChip}</span
-                  >`
-                : nothing}
               ${this.live?.badge
                 ? html`<span class="gc-chip gc-badge" style="--chip:var(--ac-action);"
                     >${this.live.badge}</span
                   >`
                 : nothing}
-              ${card.clock
+              ${clockChip
                 ? html`<span class="gc-chip" style="--chip:var(--ac-accent-clock);"
-                    >${clockText(card.clock)}</span
+                    >${clockChip}</span
                   >`
                 : nothing}
             </div>

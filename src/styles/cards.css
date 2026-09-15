@@ -273,10 +273,9 @@ ac-card[flipped] .gc-flip {
   background: color-mix(in srgb, var(--chip, var(--gc-accent)) 16%, transparent);
   border: 1px solid color-mix(in srgb, var(--chip, var(--gc-accent)) 55%, transparent);
 }
-/* Live-face chips: the glass factor and the READY/SPENT/STREAK badge sit under
-   the magnitude chip (the column already stacks). Slightly smaller so three
+/* Live-face chip: the READY/SPENT/STREAK badge sits under
+   the magnitude chip (the column already stacks). Slightly smaller so two
    chips still fit a full-size card. */
-.gc-chip.gc-mag,
 .gc-chip.gc-badge {
   font-size: calc(var(--gc-w) * 0.08);
 }
