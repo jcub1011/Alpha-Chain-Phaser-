@@ -151,8 +151,9 @@ export interface ModifierCard {
    *  whatever the mode — it simply resolves to its base values in a mode it is withheld from.
    *
    *  Use it for cards whose effect is meaningless in a mode rather than merely weak: The Blindfold
-   *  masks an input box Picker does not have, and Insurance negates a timeout penalty Picker does
-   *  not have. A card that is merely mis-COSTED in a mode wants a `perMode` tune patch instead.
+   *  masks an input box Picker does not have, and Insurance refunds a Classic-style penalty walk
+   *  whose per-card drains are all zeroed in Picker. A card that is merely mis-COSTED in a mode
+   *  wants a `perMode` tune patch instead.
    *  Resolved through `dealableCardIds(mode)`. */
   modes?: readonly GameMode[];
   /** Picker: how this card shapes the Offer instead of (or as well as) scoring the word.

@@ -792,8 +792,7 @@ describe("Word Builder — free-letter draw cost", () => {
   it("skips start letters no tile can begin", () => {
     /* subWordFinder only returns words STARTING with the scanned letter, and building such a word
      * has to place a tile at offset 0 — so a letter no tile begins names a bucket that provably
-     * yields nothing. Skipping it is exact, and it is what keeps the free-letter no-show sweep
-     * (randomBuildableWord) off 26 buckets. */
+     * yields nothing. Skipping it is exact, and it is what keeps free-letter scans off 26 buckets. */
     const rack: Tile[] = [
       { id: "t0", text: "c", isChunk: false },
       { id: "t1", text: "a", isChunk: false },

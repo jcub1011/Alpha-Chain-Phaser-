@@ -191,12 +191,12 @@ describe("tuning is load-bearing — every declared knob must reach the rendered
 
 describe("Picker copy is honest about the timeout penalty", () => {
   it("advertises no timeout penalty on any card Picker actually deals", () => {
-    // Picker never calls scoreTimeout (match.ts pickerTimeoutCurrent), so every timeoutFold is
-    // unreachable there and a card promising a timeout loss is lying to the player.
+    // Picker's timeout levies only the base loss — every per-card timeoutFold is zeroed there —
+    // so a dealt card promising an extra timeout loss is lying to the player.
     //
     // Scoped to the DEALABLE pool, not the whole library: The Blindfold and Insurance both mention
     // timeouts and both are `modes: [Classic]`, so they can never reach a Picker bay — and they are
-    // withheld precisely BECAUSE Picker has no timeout penalty (picker-gdd §4.4). A card that
+    // withheld because their effects assume Classic's penalty walk (picker-gdd §4.4). A card that
     // cannot be dealt in a mode cannot mislead anyone playing it, and rewriting its Classic prose
     // to satisfy a Picker check would be the tail wagging the dog.
     const lying = dealableCardIds(GameMode.Picker)
@@ -219,7 +219,7 @@ describe("Picker copy is honest about the timeout penalty", () => {
     }
   });
 
-  it("makes the unreachable drain inert in Picker, from the same number as the prose", () => {
+  it("keeps the per-card drain inert in Picker, from the same number as the prose", () => {
     for (const id of PATCHED) {
       const card = cardLibrary(GameMode.Picker)[id];
       const ev = makeBayEvaluator("", bay(id), {

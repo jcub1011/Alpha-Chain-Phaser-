@@ -26,9 +26,7 @@ import {
   effectiveRackSize,
   generateRack,
   letterSupportsRack,
-  subWordFinder,
   type RackShaping,
-  type ScanBudget,
 } from "./builder/rack";
 import type { WordPool } from "./picker/wordPool";
 import { shuffle } from "./rng";
@@ -101,27 +99,6 @@ const BAN_TUTORIALS: readonly TutorialKind[] = ["tax", "sniper"];
  *  submission, so every player sees the final word's score replay finish before
  *  the phase changes. Covers the taxed finale (~0.92s) on top of the walk. */
 const ROUND_SETTLE_BUFFER = 1.0;
-
-/** Word Builder: how many buildable words the no-show auto-pick gathers before picking one.
- *
- *  A cap, not a budget: the pick needs ONE word, and `subWordFinder` scans a whole starting-letter
- *  bucket per call. Uncapped on a free required letter it walks every letter of the pool — a
- *  full-dictionary sweep (386k words under Sudden Death's Full tier) on the expiry tick, inside the
- *  server's Jint sandbox where there is no JIT. Matches the cap the bench getter already uses. */
-const NO_SHOW_CANDIDATE_CAP = 24;
-
-/** Pool candidates the no-show auto-pick may examine, shared across every letter it tries.
- *
- *  NO_SHOW_CANDIDATE_CAP bounds what the scan RETURNS, which is no bound at all on a rack that
- *  returns nothing: the free-letter branch walks all 26 start letters, so an unbuildable rack cost
- *  a full-pool sweep — 8,920 words on the Reduced list, 386,633 on the Full one — on the
- *  shot-clock expiry tick, inside a 250ms Jint call whose overrun kills the lobby. Measured at
- *  26,258 pool crossings in one tick before this cap.
- *
- *  Binding out returns null, which resolves the turn as the "—" no-show with the chain letter
- *  unmoved. That is the same outcome an honest exhaustive scan reaches on a rack that spells
- *  nothing, and it is an existing, tested path. */
-const NO_SHOW_SCAN_BUDGET = 2500;
 
 export interface PlayerSeed {
   id: string;
@@ -197,19 +174,12 @@ export class MatchController {
    *  Stores the WORD, not the Offer index: an index would silently commit a different word if
    *  the Offer were ever regenerated mid-turn (M3's Winnower), whereas a stale word simply fails
    *  the offer-membership check. `null` means no selection — which is what makes a clock expiry a
-   *  no-show rather than a slow pick. */
+   *  real timeout rather than a slow pick. */
   private currentSelection: string | null = null;
   /** Picker: this turn's Offer ignored the Succession letter, because the player spent their
    *  Wildcard charge on it. Lets commitSelection waive the succession check for exactly this
    *  turn without the charge having to survive until the commit. */
   private offerIgnoresSuccession = false;
-  /** Picker: a no-show elimination to apply at the top of endTurn.
-   *
-   *  Deferred rather than applied inline because Survival must see the elimination BEFORE
-   *  endTurn's active-count check (which runs inside submitWord), yet a Prism rescue means the
-   *  commit may not reach endTurn at all. A flag is cleared by the next armCurrentTurn, so the
-   *  rescue path discards it automatically instead of needing a mutate-then-revert. */
-  private pendingNoShowElimination: string | null = null;
   /** Picker: the Offer pool and a lazily-built index over it. The index memoizes immutable pool
    *  facts (letter ranges, per-letter totals), so it is built once per match and reused — Classic
    *  builds neither. */
@@ -743,7 +713,6 @@ export class MatchController {
     this.currentDraft = ""; // each turn starts with a blank draft (no stale carry-over)
     this.currentSelection = null;
     this.offerIgnoresSuccession = false;
-    this.pendingNoShowElimination = null; // a rescued turn discards its armed no-show
     this.state.rack = [];
     this.state.rackRedrawAvailable = false;
     // Per-turn room state re-arms (currently a no-op seam; A5 uses it).
@@ -878,13 +847,6 @@ export class MatchController {
   }
 
   private endTurn(fromSubmission = false): void {
-    // A Picker no-show elimination, applied before the Survival count below reads it.
-    if (this.pendingNoShowElimination) {
-      const id = this.pendingNoShowElimination;
-      this.pendingNoShowElimination = null;
-      const q = this.state.players.find((x) => x.id === id);
-      if (q) q.eliminated = true;
-    }
     // Survival: stop the match when one player remains.
     if (this.state.settings.survivalMode && this.activePlayers.length <= 1) {
       this.gameOver();
@@ -1289,122 +1251,83 @@ export class MatchController {
   }
 
   /**
-   * Word Builder: a random word THIS turn's rack can actually build, for the no-show commit.
-   *
-   * Three things this has to get right, and the bare `subWordFinder` call it replaces got none of
-   * them — it only ever ran once the Offer path was retired, which is what exposed all three:
-   *
-   *  1. `usedWords`. The candidate has to survive `submitWord`, which rejects an already-played
-   *     word — and the rejection lands on a player who merely timed out, flashing "Already used"
-   *     at them and resolving the turn as the dead "—" submission with the chain letter unmoved.
-   *     The odds of drawing a played word rise with every word in the match.
-   *  2. The WAIVED letter. On a Wildcard turn the rack is drawn free of `state.requiredLetter`
-   *     while the letter itself stands, so filtering by it hunts for a letter the rack was
-   *     deliberately built without. See `successionWaivedThisTurn`.
-   *  3. A bounded scan — `NO_SHOW_CANDIDATE_CAP`. The cap alone would bias the pick: with a free
-   *     letter `subWordFinder` walks `startLetters()` in order, so the first N hits are all "a"
-   *     words and every free-letter no-show would commit one. The letters are therefore visited in
-   *     a RANDOM order and the first that yields anything wins — the same shape as the bot's own
-   *     candidate gathering (`botCandidateTiers`, bots.ts).
-   *  4. A bounded COST — `NO_SHOW_SCAN_BUDGET`. `maxResults` bounds what the scan returns, which
-   *     is no bound at all on the case that actually hurts: a rack whose words are nearly all
-   *     played walks every letter to the end and finds nothing. subWordFinder now skips buckets no
-   *     tile can start, which is most of them, but the budget is what makes the ceiling a number
-   *     rather than a hope.
-   */
-  private randomBuildableWord(): string | null {
-    const s = this.state;
-    if (s.rack.length === 0 || !this.wordPool) return null;
-    const letters =
-      this.offerIgnoresSuccession || s.requiredLetter === ""
-        ? shuffle(this.offerIndex.startLetters(), this.rng)
-        : [s.requiredLetter];
-    // One budget threaded across every letter, so the random visit order still decides WHICH
-    // letters get looked at while the total work stays bounded. subWordFinder writes the budget
-    // back at its single exit, so the remainder carries correctly from one letter to the next.
-    const budget: ScanBudget = { remaining: NO_SHOW_SCAN_BUDGET };
-    for (const letter of letters) {
-      const candidates = subWordFinder(s.rack, this.wordPool, this.offerIndex, letter, {
-        usedWords: s.usedWords,
-        maxResults: NO_SHOW_CANDIDATE_CAP,
-        budget,
-      });
-      if (candidates.length > 0) return candidates[Math.floor(this.rng() * candidates.length)];
-      if (budget.remaining <= 0) return null;
-    }
-    return null;
-  }
-
-  /**
-   * Picker: the shot clock expired. Commit the current selection; with none selected, commit one
-   * at random so the chain continues.
+   * Picker: the shot clock expired. Auto-submit the staged word when it is a real word;
+   * otherwise levy the timeout penalty — mirroring Classic's timeoutCurrent.
    */
   private pickerTimeoutCurrent(): void {
     const s = this.state;
     const p = this.current;
 
-    // No tryClockRescue here, deliberately. Classic offers a held Prism a refill INSTEAD of the
-    // penalty; Picker has no penalty to be rescued from, and refilling a turn that always resolves
-    // would let a Prism owner stall the table. The Prism's banned-letter half still fires below,
-    // via submitWord — which is its primary mode in Picker anyway.
+    // A held Prism refills the clock INSTEAD of auto-submitting or penalising, exactly as in
+    // Classic: the card's purpose is more time to think, so the staging is kept for the extended
+    // turn rather than submitted from under the player. Consumes the once-per-era charge — a
+    // second timeout this era takes the normal path below.
+    if (this.tryClockRescue(this.current)) return;
 
     // Try what the player actually staged, exactly as Classic's timeoutCurrent tries the draft.
     // Showing up means producing a word the engine ACCEPTS — NOT merely holding a non-null
     // selection: the Word Builder streams one on every tile tap (ac-word-builder.streamStaging),
     // so a two-tile fragment that spells nothing would otherwise read as a real pick and spare a
-    // Survival player who plainly timed out. Anything short of an accepted word falls through to
-    // the no-show below.
+    // player who plainly timed out. Anything short of an accepted word falls through to the
+    // penalty below.
     const staged = this.currentSelection;
     if (staged) {
       const res = this.submitWord(p.id, staged);
       if (res.accepted) return; // a real commit, not a timeout — submitWord already ran endTurn
       // The commit tripped the Prism on a banned letter: word rejected, clock refilled, turn
-      // continues — "you picked the poisoned one, here is your Offer back". endTurn was never
-      // reached, so the armed no-show is discarded by the next armCurrentTurn.
+      // continues — "you picked the poisoned one, here is your rack back". endTurn was never
+      // reached, so the turn simply continues on the refilled clock.
       if (res.reason === "prism-saved") return;
       // Rejected (a fragment, a used word, a Succession break) — an ordinary path, not an error.
-      // The turn resolves as a no-show below, exactly as if nothing had been staged at all.
+      // The turn resolves as a real timeout below, exactly as if nothing had been staged at all.
     }
 
-    // Past here the player produced nothing committable: this IS a no-show. Armed BEFORE the
-    // random pick, which routes through submitWord → endTurn and applies the deferred flag there.
-    if (s.settings.survivalMode) this.pendingNoShowElimination = p.id;
+    // Past here the player produced nothing committable: a real timeout, scored like Classic's —
+    // the flat base loss plus each glass-cannon card's drain. Only a staged word the engine
+    // accepts is ever auto-submitted; an invalid or blank staging never commits a word.
+    const breakdown = scoreTimeout(p.bay, {
+      mode: this.effectiveMode,
+      prevWordLength: this.prevWordLength,
+      clockRemaining: s.clockRemaining,
+      clockTotal: s.clockTotal,
+      taxed: false,
+      baseClockSeconds: this.baseClockSeconds,
+      era: s.era,
+      slots: p.slots,
+      history: s.history,
+      services: this.services,
+      effects: this.effects,
+      player: p,
+      players: s.players,
+      clock: this.clockController,
+    });
+    p.score += breakdown.finalScore;
+    const penalty = -breakdown.finalScore;
+    // A timeout is not a clean submission: it breaks the Crescendo run, same as a tax.
+    this.services.crescendoStreak.reset(p.id);
 
-    // Commit something on their behalf so the chain continues rather than dying on a blank turn.
-    // RACK FIRST, mirroring the bot's own precedence in LocalController: the word has to be one the
-    // player could actually have built from the tiles in front of them. Committing from the Offer
-    // instead would credit them a word they never saw and could not have reached, and the tutorial
-    // promises "a word is built for you".
-    const chosen = this.randomBuildableWord();
-
-    if (chosen !== null) {
-      const res = this.submitWord(p.id, chosen);
-      if (res.reason === "prism-saved") return;
-      if (res.accepted) return; // submitWord already ran endTurn
-      // Should be unreachable: `randomBuildableWord` satisfies Succession, uniqueness and the
-      // dictionary by construction, and a TAXED word is still accepted (scoring 0), not rejected.
-      log.error(`picker: commit unexpectedly rejected (${res.reason ?? "no reason"})`);
-    }
-
-    // Nothing committable — a rack that builds nothing, or the unreachable rejection above.
-    // Resolve the turn anyway so it cannot hang. Score and penalty are both 0; the required
-    // letter is unchanged.
+    // A synthetic "timed-out" submission drives the same theater + leaderboard
+    // reveal as a scored word. It is NOT pushed to history (no real word, so it
+    // never feeds Scavenger / the word feed / the used-word set).
     const submission: Submission = {
       playerId: p.id,
       displayName: p.name,
       accentIndex: p.accentIndex,
       era: s.era,
-      word: "—",
-      score: 0,
+      word: staged || "—",
+      score: breakdown.finalScore,
       taxed: false,
       taxBounty: 0,
-      // An empty breakdown, built directly rather than through scoreTimeout — which is never
-      // called on this path, since calling it is exactly what would apply a penalty.
-      breakdown: { word: "—", seed: 0, steps: [], finalBeforeTax: 0, taxed: false, finalScore: 0 },
+      breakdown,
       timedOut: true,
     };
-    this.events.emit("timeout", { playerId: p.id, penalty: 0 });
+
+    if (s.settings.survivalMode) p.eliminated = true;
+    // Required letter is unchanged: the next player still faces it.
+    this.events.emit("timeout", { playerId: p.id, penalty });
     this.events.emit("submission", { submission, bounties: [] });
+    // There is now a replay to watch (the penalty walk), so settle like a real
+    // submission — an era-ending timeout waits it out before transitioning.
     this.endTurn(true);
   }
 

@@ -238,8 +238,8 @@ export function chooseBotWordFromRack(
   // Standing down beats knowingly repeating a word. Falling back to the used set here made the bot
   // commit a word submitWord rejects as already-used, which spends its one action, runs the clock
   // out into a dead turn, and in Survival eliminates it — all with a rejection flash on the way
-  // past. Returning null reaches the same resolved turn quietly, and matches what the engine's own
-  // no-show auto-pick already does.
+  // past. Returning null reaches the same resolved turn quietly, through the engine's own timeout
+  // penalty path.
   if (candidates.length === 0) return null;
 
   // Easy bot: picks shorter or random valid sub-word
