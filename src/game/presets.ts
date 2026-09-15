@@ -86,6 +86,7 @@ export const SETTINGS_PRESETS: readonly { id: PresetId; overrides: PresetOverrid
   {
     id: PresetId.QuickMatch,
     overrides: {
+      gameMode: GameMode.Picker,
       eraCount: 2,
       eraInterval: 3,
       pickerShotClockSeconds: 20,
@@ -104,6 +105,7 @@ export const SETTINGS_PRESETS: readonly { id: PresetId; overrides: PresetOverrid
   {
     id: PresetId.Marathon,
     overrides: {
+      gameMode: GameMode.Picker,
       eraCount: 8,
       eraInterval: 4,
       dealEngineCardsFirstEra: true,
@@ -118,6 +120,7 @@ export const SETTINGS_PRESETS: readonly { id: PresetId; overrides: PresetOverrid
   {
     id: PresetId.CardStorm,
     overrides: {
+      gameMode: GameMode.Picker,
       modifiersDealtPerEra: 5,
       dealEngineCardsFirstEra: true,
       modifierSlotsStart: 5,
@@ -137,6 +140,7 @@ export const SETTINGS_PRESETS: readonly { id: PresetId; overrides: PresetOverrid
   {
     id: PresetId.SuddenDeath,
     overrides: {
+      gameMode: GameMode.Picker,
       survivalMode: true,
       pickerShotClockSeconds: 15,
       shotClockSeconds: 12,
@@ -167,12 +171,9 @@ export function presetSettings(id: PresetId): Pick<AlphaChainSettings, PresetKey
  *  construction: `presetSettings` has no key to overwrite them with. */
 export function applyPreset(current: AlphaChainSettings, id: PresetId): AlphaChainSettings {
   const next = { ...current, ...presetSettings(id) };
-  // The game mode is STICKY unless the preset names it. `presetSettings` fills every preset key
-  // from the defaults, and the default mode is Word Builder — so picking Sudden Death from a Classic
-  // lobby used to switch the player's whole surface as a side effect of asking for a shorter clock
-  // and a thinner rack. Every preset but Old-School sets BOTH modes' shot clocks, which is the tell
-  // that they were written to describe match rules rather than to choose a surface; Old-School is
-  // the one preset that IS a mode, and it says so.
+  // The game mode is STICKY unless the preset names it. Presets explicitly declare their gameMode
+  // (Old-School uses Classic; all other presets use Word Builder / Tile mode). If a preset does not
+  // specify a game mode, it inherits whatever mode is currently set.
   if (!namesGameMode(id)) next.gameMode = current.gameMode;
   return next;
 }
