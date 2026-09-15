@@ -19,6 +19,7 @@ import {
   type GameMode,
   type GamePhase,
   type MatchState,
+  type PlayerLiveState,
   type PlayerState,
 } from "../game/types";
 import type { MatchLike } from "./controller";
@@ -183,6 +184,18 @@ export class NetMatch implements MatchLike {
     // The authority stamps personalBans onto each player at era arm, so the mirrored
     // snapshot carries them; read straight from the synced state.
     return this._state.players.find((p) => p.id === playerId)?.personalBans ?? [];
+  }
+  liveStateFor(playerId: string): PlayerLiveState {
+    // Same pattern: the host stamps liveState after every guard/streak mutation.
+    // Absent on older snapshots — fall back to a fresh era (static faces, no crash).
+    return (
+      this._state.players.find((p) => p.id === playerId)?.liveState ?? {
+        streak: 0,
+        wildcardAvailable: true,
+        prismAvailable: true,
+        winnowerAvailable: true,
+      }
+    );
   }
   /**
    * The mode this mirror renders card values for.

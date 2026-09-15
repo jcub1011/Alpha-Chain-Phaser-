@@ -10,7 +10,13 @@
 
 import type { Emitter } from "../game/emitter";
 import type { MatchController, MatchEvents } from "../game/match";
-import type { GameMode, MatchState, PlayerState, SubmitResult } from "../game/types";
+import type {
+  GameMode,
+  MatchState,
+  PlayerLiveState,
+  PlayerState,
+  SubmitResult,
+} from "../game/types";
 
 /** The subset of MatchController the presentation layer reads + mutates. The
  *  real MatchController satisfies this structurally; the guest mirror implements
@@ -25,6 +31,9 @@ export interface MatchLike {
   /** Personal banned letters in force for a player this era (Toll Booth / Roulette
    *  Wheel), each tagged with the card that rolled it. */
   personalBansFor(playerId: string): { letter: string; cardName: string }[];
+  /** Live engine state for a player's bay faces (Crescendo streak + guard
+   *  charges). Host-authoritative; guests read the host-stamped snapshot fields. */
+  liveStateFor(playerId: string): PlayerLiveState;
   /** The mode whose CARD VALUES this match uses. The single mode accessor for the presentation
    *  layer — never read `state.settings.gameMode` to resolve a card, because a Picker match that
    *  fell back for want of a word pool scores on Classic's values. */

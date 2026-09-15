@@ -16,6 +16,7 @@ import { html, nothing, type TemplateResult } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import { getCard } from "../../game/cards/library";
 import type { ClockModifier } from "../../game/cards/card";
+import type { LiveCardText } from "../../game/cards/liveText";
 import { CardOp, type GameMode } from "../../game/types";
 import { familyAccentVar, rarityAccentVar } from "../app/util";
 import { AcElement } from "../app/AcElement";
@@ -55,6 +56,10 @@ export class AcCard extends AcElement {
   /** Visual states used by the score replay. */
   @property({ type: Boolean, reflect: true }) dimmed = false;
   @property({ type: Boolean, reflect: true }) triggered = false;
+  /** Live face copy (chip + description + badge), resolved for this card's bay
+   *  slot via `describeCardLive`. Absent = static catalogue copy (sandbox
+   *  palette, legacy history entries). */
+  @property({ attribute: false }) live?: LiveCardText;
 
   private onFlip = (): void => {
     // Mini cards don't flip; tapping toggles the description tooltip (and fan chip)
@@ -121,9 +126,16 @@ export class AcCard extends AcElement {
     const cardColor = card.color ?? accent;
     const chip = chipVar(card.op);
     const rarity = card.rarity;
+    const magnitudeText = this.live?.magnitudeText ?? card.magnitudeText;
+    const description = this.live?.description ?? card.description;
+    // Glass factor chip, e.g. "×2.25" — rounded like the fold's display values.
+    const magChip =
+      this.live?.magnified && this.live.magFactor
+        ? `×${Math.round(this.live.magFactor * 100) / 100}`
+        : null;
     return html`
       <div
-        class="gc-flip"
+        class="gc-flip ${this.live?.spent ? "is-spent" : ""}"
         data-rarity=${rarity}
         style="--gc-accent:${accent}; --gc-card-color:${cardColor}; --gc-rarity:${rarityAccentVar(
           rarity,
@@ -159,7 +171,17 @@ export class AcCard extends AcElement {
               </svg>
             </span>
             <div class="gc-chips">
-              <span class="gc-chip" style="--chip:${chip};">${card.magnitudeText}</span>
+              <span class="gc-chip" style="--chip:${chip};">${magnitudeText}</span>
+              ${magChip
+                ? html`<span class="gc-chip gc-mag" style="--chip:var(--ac-accent-utility);"
+                    >${magChip}</span
+                  >`
+                : nothing}
+              ${this.live?.badge
+                ? html`<span class="gc-chip gc-badge" style="--chip:var(--ac-action);"
+                    >${this.live.badge}</span
+                  >`
+                : nothing}
               ${card.clock
                 ? html`<span class="gc-chip" style="--chip:var(--ac-accent-clock);"
                     >${clockText(card.clock)}</span
@@ -168,7 +190,7 @@ export class AcCard extends AcElement {
             </div>
           </div>
           <div class="gc-name">${card.name}</div>
-          <p class="gc-front-desc">${card.description}</p>
+          <p class="gc-front-desc">${description}</p>
           ${this.mini
             ? nothing
             : html`<span class="gc-flip-icon" aria-hidden="true">
@@ -189,7 +211,7 @@ export class AcCard extends AcElement {
         </div>
         <div class="gc gc-back">
           <span class="gc-rarity-label">${rarity}</span>
-          <p class="gc-desc">${card.description}</p>
+          <p class="gc-desc">${description}</p>
         </div>
       </div>
     `;

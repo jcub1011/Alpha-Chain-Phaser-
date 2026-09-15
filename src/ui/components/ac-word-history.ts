@@ -11,8 +11,10 @@
 import { html, nothing, type TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type { Submission } from "../../game/types";
+import { describeCardLive } from "../../game/cards/liveText";
 import { fmtScore, playerAccentVar } from "../app/util";
 import { AcElement } from "../app/AcElement";
+import { cardDisplayMode } from "../app/cardMode";
 import type { FanCard } from "./ac-card-fan";
 import "./ac-card-fan";
 
@@ -47,17 +49,40 @@ export class AcWordHistory extends AcElement {
 
   private renderRow(s: Submission): TemplateResult {
     const b = s.breakdown;
-    // The engine cards as an overlapping fan. The per-card delta + running score is
-    // shown always-on in the .go-wh-deltas row below (so it's readable on touch),
-    // and additionally as a hover chip aligned to each card (progressive enhancement).
-    const fanCards: FanCard[] = b.steps.map((step) => ({
-      id: step.cardId,
-      dimmed: !step.triggered,
-      hover: html`
-        <span class="go-wh-delta">${step.triggered ? step.valueText : "—"}</span>
-        <span class="go-wh-run">${fmtScore(step.runningScore)}</span>
-      `,
-    }));
+    // The engine cards as an overlapping fan. With a snapshot the strip shows
+    // the frozen score-time order + faces (exact fired chips); otherwise it
+    // falls back to the step order with static faces (legacy entries).
+    const eng = s.engine && s.engine.bay.length === b.steps.length ? s.engine : undefined;
+    const mode = cardDisplayMode();
+    const bayIds = eng ? eng.bay.map((slot) => slot.id) : b.steps.map((step) => step.cardId);
+    const fanCards: FanCard[] = bayIds.map((id, i) => {
+      const step = b.steps[i];
+      return {
+        id,
+        dimmed: !step?.triggered,
+        live: eng
+          ? describeCardLive(id, mode, {
+              mode,
+              bayIds,
+              index: i,
+              magnification: eng.bay[i]!.magnification,
+              slots: eng.slots,
+              streak: eng.streak,
+              wildcardAvailable: eng.wildcardAvailable,
+              wildcardUsed: eng.wildcardUsed,
+              prismAvailable: eng.prismAvailable,
+              winnowerAvailable: eng.winnowerAvailable,
+              personalBan: eng.bay[i]!.ban,
+              previewValueText: step?.valueText,
+              previewTriggered: step?.triggered,
+            })
+          : undefined,
+        hover: html`
+          <span class="go-wh-delta">${step?.triggered ? step.valueText : "—"}</span>
+          <span class="go-wh-run">${fmtScore(step?.runningScore ?? 0)}</span>
+        `,
+      };
+    });
     return html`
       <div class="go-wh-row" style="--accent:${playerAccentVar(s.accentIndex)};">
         <div class="go-wh-main">

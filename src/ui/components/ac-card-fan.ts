@@ -16,6 +16,7 @@
 import { html, nothing, type TemplateResult } from "lit";
 import { customElement, property, query, state } from "lit/decorators.js";
 import type { BayCard } from "../../game/types";
+import type { LiveCardText } from "../../game/cards/liveText";
 import { AcElement } from "../app/AcElement";
 import { fanStep } from "./card-fan";
 import "./ac-card";
@@ -27,6 +28,8 @@ export interface FanCard extends BayCard {
    *  word, which is the main way a player learns what their engine wants. Distinct from the score
    *  replay's transient `triggered`, which walks one card at a time after the fact. */
   triggered?: boolean;
+  /** Live face copy for this slot (see `describeCardLive`). Absent = static faces. */
+  live?: LiveCardText;
   /** Content revealed in a chip above the card while it's hovered/lifted. */
   hover?: TemplateResult;
 }
@@ -82,6 +85,7 @@ export class AcCardFan extends AcElement {
             <ac-card
               role="listitem"
               .cardId=${c.id}
+              .live=${c.live}
               ?mini=${this.mini}
               ?dimmed=${c.dimmed ?? false}
               ?triggered=${c.triggered ?? false}

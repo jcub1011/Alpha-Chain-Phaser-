@@ -21,6 +21,9 @@ import { html, nothing, type TemplateResult } from "lit";
 import { customElement, property, query, state } from "lit/decorators.js";
 import type { GameController } from "../../net/controller";
 import type { BayCard, EngineEffectNotice, Submission } from "../../game/types";
+import { describeCardLive, type LiveCardText } from "../../game/cards/liveText";
+import { buildMagnifier } from "../../game/cards/magnifier";
+import { getCard } from "../../game/cards/library";
 import { fmtScore, playerAccentVar } from "../app/util";
 import { prefersReducedMotion } from "../../theme";
 import { fx } from "../fx/fx";
@@ -41,6 +44,9 @@ export class AcScoreReplay extends AcElement {
   @state() private accent = "";
   @state() private word = "";
   @state() private cards: BayCard[] = [];
+  /** Frozen live faces per card, index-aligned with `cards` (from the
+   *  submission's engine snapshot; empty while idle or for legacy entries). */
+  @state() private live: (LiveCardText | undefined)[] = [];
   /** Index of the card currently firing (gets the lift + glow), or -1. */
   @state() private current = -1;
   /** Highest card index the walk has reached; cards ≤ this that didn't activate
@@ -106,6 +112,12 @@ export class AcScoreReplay extends AcElement {
       (p) => p.id === this.controller.humanId,
     );
     this.cards = human ? [...human.bay] : [];
+    this.live = human
+      ? this.liveFacesFor(
+          human.id,
+          human.bay.map((b) => b.id),
+        )
+      : [];
     this.activated = [];
     this.effects = [];
     this.taxChip = "";
@@ -150,16 +162,78 @@ export class AcScoreReplay extends AcElement {
     });
   }
 
+  /** Resting live faces for a player's CURRENT bay (idle theater). */
+  private liveFacesFor(playerId: string, bayIds: string[]): (LiveCardText | undefined)[] {
+    const m = this.controller.match;
+    const mode = m.effectiveMode;
+    const reg = buildMagnifier(bayIds.map((id) => getCard(id, mode)));
+    const live = m.liveStateFor(playerId);
+    const me = m.state.players.find((p) => p.id === playerId);
+    const banByCard = new Map(
+      m.personalBansFor(playerId).map((b) => [b.cardName, b.letter] as const),
+    );
+    return bayIds.map((id, i) =>
+      describeCardLive(id, mode, {
+        mode,
+        bayIds,
+        index: i,
+        magnification: reg.getMagnification(i),
+        slots: me?.slots ?? bayIds.length,
+        streak: live.streak,
+        wildcardAvailable: live.wildcardAvailable,
+        prismAvailable: live.prismAvailable,
+        winnowerAvailable: live.winnowerAvailable,
+        personalBan: banByCard.get(getCard(id, mode)?.name ?? ""),
+      }),
+    );
+  }
+
+  /** Frozen faces for a scored submission: the snapshot's order, magnification
+   *  and streak/guard states, with each card's chip showing the exact fired
+   *  step outcome. Undefined when the entry predates snapshots (legacy). */
+  private frozenFacesFor(sub: Submission): (LiveCardText | undefined)[] | undefined {
+    const eng = sub.engine;
+    if (!eng || eng.bay.length !== sub.breakdown.steps.length) return undefined;
+    const mode = this.controller.match.effectiveMode;
+    const bayIds = eng.bay.map((slot) => slot.id);
+    const steps = sub.breakdown.steps;
+    return eng.bay.map((slot, i) =>
+      describeCardLive(slot.id, mode, {
+        mode,
+        bayIds,
+        index: i,
+        magnification: slot.magnification,
+        slots: eng.slots,
+        streak: eng.streak,
+        wildcardAvailable: eng.wildcardAvailable,
+        wildcardUsed: eng.wildcardUsed,
+        prismAvailable: eng.prismAvailable,
+        winnowerAvailable: eng.winnowerAvailable,
+        personalBan: slot.ban,
+        previewValueText: steps[i]?.valueText,
+        previewTriggered: steps[i]?.triggered,
+      }),
+    );
+  }
+
   private async run(sub: Submission, isHuman: boolean): Promise<void> {
     this.abort?.abort();
     const ac = new AbortController();
     this.abort = ac;
     const signal = ac.signal;
 
-    // Render a copy of the submitter's engine (their current bay matches the
-    // breakdown's step order — both flow from the same player state).
-    const player = this.controller.match.state.players.find((p) => p.id === sub.playerId);
-    this.cards = player ? [...player.bay] : [];
+    // Render the submitter's engine frozen at score time when the submission
+    // carries a snapshot (immune to later reorders/deals); otherwise fall back
+    // to their current bay, which matches the step order for a just-scored word.
+    const frozen = this.frozenFacesFor(sub);
+    if (frozen && sub.engine) {
+      this.cards = sub.engine.bay.map((slot) => ({ id: slot.id }));
+      this.live = frozen;
+    } else {
+      const player = this.controller.match.state.players.find((p) => p.id === sub.playerId);
+      this.cards = player ? [...player.bay] : [];
+      this.live = [];
+    }
     this.activated = sub.breakdown.steps.map((s) => s.triggered);
     this.effects = [];
     this.current = -1;
@@ -325,6 +399,7 @@ export class AcScoreReplay extends AcElement {
                         return html`<ac-card
                           mini
                           .cardId=${c.id}
+                          .live=${this.live[j]}
                           ?triggered=${isCurrent && fired}
                           ?dimmed=${j <= this.revealed && !fired}
                           style="left:${Math.round(j * step)}px; --z:${isCurrent ? 500 : n - j};"
