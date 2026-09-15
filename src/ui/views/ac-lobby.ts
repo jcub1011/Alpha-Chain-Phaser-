@@ -189,13 +189,7 @@ export class AcLobby extends AcElement {
              asks you to assemble a word from what you are dealt, Classic asks you to think of
              one. The succession rule and the joke are common to both. -->
         <p class="lobby-rules">
-          ${d.gameMode === GameMode.Picker
-            ? html`Every word must start with the last letter of the previous word — but you build
-              yours from a rack of tiles, so it's your engine doing the work, not your spelling. It
-              sounds simple but don't worry, I've massively overcomplicated it.`
-            : html`Every word must start with the last letter of the previous word, and you type it
-              yourself against the clock. It sounds simple but don't worry, I've massively
-              overcomplicated it.`}
+          Every word must start with the last letter of the previous word. It sounds simple but don't worry, I've massively overcomplicated it.
         </p>
       </div>
     `;

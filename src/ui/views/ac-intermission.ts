@@ -683,18 +683,16 @@ export class AcIntermission extends AcElement {
       <div class="im-card ac-panel ${locked ? "is-locked" : ""}">
         <header class="im-head">
           <span class="ac-eyebrow">intermission · optimize</span>
-          <h2 class="im-title">Tune your engine</h2>
+          <h2 class="im-title">Tune Your Engine</h2>
           <p class="im-sub">
             Cards score left → right. Drag within the engine to reorder (long-press first on touch),
-            or use ◄ ►. New cards start in the discard bin — drag one into the engine to slot it in
-            (the rest slide over), or press ＋. Anything left in the bin is discarded when the timer
-            ends.
+            or use ◄ ►. Anything left in the bin is discarded when the timer ends.
           </p>
           <span class="im-timer">${this.seconds}s</span>
         </header>
 
         ${locked
-          ? html`<p class="im-locked-note">${this.renderLockIcon()}<span>Engine locked — tap UNLOCK to edit.</span></p>`
+          ? html`<p class="im-locked-note">${this.renderLockIcon()}<span>Engine locked. Press UNLOCK to edit.</span></p>`
           : nothing}
 
         <div class="im-zone im-engine" data-zone="engine">
@@ -709,11 +707,11 @@ export class AcIntermission extends AcElement {
         </div>
 
         <div class="im-zone im-bin" data-zone="discard">
-          <span class="im-zone-label">Discard bin · removed when the timer ends</span>
+          <span class="im-zone-label">Discard Bin</span>
           <div class="im-zone-cards">
             ${this.discard.map((id) => this.renderDiscardSlot(id, locked))}
             ${this.discard.length === 0
-              ? html`<p class="im-empty">Empty — drag a card here or press ✕ to discard it.</p>`
+              ? html`<p class="im-empty">Drag a card here or press X to discard it.</p>`
               : nothing}
           </div>
         </div>
@@ -739,7 +737,7 @@ export class AcIntermission extends AcElement {
       <div class="im-card ac-panel im-spectate">
         <header class="im-head">
           <span class="ac-eyebrow">intermission · optimize</span>
-          <h2 class="im-title">Players are tuning their engines</h2>
+          <h2 class="im-title">Players Are Tuning Their Engines</h2>
           <p class="im-ready-count" aria-live="polite">${lockedCount}/${humans.length} players ready</p>
           <span class="im-timer">${this.seconds}s</span>
         </header>
@@ -778,10 +776,10 @@ export class AcIntermission extends AcElement {
       <div class="im-card ac-panel">
         <header class="im-head">
           <span class="ac-eyebrow">intermission · sniper ban</span>
-          <h2 class="im-title">You're last — strike back</h2>
+          <h2 class="im-title">Select A Letter To Ban</h2>
           <p class="im-sub">
             ${accumulating
-              ? "Choose a letter. It joins every past ban — words containing any of them score zero next era."
+              ? "Choose a letter. Stacks with previous letter bans. Words containing any of the banned letters score zero next era."
               : "Choose a letter. Words containing it score zero next era."}
           </p>
           ${bannedSoFar.length
@@ -802,12 +800,12 @@ export class AcIntermission extends AcElement {
               class="ban-key ${isPrev ? "is-prev" : ""} ${isPrevAllowed ? "is-prev-allowed" : ""}"
               ?disabled=${disabled}
               title=${isPrevAllowed
-                ? "Banned last era — allowed again"
+                ? "Banned last era, allowed again"
                 : isPrev
                   ? "Banned last era"
                   : disabled
                     ? accumulating
-                      ? "Already banned — still in force"
+                      ? "Already banned, still in force"
                       : "Not allowed by the ban-repeat rule"
                     : ""}
               @click=${() => this.pickBan(l)}

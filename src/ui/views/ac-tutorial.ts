@@ -26,7 +26,7 @@ interface Script {
 const SCRIPTS: Record<TutorialKind, Script> = {
   shiritori: {
     eyebrow: "how to play · the chain",
-    title: "Chain the letters",
+    title: "How The Chain Works",
     lines: [
       "Each word must begin with the last letter of the word before it.",
       "Words can't be repeated.",
@@ -34,52 +34,53 @@ const SCRIPTS: Record<TutorialKind, Script> = {
   },
   timeout: {
     eyebrow: "how to play · the shot clock",
-    title: "Beat the clock",
+    title: "How The Shot Clock Works",
     lines: [
-      "Submit before the shot clock hits zero.",
-      "Time out and you lose points — and in Survival mode, your spot.",
+      "On timeout, whatever you have typed is auto-submitted.",
+      "If it is not a valid word, you lose points.",
     ],
   },
   // ── Word Builder's pre-game pair. Classic's two above are left exactly as they were. ──
   offer: {
     eyebrow: "how to play · word builder",
-    title: "Build your word",
+    title: "How The Tile Rack Works",
     lines: [
-      "Assemble words from your tile rack by tapping tiles or typing on your keyboard.",
+      "Create words from your tile rack by tapping tiles or typing on your keyboard.",
       "Brass tiles start with the required chain letter. Cool-tinted tiles are multi-letter chunks.",
-      "Assembling a word shows which engine cards will fire — submit to lock in your score.",
+      "Assembling a word shows which engine cards will trigger.",
     ],
   },
   pickerTimeout: {
     eyebrow: "how to play · the shot clock",
-    title: "Beat the clock",
+    title: "How The Shot Clock Works",
     lines: [
-      "When the shot clock expires, any valid word you've assembled is submitted automatically.",
-      "Time out with nothing valid staged and you lose points — and in Survival mode, your spot.",
+      "When the shot clock expires, any valid word you've staged is submitted automatically.",
+      "If it is not a valid word, you lose points.",
     ],
   },
   engine: {
     eyebrow: "how to play · your engine",
-    title: "Your engine scores left → right",
+    title: "How Engine Cards Work",
     lines: [
       "Engine cards are evaluated from left to right.",
-      "Keep adds to the left and multipliers to the right for bigger scores.",
+      "Keep additive cards to the left and multipliers to the right.",
     ],
   },
   cards: {
     eyebrow: "how to play · building your engine",
-    title: "Draft & arrange cards",
+    title: "How To Build Your Engine",
     lines: [
       "Each intermission you're dealt new cards.",
-      "Drag them into your engine and order them — slots are limited.",
+      "Drag them into your engine and order them.",
     ],
   },
   tax: {
     eyebrow: "how to play · the ban",
-    title: "Mind the banned letter",
+    title: "How Banned Letters Work",
     lines: [
       "Each era, the last-place player bans one letter.",
-      "Any word containing it scores nothing that era — except last place, who's exempt.",
+      "Any word containing it scores nothing that era.",
+      "If you're in last place, you're exempt from the ban.",
     ],
   },
   sniper: {
@@ -87,7 +88,7 @@ const SCRIPTS: Record<TutorialKind, Script> = {
     title: "Last place strikes back",
     lines: [
       "If you're in last place, you choose the letter to ban next era.",
-      "Pick what your rivals lean on — you'll see what scored well.",
+      "If you're in last place, you're exempt from the ban.",
     ],
   },
 };

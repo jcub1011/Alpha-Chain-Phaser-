@@ -106,7 +106,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     family: CardFamily.Letter,
     op: CardOp.Additive,
     magnitudeText: "+10",
-    description: "+10 to your submission",
+    description: "+10 to your word",
     fold: (v, c) => add(v, 10 * c.magnification()),
   },
 
@@ -401,7 +401,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     op: CardOp.Fx,
     magnitudeText: "FX",
     description:
-      "+30% shot clock. Words shorter than 6 letters are illegal and take the Zero-Point Tax.",
+      "+30% shot clock. Words shorter than 6 letters are taxed.",
     clock: { pctDelta: 0.3 },
     fold: (v) => fx(v),
     illegalWord: (c) => c.resolveWordLength() < 6,
@@ -505,7 +505,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     family: CardFamily.Utility,
     op: CardOp.Fx,
     magnitudeText: "FX",
-    description: "Magnifies the card to its right by ×1.5. Glasses in series compound.",
+    description: "Magnifies the card to its right by ×1.5. Stackable.",
     fold: (v) => fx(v),
     submitMagnifications: (reg, i) => reg.push(i + 1, 1.5 * reg.getMagnification(i)),
   },
@@ -518,7 +518,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     op: CardOp.Fx,
     magnitudeText: "FX",
     description:
-      "Once per era, one word may ignore the Succession rule — it need not begin with the previous word's last letter.",
+      "Once per era, you may ignore the starting letter.",
     fold: (v) => fx(v),
     roomServices: ["wildcardGuard"],
     // Available until consumed this era; the match consumes it only on an accepted bypass.
@@ -534,7 +534,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     op: CardOp.Fx,
     magnitudeText: "FX",
     description:
-      "Once per era, when your shot clock runs out your clock resets to full instead of ending your turn.",
+      "Once per era, when your shot clock runs out your clock resets instead of ending your turn.",
     fold: (v) => fx(v),
     roomServices: ["prismGuard"],
     rescueClock: (c) => {
@@ -553,7 +553,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     family: CardFamily.Economy,
     op: CardOp.Fx,
     magnitudeText: "FX",
-    description: "When your word is taxed, no opponent's Tax Collector collects from you.",
+    description: "When your word is taxed, no Tax Collector collects from you.",
     fold: (v) => fx(v),
     ownTaxScore: () => 0,
     suppressesSiphon: true,
@@ -582,7 +582,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     op: CardOp.Multiplicative,
     magnitudeText: "×2",
     description:
-      "Each era, rolls you a personal banned letter (Zero-Point Tax if you use it). ×2 on every clean word.",
+      "Each era, you get a new personal banned letter. ×2 on every word.",
     fold: (v, c) => mul(v, 2 * c.magnification()),
     roomServices: ["cardBan"],
     onEraStart: (c) => {
@@ -685,7 +685,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     op: CardOp.Fx,
     magnitudeText: "FX",
     description:
-      "When your word is taxed, curse the next player with that banned letter for their next turn.",
+      "When your word is taxed, the next player must use that banned letter for their turn.",
     fold: (v) => fx(v),
     roomServices: ["hijackBan"],
     onTurnEnded: (c) => {
@@ -736,7 +736,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     op: CardOp.Fx,
     magnitudeText: "FX",
     description:
-      "Bank 15% of any opponent's word scoring more than 30 points, but only if they're ahead of you on the leaderboard.",
+      "Bank 15% of any opponent's word worth more than 30 points. Only applies if they are ahead of you on the leaderboard.",
     fold: (v) => fx(v),
     onOpponentWordResolved: (c) => {
       const res = c.resolution;
@@ -819,7 +819,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     family: CardFamily.Utility,
     op: CardOp.Fx,
     magnitudeText: "FX",
-    description: "Scores nothing on a normal word. If you time out, you lose no points.",
+    description: "If you time out, you lose no points.",
     fold: (v) => fx(v),
     // Negate the timeout loss: bring the running penalty back up to 0 (the refund is
     // shown in the replay). negatesTimeoutLoss also floors the net at 0 so glass-cannon
@@ -870,7 +870,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     op: CardOp.Multiplicative,
     magnitudeText: "×1+0.25 /clean",
     description:
-      "×(1 + 0.25 per clean word you've played this era), capped at ×2. Being taxed or timing out resets it.",
+      "×(1 + 0.25 per word you've played this era), capped at ×2. Being taxed or timing out resets it.",
     roomServices: ["crescendoStreak"],
     fold: (v, c) => {
       const streak = c.player && c.services ? c.services.crescendoStreak.get(c.player.id) : 0;
@@ -927,7 +927,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     // min(minSeedLength, rackSize) because an 8-letter seed cannot be decomposed into a smaller
     // rack — so with Tunnel Vision, or a lobby rack under 8, the seed is the whole rack instead.
     description:
-      "Your Tile Rack is seeded from a word of 8+ letters — or your whole rack, when that is shorter. Scores nothing itself.",
+      "Seeds your Tile Rack from a word of 8+ letters.",
     fold: (v) => fx(v),
     // The cost: you can never duck a Banned Letter with a short safe word.
     preference: {
@@ -967,7 +967,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     family: CardFamily.Clock,
     op: CardOp.Fx,
     magnitudeText: "+2 / −15%",
-    description: "+2 Rack tiles, and −15% shot clock. More to build with, less time to build.",
+    description: "+2 Rack tiles, and −15% shot clock.",
     fold: (v) => fx(v),
     // A genuine ClockModifier, which is why armedClockSeconds keeps the FULL bay even though this
     // card is hidden from bay-size SCORING.
@@ -984,7 +984,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     family: CardFamily.Utility,
     op: CardOp.Multiplicative,
     magnitudeText: "×1.4",
-    description: "×1.4 always, but you have 2 fewer Rack tiles. Raw multiplier, less to build with.",
+    description: "×1.4 always, but you have 2 fewer Rack tiles.",
     fold: (v, c) => mul(v, 1.4 * c.magnification()),
     // The one Preference Card that really scores, so it is placed and counted like any other
     // multiplier rather than bubbling left — see isInertPreference for why that must be so.
@@ -999,7 +999,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     family: CardFamily.Letter,
     op: CardOp.Fx,
     magnitudeText: "1 rare",
-    description: "Guaranteed at least one rare letter (Q, X, Z, J) on your Tile Rack. Scores nothing itself.",
+    description: "Guarantees at least one rare letter (Q, X, Z, J) in your Tile Rack.",
     fold: (v) => fx(v),
     // The cost: one of your Offer slots is permanently spent on a word you may not want.
     preference: {
@@ -1016,7 +1016,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     family: CardFamily.Letter,
     op: CardOp.Fx,
     magnitudeText: "vowels",
-    description: "Your Tile Rack is guaranteed vowel-heavy (>=50% vowels). Scores nothing itself.",
+    description: "Your Tile Rack is made vowel-heavy (>=50% vowels).",
     fold: (v) => fx(v),
     // A SOFT bias, abandoned when the pool cannot serve it, so it never starves the Offer. The
     // cost is concentration: a narrower draw means more repeats and a thinner ending-letter graph.
@@ -1039,7 +1039,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     op: CardOp.Fx,
     magnitudeText: "1 safe",
     description:
-      "Your Tile Rack is guaranteed free of every letter banned against you. Scores nothing itself.",
+      "Ensures your Tile Rack doesn't contain banned letters.",
     fold: (v) => fx(v),
     // Insurance against the Zero-Point Tax, paid for in slots — and it spends a bay slot on
     // safety rather than on ceiling. With no bans in force it guarantees nothing and costs nothing.
