@@ -45,7 +45,9 @@ import {
   type BayEvaluator,
 } from "./scoring";
 import {
+  activeBannedLetters,
   availableBanLetters,
+  banPoolExhausted,
   legalBanLetters,
   MIN_SHOT_CLOCK_SECONDS,
   modifierSlotsForCardEra,
@@ -467,8 +469,9 @@ export class MatchController {
    * Two reasons the chain gets waived (`""` = free choice), both of which exist to stop a turn
    * being unplayable through no fault of the player:
    *
-   *  1. The letter is the banned letter — the original rule: you cannot be required to open on a
-   *     letter the Prism punishes.
+   *  1. The letter is a banned letter — the original rule: you cannot be required to open on a
+   *     letter the Prism punishes. Under Accumulate every past ban stays in force, so any
+   *     of them waives the chain.
    *  2. Word Builder only: the word pool cannot support a rack for that letter. `subWordFinder`
    *     returns only words STARTING with the required letter, so landing on `x` — one word in the
    *     shipped Reduced list — hands the next player a rack whose sole buildable word is the Golden
@@ -478,7 +481,16 @@ export class MatchController {
    * difficulty spike rather than a dead end, and waiving Succession would change Classic's rules.
    */
   private nextRequiredLetter(last: string): string {
-    if (this.state.bannedLetter && last === this.state.bannedLetter) return "";
+    if (last) {
+      const bans = new Set(
+        activeBannedLetters(
+          this.state.settings.banRepeatRule,
+          this.state.bannedLetter,
+          this.state.bannedLetterHistory,
+        ),
+      );
+      if (bans.has(last)) return "";
+    }
     if (this.isPicker && !letterSupportsRack(this.offerIndex, last, this.successorRackSize())) {
       return "";
     }
@@ -832,10 +844,17 @@ export class MatchController {
   }
 
   /** The letters that would tax `p` right now — Sentinel's definition of an unsafe word.
-   *  Mirrors submitWord's own tax check: the era ban unless exempt, plus personal and hijack bans. */
+   *  Mirrors submitWord's own tax check: the era ban(s) unless exempt, plus personal and hijack bans. */
   private preferenceContextFor(p: PlayerState): PreferenceContext {
     const letters = new Set<string>();
-    if (this.state.bannedLetter && !this.isExempt(p)) letters.add(this.state.bannedLetter);
+    if (!this.isExempt(p)) {
+      for (const b of activeBannedLetters(
+        this.state.settings.banRepeatRule,
+        this.state.bannedLetter,
+        this.state.bannedLetterHistory,
+      ))
+        letters.add(b);
+    }
     for (const b of this.services.cardBan.bansFor(p.id)) letters.add(b);
     const hijack = this.services.hijackBan.peek(p.id);
     if (hijack) letters.add(hijack);
@@ -860,7 +879,15 @@ export class MatchController {
       this.state.round++;
       // The era ends once `eraInterval` full rounds have been completed.
       if (this.state.roundInEra >= this.state.settings.eraInterval) {
-        const eraEndsMatch = this.state.era >= this.state.settings.eraCount;
+        // Under Accumulate the ban pool can run dry before `eraCount` is reached
+        // (see banPoolExhausted): the match ends at the era boundary instead of
+        // opening another sniper ban.
+        const poolDone = banPoolExhausted(
+          this.state.settings.banMode,
+          this.state.settings.banRepeatRule,
+          this.state.bannedLetterHistory,
+        );
+        const eraEndsMatch = this.state.era >= this.state.settings.eraCount || poolDone;
         // A submission-driven era end waits for the score replay to finish so
         // every player sees the final word resolve. A timeout has no replay to
         // watch, so it transitions immediately.
@@ -880,9 +907,10 @@ export class MatchController {
   }
 
   // ── Turn resolution ──────────────────────────────────────────────────────────
-  /** Whether the era banned letter is currently waived for `player`. Only the
+  /** Whether the era banned letter(s) are currently waived for `player`. Only the
    *  single current last-place player (the ban's picker) is exempt — not every
-   *  player tied at the lowest score. Tracks live standings (GDD §2.2). */
+   *  player tied at the lowest score. Tracks live standings (GDD §2.2). Under
+   *  Accumulate the exemption covers every accumulated ban, not just the latest. */
   isExempt(player: PlayerState): boolean {
     return this.computeLastPlaceId() === player.id;
   }
@@ -940,15 +968,19 @@ export class MatchController {
     // 6. Dictionary — a non-word is simply rejected; the turn (and clock) carry on.
     if (!this.isWord(word)) return reject("not-a-word");
 
-    // 7. Zero-Point Tax — era ban (unless last-place exempt), personal hijack ban,
+    // 7. Zero-Point Tax — era ban(s) (unless last-place exempt), personal hijack ban,
     //    era-rolled card bans, or a card legality rule (Slow Burn's 6-letter floor).
+    //    Under Accumulate every past ban stays in force: any one of them taxes.
     const exempt = this.isExempt(player);
-    const eraBan = !exempt && s.bannedLetter ? s.bannedLetter : "";
+    const eraBans = exempt
+      ? []
+      : activeBannedLetters(s.settings.banRepeatRule, s.bannedLetter, s.bannedLetterHistory);
+    const eraOffender = eraBans.find((b) => word.includes(b)) ?? "";
     const hijack = this.services.hijackBan.peek(player.id) ?? "";
     const cardBans = this.services.cardBan.bansFor(player.id);
     const evCheck = this.bayEval(player, word, false);
     const taxed =
-      (eraBan !== "" && word.includes(eraBan)) ||
+      eraOffender !== "" ||
       (hijack !== "" && word.includes(hijack)) ||
       cardBans.some((b) => word.includes(b)) ||
       bayViolatesLegality(evCheck);
@@ -957,7 +989,7 @@ export class MatchController {
     // legality rule taxed it. Backs Bait & Switch's "that exact letter".
     let offendingLetter: string | null = null;
     if (taxed) {
-      if (eraBan !== "" && word.includes(eraBan)) offendingLetter = eraBan;
+      if (eraOffender !== "") offendingLetter = eraOffender;
       else if (hijack !== "" && word.includes(hijack)) offendingLetter = hijack;
       else offendingLetter = cardBans.find((b) => word.includes(b)) ?? null;
     }
@@ -1544,6 +1576,18 @@ export class MatchController {
   }
 
   private beginSniperBan(): void {
+    // Accumulate ran the pool dry (see banPoolExhausted): end the match instead of
+    // opening a ban grid with nothing (or a single forced letter) left to pick.
+    if (
+      banPoolExhausted(
+        this.state.settings.banMode,
+        this.state.settings.banRepeatRule,
+        this.state.bannedLetterHistory,
+      )
+    ) {
+      this.gameOver();
+      return;
+    }
     this.armSubTimer(this.state.settings.sniperBanSeconds);
     this.setIntermissionPhase("sniperBan", null);
   }
@@ -1563,7 +1607,18 @@ export class MatchController {
         this.completeOptimize();
         break;
       case "sniperBan":
-        // The last-place player ran out of time — apply a random legal ban.
+        // The last-place player ran out of time — apply a random legal ban. Under
+        // Accumulate an empty remainder means the pool ran dry: end the match.
+        if (
+          banPoolExhausted(
+            this.state.settings.banMode,
+            this.state.settings.banRepeatRule,
+            this.state.bannedLetterHistory,
+          )
+        ) {
+          this.gameOver();
+          break;
+        }
         this.applySniperBanAndAdvance(this.randomBanLetter());
         break;
     }
@@ -1716,16 +1771,24 @@ export class MatchController {
   /** Apply the sniper ban then roll into the next era's countdown. The chosen letter
    *  is validated against the ban-repeat rule (an illegal/repeat pick — or a malicious
    *  guest intent — falls back to a random legal letter); the exclusion set is reset
-   *  when every legal letter has already been banned (NoRepeat exhaustion). */
+   *  when every legal letter has already been banned (NoRepeat exhaustion).
+   *  Under Accumulate the history is never reset: every ban stays in force, and an
+   *  empty remainder ends the match instead of picking (see banPoolExhausted — the
+   *  era boundary normally gets there first, this is the defensive path). */
   applySniperBanAndAdvance(letter: string): void {
     const { banMode, banRepeatRule } = this.state.settings;
     // Exhaustion reset (only reachable under NoRepeat across many eras): once every
     // legal letter has been banned, clear the history so the pool reopens.
+    // Accumulate deliberately skips this: the pool stays shut and the match ends.
     if (banRepeatRule === "NoRepeat") {
       const banned = new Set(this.state.bannedLetterHistory.map((l) => l.toLowerCase()));
       if (legalBanLetters(banMode).every((c) => banned.has(c))) this.state.bannedLetterHistory = [];
     }
     const available = availableBanLetters(banMode, banRepeatRule, this.state.bannedLetterHistory);
+    if (available.length === 0) {
+      this.gameOver();
+      return;
+    }
     const allowed = new Set(available);
     const lower = letter.toLowerCase();
     const choice = allowed.has(lower)
@@ -1752,6 +1815,9 @@ export class MatchController {
       this.state.settings.banRepeatRule,
       this.state.bannedLetterHistory,
     );
+    // Under Accumulate the remainder can run dry (the era boundary ends the match
+    // before this is reached); "" signals "nothing left to ban" to that path.
+    if (available.length === 0) return "";
     return available[Math.floor(this.rng() * available.length)];
   }
 

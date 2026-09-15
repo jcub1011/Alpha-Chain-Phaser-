@@ -15,6 +15,7 @@ import {
 import type { Dictionary } from "../game/dictionary";
 import { MatchController, type PlayerSeed } from "../game/match";
 import { dictionaryWordPool } from "../game/picker/wordPool";
+import { activeBannedLetters } from "../game/settings";
 import { DictionaryTier, GameMode } from "../game/types";
 import type { AlphaChainSettings, SubmitResult } from "../game/types";
 import { createLogger } from "../log";
@@ -191,6 +192,9 @@ export class LocalController implements GameController {
     const player = s.players.find((p) => p.id === playerId);
     const scoreOpts = this.botScoreOpts(player?.slots ?? 0);
     const bay = player?.bay ?? [];
+    // Under Accumulate every past ban stays in force — bots dodge the whole set.
+    const bans = activeBannedLetters(s.settings.banRepeatRule, s.bannedLetter, s.bannedLetterHistory);
+    const bannedLetter = s.settings.banRepeatRule === "Accumulate" ? "" : s.bannedLetter;
 
     // Picker / Word Builder: evaluate candidates through the bot's bay and commit.
     if (this.match.effectiveMode === GameMode.Picker) {
@@ -207,7 +211,8 @@ export class LocalController implements GameController {
             // rack, so it logged "nothing to pick from" and deliberately timed out.
             requiredLetter: this.match.successionWaivedThisTurn ? "" : s.requiredLetter,
             usedWords: s.usedWords,
-            bannedLetter: s.bannedLetter,
+            bannedLetter,
+            bannedLetters: bans,
             difficulty: s.settings.botDifficulty,
             bay,
             scoreOpts,
@@ -228,7 +233,8 @@ export class LocalController implements GameController {
     const word = chooseBotWordScored(this.dict, {
       requiredLetter: s.requiredLetter,
       usedWords: s.usedWords,
-      bannedLetter: s.bannedLetter,
+      bannedLetter,
+      bannedLetters: bans,
       difficulty: s.settings.botDifficulty,
       bay,
       scoreOpts,

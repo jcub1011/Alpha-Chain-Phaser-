@@ -10,8 +10,11 @@ export type BanMode = "All" | "VowelsOnly" | "ConsonantsOnly";
 /** Whether a letter banned in a past era may be banned again.
  *  - AllowRepeat:    any legal letter, every era.
  *  - NoConsecutive:  the immediately-previous era's banned letter is off-limits.
- *  - NoRepeat:       a letter can never be banned twice (until the pool is exhausted). */
-export type BanRepeatRule = "AllowRepeat" | "NoConsecutive" | "NoRepeat";
+ *  - NoRepeat:       a letter can never be banned twice (until the pool is exhausted).
+ *  - Accumulate:     every past ban stays in force (taxes words) and can never be
+ *    picked again. The match ends early once the legal pool runs down (see
+ *    banPoolExhausted in settings.ts). */
+export type BanRepeatRule = "AllowRepeat" | "NoConsecutive" | "NoRepeat" | "Accumulate";
 
 /** Single source of truth for a card's family. Values are byte-identical to the
  *  former string-literal union (they tint the family accent in the UI). */
@@ -376,7 +379,9 @@ export interface MatchState {
   requiredLetter: string;
   bannedLetter: string; // "" before first sniper ban
   /** Every letter banned so far, in era order. Drives the ban-repeat rule
-   *  (no-consecutive / no-repeat) and is cleared when the legal pool is exhausted. */
+   *  (no-consecutive / no-repeat / accumulate). Cleared when the legal pool is
+   *  exhausted under NoRepeat; never cleared under Accumulate (the match ends
+   *  instead — see banPoolExhausted). */
   bannedLetterHistory: string[];
   /** Words used this whole match (lowercased), forbidden to repeat. */
   usedWords: Set<string>;

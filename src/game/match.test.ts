@@ -904,6 +904,159 @@ describe("Sniper ban — repeat rule + history", () => {
   });
 });
 
+describe("Sniper ban — Accumulate", () => {
+  /** Drive a single-round era to its settle window with `history` already in
+   *  force — the history must be set BEFORE the submits, since endTurn arms the
+   *  era-end decision (game-over vs intermission) synchronously on the last word. */
+  const toBanAcc = (overrides: Partial<AlphaChainSettings>, history: string[] = []) => {
+    const m = makeMatch({
+      preRoundCountdownSeconds: 1,
+      eraInterval: 1,
+      eraCount: 50,
+      banRepeatRule: "Accumulate",
+      ...overrides,
+    });
+    m.start();
+    m.tick(1);
+    m.state.bannedLetterHistory = [...history];
+    if (history.length > 0) m.state.bannedLetter = history[history.length - 1];
+    expect(m.submitWord("p1", "cat").accepted).toBe(true);
+    expect(m.submitWord("p2", "tiger").accepted).toBe(true); // wraps era 1 → settle window
+    // Tick out the settle FIRST: applying a ban mid-settle leaves
+    // roundSettleRemaining armed and silently refuses the next era's words.
+    // Under Accumulate this tick may already end the match (pool exhausted).
+    m.tick(2.001);
+    return m;
+  };
+
+  it("accumulates bans across eras and never re-picks a banned letter", () => {
+    const m = toBanAcc({});
+    m.applySniperBanAndAdvance("q");
+    expect(m.state.bannedLetterHistory).toEqual(["q"]);
+    m.tick(1);
+    // Era 2 reshuffles the turn order — submit as whoever is actually current.
+    // ("rabbit" ends on t, so "torch" chains off it either way round.)
+    const cur1 = m.state.players[m.state.currentPlayerIndex].id;
+    expect(m.submitWord(cur1, "rabbit").accepted).toBe(true);
+    const cur2 = m.state.players[m.state.currentPlayerIndex].id;
+    expect(m.submitWord(cur2, "torch").accepted).toBe(true);
+    m.tick(2.001);
+    m.applySniperBanAndAdvance("q"); // illegal (already banned) → random legal fallback
+    expect(m.state.bannedLetter).not.toBe("q");
+    expect(m.state.bannedLetterHistory).toHaveLength(2);
+    expect(m.state.bannedLetterHistory[0]).toBe("q");
+    m.applySniperBanAndAdvance("z");
+    expect(m.state.bannedLetterHistory).toEqual([
+      "q",
+      m.state.bannedLetterHistory[1],
+      "z",
+    ]);
+  });
+
+  it("taxes words containing ANY accumulated ban (not just the latest)", () => {
+    // "iraq" carries q but no z: taxed only if the OLD ban is still in force.
+    const words = ["cat", "tiger", "iraq"];
+    const acc = new MatchController(
+      seeds,
+      {
+        ...DEFAULT_SETTINGS,
+        gameMode: GameMode.Classic,
+        enableTutorials: false,
+        preRoundCountdownSeconds: 1,
+        eraInterval: 4,
+        eraCount: 4,
+        banRepeatRule: "Accumulate",
+      },
+      { isWord: (w) => words.includes(w), rng: () => 0.5 },
+    );
+    acc.start();
+    acc.tick(1);
+    acc.state.players[0].score = 10; // p1 is not last → not exempt
+    acc.state.bannedLetterHistory = ["q", "z"];
+    acc.state.bannedLetter = "z";
+    // "iraq" carries the OLD ban q → still taxed under Accumulate.
+    const r = acc.submitWord("p1", "iraq");
+    expect(r.accepted).toBe(true);
+    expect(r.submission?.taxed).toBe(true);
+    expect(r.submission?.breakdown.finalScore).toBe(0);
+
+    // Control: under a single-ban rule the old ban no longer taxes.
+    const single = new MatchController(
+      seeds,
+      {
+        ...DEFAULT_SETTINGS,
+        gameMode: GameMode.Classic,
+        enableTutorials: false,
+        preRoundCountdownSeconds: 1,
+        eraInterval: 4,
+        eraCount: 4,
+        banRepeatRule: "NoConsecutive",
+      },
+      { isWord: (w) => words.includes(w), rng: () => 0.5 },
+    );
+    single.start();
+    single.tick(1);
+    single.state.players[0].score = 10;
+    single.state.bannedLetterHistory = ["q"];
+    single.state.bannedLetter = "z";
+    const r2 = single.submitWord("p1", "iraq");
+    expect(r2.accepted).toBe(true);
+    expect(r2.submission?.taxed).toBe(false);
+  });
+
+  it("waives the chain when the word ends on any accumulated ban", () => {
+    const words = ["cat", "iraq"];
+    const acc = new MatchController(
+      seeds,
+      {
+        ...DEFAULT_SETTINGS,
+        gameMode: GameMode.Classic,
+        enableTutorials: false,
+        preRoundCountdownSeconds: 1,
+        eraInterval: 4,
+        eraCount: 4,
+        banRepeatRule: "Accumulate",
+      },
+      { isWord: (w) => words.includes(w), rng: () => 0.5 },
+    );
+    acc.start();
+    acc.tick(1);
+    acc.state.players[0].score = 10;
+    acc.state.bannedLetterHistory = ["q", "z"];
+    acc.state.bannedLetter = "z";
+    // "iraq" ends on the OLD ban q → chain waived even though q isn't the latest.
+    acc.submitWord("p1", "iraq");
+    expect(acc.state.requiredLetter).toBe("");
+  });
+
+  it("All: ends the match once one letter is left (never bans the 26th)", () => {
+    const m = toBanAcc({ banMode: "All" }, "abcdefghijklmnopqrstuvwxy".split("")); // all but "z"
+    m.tick(2.5); // settle window → era boundary → game over, no new ban
+    expect(m.state.phase).toBe("GameOver");
+    expect(m.state.era).toBe(1);
+    expect(m.state.bannedLetterHistory).toHaveLength(25);
+    expect(m.state.winnerId).not.toBeNull();
+  });
+
+  it("VowelsOnly: plays the fully-banned final era, then ends early", () => {
+    // Four vowels banned → the era still ends in an intermission; the 5th is pickable.
+    const m = toBanAcc({ banMode: "VowelsOnly" }, ["a", "e", "i", "o"]);
+    m.tick(2.5); // settle → intermission (not game over)
+    expect(m.state.phase).toBe("Intermission");
+    m.applySniperBanAndAdvance("u"); // ban the last vowel → final era
+    expect(m.state.phase).toBe("Countdown");
+    expect(m.state.era).toBe(2);
+    m.tick(1);
+    const cur1 = m.state.players[m.state.currentPlayerIndex].id;
+    expect(m.submitWord(cur1, "rabbit").accepted).toBe(true);
+    const cur2 = m.state.players[m.state.currentPlayerIndex].id;
+    expect(m.submitWord(cur2, "torch").accepted).toBe(true);
+    m.tick(2.5); // final era ends → game over despite eraCount 50
+    expect(m.state.phase).toBe("GameOver");
+    expect(m.state.bannedLetterHistory).toEqual(["a", "e", "i", "o", "u"]);
+  });
+});
+
 describe("dealEngineCardsFirstEra", () => {
   it("deals an opening hand and runs optimize before era 1 when enabled", () => {
     const m = makeMatch({

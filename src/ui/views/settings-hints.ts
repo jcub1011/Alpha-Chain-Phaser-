@@ -32,7 +32,7 @@ export const SETTING_GROUP_HINTS = {
   modeAndWords: "How a word gets into the chain, and which words are available to put there.",
   matchLength: "How long a match runs, and what can end it early.",
   bannedLetters:
-    "At each intermission the player in last place bans a letter for everyone next era. These decide what they may pick and how long they get to pick it.",
+    "At each intermission the player in last place bans a letter for everyone next era. These decide what they may pick and how long they get to pick it. Accumulate keeps every past ban in force — a letter can never be picked twice, and the match ends early once the pool runs down.",
   engineCards: "How many modifier cards you are dealt, when, and how long you get to arrange them.",
   engineBaySlots:
     "How many cards your engine bay can hold, and how that grows as the match runs on. Anything past the limit has to be cut.",
@@ -52,7 +52,7 @@ export const SETTING_HINTS: Record<Exclude<keyof AlphaChainSettings, GroupedSett
   botDifficulty: "How well the bots play; their word quality and reaction speed.",
   banMode: "Which letters are eligible to be the era's banned letter.",
   banRepeatRule:
-    "Allow Repeats | No Consecutive Bans | No Repeat Bans (resets when all letters are used).",
+    "Allow Repeats | No Consecutive Bans | No Repeat Bans (resets when all letters are used) | Accumulate (bans stack every era; match can end early).",
   dealEngineCardsFirstEra:
     "Start the game with engine cards instead of starting with empty engines.",
   shotClockSeconds: "Seconds each player has to submit a word before timing out.",

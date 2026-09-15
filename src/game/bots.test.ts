@@ -69,6 +69,16 @@ describe("chooseBotWordScored", () => {
     expect(word).not.toBeNull();
     expect(word!.includes("z")).toBe(false);
   });
+
+  it("avoids every accumulated ban (bannedLetters) when a clean candidate exists", () => {
+    // 'q' (old ban) + 'z' (latest) both in force; only "tang" is clean.
+    const dict = new Dictionary(["tang", "tzar", "taq"]);
+    const word = chooseBotWordScored(
+      dict,
+      basePick({ requiredLetter: "t", bannedLetter: "z", bannedLetters: ["q", "z"] }),
+    );
+    expect(word).toBe("tang");
+  });
 });
 
 describe("planBotBay", () => {

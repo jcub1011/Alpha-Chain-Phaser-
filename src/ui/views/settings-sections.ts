@@ -222,6 +222,7 @@ export const renderMatchRules = (
         { value: "AllowRepeat", text: "allow" },
         { value: "NoConsecutive", text: "no consec." },
         { value: "NoRepeat", text: "never" },
+        { value: "Accumulate", text: "accum." },
       ],
       (v) => c.set("banRepeatRule", v),
       SETTING_HINTS.banRepeatRule,

@@ -14,7 +14,7 @@
 import { html, nothing, type PropertyValues, type TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type { GameController } from "../../net/controller";
-import { availableBanLetters, legalBanLetters } from "../../game/settings";
+import { activeBannedLetters, availableBanLetters, legalBanLetters } from "../../game/settings";
 import { cardIdentity } from "../../game/cards/library";
 import { bubblePreferences, isInertPreference } from "../../game/picker/preference";
 import { createLogger } from "../../log";
@@ -432,6 +432,12 @@ export class AcIntermission extends AcElement {
     const letters = legalBanLetters(banMode);
     const available = new Set(availableBanLetters(banMode, banRepeatRule, s.bannedLetterHistory));
     const prev = s.bannedLetter;
+    // Accumulate: every past ban stays in force — surface them so the picker sees
+    // the full set their pick joins (already-banned keys are disabled below).
+    const accumulating = banRepeatRule === "Accumulate";
+    const bannedSoFar = accumulating
+      ? activeBannedLetters(banRepeatRule, s.bannedLetter, s.bannedLetterHistory)
+      : [];
     // Words played this era (era only advances after the ban) so the picker can ban an
     // informed letter — what's been scoring, and how much.
     const played = s.history.filter((h) => h.era === s.era);
@@ -440,7 +446,16 @@ export class AcIntermission extends AcElement {
         <header class="im-head">
           <span class="ac-eyebrow">intermission · sniper ban</span>
           <h2 class="im-title">You're last — strike back</h2>
-          <p class="im-sub">Choose a letter. Words containing it score zero next era.</p>
+          <p class="im-sub">
+            ${accumulating
+              ? "Choose a letter. It joins every past ban — words containing any of them score zero next era."
+              : "Choose a letter. Words containing it score zero next era."}
+          </p>
+          ${bannedSoFar.length
+            ? html`<p class="im-sub">
+                Banned so far: ${bannedSoFar.map((l) => l.toUpperCase()).join(" · ")}
+              </p>`
+            : nothing}
           <span class="im-timer">${this.seconds}s</span>
         </header>
         <div class="ban-grid">
@@ -458,7 +473,9 @@ export class AcIntermission extends AcElement {
                 : isPrev
                   ? "Banned last era"
                   : disabled
-                    ? "Not allowed by the ban-repeat rule"
+                    ? accumulating
+                      ? "Already banned — still in force"
+                      : "Not allowed by the ban-repeat rule"
                     : ""}
               @click=${() => this.pickBan(l)}
             >

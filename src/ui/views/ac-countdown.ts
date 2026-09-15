@@ -6,6 +6,7 @@
 import { html, nothing, type PropertyValues, type TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type { GameController } from "../../net/controller";
+import { activeBannedLetters } from "../../game/settings";
 import { AcElement } from "../app/AcElement";
 
 @customElement("ac-countdown")
@@ -26,15 +27,19 @@ export class AcCountdown extends AcElement {
 
   override render(): TemplateResult {
     const s = this.controller.match.state;
+    // Under Accumulate every past ban stays in force — call out the whole set.
+    const bans = activeBannedLetters(s.settings.banRepeatRule, s.bannedLetter, s.bannedLetterHistory);
     return html`
       <div class="overlay countdown">
         <span class="cd-era">ERA ${s.era}</span>
         <div class="cd-num" key=${this.n}>${this.n}</div>
         <span class="cd-ready">GET READY</span>
-        ${s.bannedLetter
+        ${bans.length
           ? html`<div class="cd-ban">
-              <span class="ac-eyebrow">zero-point tax letter</span>
-              <span class="cd-ban-letter">${s.bannedLetter.toUpperCase()}</span>
+              <span class="ac-eyebrow"
+                >zero-point tax letter${bans.length > 1 ? "s" : ""}</span
+              >
+              <span class="cd-ban-letter">${bans.map((b) => b.toUpperCase()).join(" · ")}</span>
             </div>`
           : nothing}
       </div>

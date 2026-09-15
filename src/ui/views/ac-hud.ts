@@ -10,6 +10,7 @@
 import { html, nothing, type PropertyValues, type TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type { GameController } from "../../net/controller";
+import { activeBannedLetters } from "../../game/settings";
 import { GameMode } from "../../game/types";
 import type { PlayerState } from "../../game/types";
 import { scoreWord } from "../../game/scoring";
@@ -30,7 +31,7 @@ export class AcHud extends AcElement {
   @property({ attribute: false }) controller!: GameController;
 
   @state() private requiredLetter = "";
-  @state() private bannedLetter = "";
+  @state() private bannedLetters: string[] = [];
   @state() private era = 1;
   @state() private roundInEra = 0;
   @state() private currentName = "";
@@ -64,7 +65,12 @@ export class AcHud extends AcElement {
     const s = m.state;
     const human = this.controller.humanId;
     this.requiredLetter = s.requiredLetter;
-    this.bannedLetter = s.bannedLetter;
+    // Under Accumulate every past ban stays in force — the rail shows the whole set.
+    this.bannedLetters = activeBannedLetters(
+      s.settings.banRepeatRule,
+      s.bannedLetter,
+      s.bannedLetterHistory,
+    );
     this.era = s.era;
     this.roundInEra = s.roundInEra;
     const cur = m.current;
@@ -84,7 +90,8 @@ export class AcHud extends AcElement {
       .sort((a, b) => a.accentIndex - b.accentIndex);
     // The last-place player is exempt from the banned-letter tax (they picked
     // it). Surface it so keeping points on a banned word never reads as a bug.
-    this.humanExempt = !!me && !!s.bannedLetter && m.isExempt(me);
+    // Under Accumulate the exemption covers every accumulated ban.
+    this.humanExempt = !!me && this.bannedLetters.length > 0 && m.isExempt(me);
     this.personalBans = me ? m.personalBansFor(me.id) : [];
   }
 
@@ -165,10 +172,15 @@ export class AcHud extends AcElement {
             </div>
             <div class="cmd-cell cmd-right">
               <span class="ac-eyebrow">banned</span>
-              ${this.bannedLetter
-                ? html`<span class="cmd-banned ${this.humanExempt ? "is-exempt" : ""}"
-                    >${this.bannedLetter.toUpperCase()}</span
-                  >`
+              ${this.bannedLetters.length
+                ? html`<div class="cmd-personal-letters">
+                    ${this.bannedLetters.map(
+                      (l) =>
+                        html`<span class="cmd-banned ${this.humanExempt ? "is-exempt" : ""}"
+                          >${l.toUpperCase()}</span
+                        >`,
+                    )}
+                  </div>`
                 : html`<span class="cmd-banned is-none">—</span>`}
               ${this.humanExempt
                 ? html`<span

@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  activeBannedLetters,
   availableBanLetters,
+  banPoolExhausted,
   DEFAULT_SETTINGS,
   legalBanLetters,
   loadSettings,
@@ -40,7 +42,7 @@ class MemoryStorage {
 const KEY = "alphachain.settings";
 // Mirrors the (unexported) SETTINGS_VERSION; corruption cases set it so they test the
 // per-field validators rather than tripping the version gate. Keep in sync.
-const VERSION = 4;
+const VERSION = 5;
 
 function setGlobalStorage(s: Storage | undefined): void {
   (globalThis as unknown as { localStorage?: Storage }).localStorage = s as Storage;
@@ -193,6 +195,15 @@ describe("sanitizeSettings — untrusted blob → complete settings", () => {
     expect(s).toEqual(input);
     expect(s).not.toBe(input);
   });
+
+  it("accepts the Accumulate ban-repeat rule (and rejects garbage)", () => {
+    expect(sanitizeSettings({ ...DEFAULT_SETTINGS, banRepeatRule: "Accumulate" }).banRepeatRule).toBe(
+      "Accumulate",
+    );
+    expect(
+      sanitizeSettings({ ...DEFAULT_SETTINGS, banRepeatRule: "sometimes" }).banRepeatRule,
+    ).toBe(DEFAULT_SETTINGS.banRepeatRule);
+  });
 });
 
 describe("totalCardsDealtPerPlayer — what the dealer will be asked for", () => {
@@ -246,6 +257,55 @@ describe("availableBanLetters — ban-repeat rule", () => {
     const vowels = legalBanLetters("VowelsOnly"); // a e i o u
     // Every vowel already banned → excluding all would leave nothing, so reset.
     expect(availableBanLetters("VowelsOnly", "NoRepeat", vowels)).toEqual(vowels);
+  });
+
+  it("Accumulate excludes every previously banned letter without resetting", () => {
+    const r = availableBanLetters("All", "Accumulate", ["a", "b", "c"]);
+    expect(r).not.toContain("a");
+    expect(r).not.toContain("b");
+    expect(r).not.toContain("c");
+    expect(r).toHaveLength(23);
+  });
+
+  it("Accumulate returns empty (no reset) once the pool is exhausted", () => {
+    const vowels = legalBanLetters("VowelsOnly");
+    expect(availableBanLetters("VowelsOnly", "Accumulate", vowels)).toEqual([]);
+    expect(availableBanLetters("VowelsOnly", "Accumulate", [...vowels, "a"])).toEqual([]);
+  });
+});
+
+describe("activeBannedLetters — the letters taxing words", () => {
+  it("returns just the latest ban under the single-ban rules", () => {
+    expect(activeBannedLetters("NoConsecutive", "q", ["a", "q"])).toEqual(["q"]);
+    expect(activeBannedLetters("AllowRepeat", "", [])).toEqual([]);
+  });
+
+  it("returns every past ban in era order under Accumulate", () => {
+    expect(activeBannedLetters("Accumulate", "c", ["a", "b", "c", "a"])).toEqual(["a", "b", "c"]);
+  });
+});
+
+describe("banPoolExhausted — early end under Accumulate", () => {
+  const all = legalBanLetters("All");
+  const vowels = legalBanLetters("VowelsOnly");
+
+  it("is always false for the single-ban rules", () => {
+    expect(banPoolExhausted("All", "NoRepeat", all)).toBe(false);
+    expect(banPoolExhausted("VowelsOnly", "NoRepeat", vowels)).toBe(false);
+  });
+
+  it("All: terminal once one letter is left (never ban the 26th)", () => {
+    expect(banPoolExhausted("All", "Accumulate", all.slice(0, 24))).toBe(false);
+    expect(banPoolExhausted("All", "Accumulate", all.slice(0, 25))).toBe(true);
+    expect(banPoolExhausted("All", "Accumulate", all)).toBe(true);
+  });
+
+  it("VowelsOnly/ConsonantsOnly: terminal only once every bannable letter is banned", () => {
+    expect(banPoolExhausted("VowelsOnly", "Accumulate", vowels.slice(0, 4))).toBe(false);
+    expect(banPoolExhausted("VowelsOnly", "Accumulate", vowels)).toBe(true);
+    const consonants = legalBanLetters("ConsonantsOnly");
+    expect(banPoolExhausted("ConsonantsOnly", "Accumulate", consonants.slice(0, 20))).toBe(false);
+    expect(banPoolExhausted("ConsonantsOnly", "Accumulate", consonants)).toBe(true);
   });
 });
 
