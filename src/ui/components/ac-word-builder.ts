@@ -16,7 +16,7 @@
 import { html, nothing, type PropertyValues, type TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type { Tile } from "../../game/types";
-import { isVowel } from "../../game/settings";
+import { activeBannedLetters, isVowel } from "../../game/settings";
 import { nextLiveIndex } from "../../game/turnOrder";
 import { RARE_START } from "../../game/cards/card";
 import type { GameController } from "../../net/controller";
@@ -35,7 +35,8 @@ export class AcWordBuilder extends AcElement {
   /** Survival: eliminated. The rack still renders, but nothing on it is ours any more. */
   @state() private isOut = false;
   @state() private requiredLetter = "";
-  @state() private bannedLetter = "";
+  /** Every banned letter currently taxing words (a set under Accumulate, else 0–1). */
+  @state() private bannedLetters: string[] = [];
   @state() private feedback = "";
   @state() private highlightBans = false;
   @state() private canRedraw = false;
@@ -140,7 +141,11 @@ export class AcWordBuilder extends AcElement {
       nextSeat.id === human;
 
     this.highlightBans = s.settings.highlightBannedLetters;
-    this.bannedLetter = s.bannedLetter;
+    this.bannedLetters = activeBannedLetters(
+      s.settings.banRepeatRule,
+      s.bannedLetter,
+      s.bannedLetterHistory,
+    );
     this.requiredLetter = s.requiredLetter;
     // Follows `live`, not `isHumanTurn`, so the Winnower button does not outlive the turn the same
     // way SUBMIT did.
@@ -384,9 +389,10 @@ export class AcWordBuilder extends AcElement {
                   Starts with <strong>${this.requiredLetter.toUpperCase()}</strong>
                 </span>`
               : html`<span class="ac-chip ac-chip--req">Free Choice</span>`}
-            ${this.bannedLetter && this.highlightBans
-              ? html`<span class="ac-chip ac-chip--ban" title="Banned Letter">
-                  Avoid <strong>${this.bannedLetter.toUpperCase()}</strong>
+            ${this.bannedLetters.length > 0 && this.highlightBans
+              ? html`<span class="ac-chip ac-chip--ban" title="Banned Letters">
+                  Avoid
+                  <strong>${this.bannedLetters.map((b) => b.toUpperCase()).join(" · ")}</strong>
                 </span>`
               : nothing}
             ${this.feedback
@@ -506,8 +512,7 @@ export class AcWordBuilder extends AcElement {
                 const isStaged = this.stagedTileIds.includes(tile.id);
                 const hasBanned =
                   this.highlightBans &&
-                  this.bannedLetter !== "" &&
-                  tile.text.toLowerCase().includes(this.bannedLetter.toLowerCase());
+                  this.bannedLetters.some((b) => tile.text.toLowerCase().includes(b));
                 const isStarter =
                   this.requiredLetter !== "" &&
                   tile.text.toLowerCase().startsWith(this.requiredLetter.toLowerCase());

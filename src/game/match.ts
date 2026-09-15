@@ -26,9 +26,7 @@ import {
   effectiveRackSize,
   generateRack,
   letterSupportsRack,
-  subWordFinder,
   type RackShaping,
-  type ScanBudget,
 } from "./builder/rack";
 import type { WordPool } from "./picker/wordPool";
 import { shuffle } from "./rng";
@@ -45,7 +43,9 @@ import {
   type BayEvaluator,
 } from "./scoring";
 import {
+  activeBannedLetters,
   availableBanLetters,
+  banPoolExhausted,
   legalBanLetters,
   MIN_SHOT_CLOCK_SECONDS,
   modifierSlotsForCardEra,
@@ -99,27 +99,6 @@ const BAN_TUTORIALS: readonly TutorialKind[] = ["tax", "sniper"];
  *  submission, so every player sees the final word's score replay finish before
  *  the phase changes. Covers the taxed finale (~0.92s) on top of the walk. */
 const ROUND_SETTLE_BUFFER = 1.0;
-
-/** Word Builder: how many buildable words the no-show auto-pick gathers before picking one.
- *
- *  A cap, not a budget: the pick needs ONE word, and `subWordFinder` scans a whole starting-letter
- *  bucket per call. Uncapped on a free required letter it walks every letter of the pool — a
- *  full-dictionary sweep (386k words under Sudden Death's Full tier) on the expiry tick, inside the
- *  server's Jint sandbox where there is no JIT. Matches the cap the bench getter already uses. */
-const NO_SHOW_CANDIDATE_CAP = 24;
-
-/** Pool candidates the no-show auto-pick may examine, shared across every letter it tries.
- *
- *  NO_SHOW_CANDIDATE_CAP bounds what the scan RETURNS, which is no bound at all on a rack that
- *  returns nothing: the free-letter branch walks all 26 start letters, so an unbuildable rack cost
- *  a full-pool sweep — 8,920 words on the Reduced list, 386,633 on the Full one — on the
- *  shot-clock expiry tick, inside a 250ms Jint call whose overrun kills the lobby. Measured at
- *  26,258 pool crossings in one tick before this cap.
- *
- *  Binding out returns null, which resolves the turn as the "—" no-show with the chain letter
- *  unmoved. That is the same outcome an honest exhaustive scan reaches on a rack that spells
- *  nothing, and it is an existing, tested path. */
-const NO_SHOW_SCAN_BUDGET = 2500;
 
 export interface PlayerSeed {
   id: string;
@@ -195,19 +174,12 @@ export class MatchController {
    *  Stores the WORD, not the Offer index: an index would silently commit a different word if
    *  the Offer were ever regenerated mid-turn (M3's Winnower), whereas a stale word simply fails
    *  the offer-membership check. `null` means no selection — which is what makes a clock expiry a
-   *  no-show rather than a slow pick. */
+   *  real timeout rather than a slow pick. */
   private currentSelection: string | null = null;
   /** Picker: this turn's Offer ignored the Succession letter, because the player spent their
    *  Wildcard charge on it. Lets commitSelection waive the succession check for exactly this
    *  turn without the charge having to survive until the commit. */
   private offerIgnoresSuccession = false;
-  /** Picker: a no-show elimination to apply at the top of endTurn.
-   *
-   *  Deferred rather than applied inline because Survival must see the elimination BEFORE
-   *  endTurn's active-count check (which runs inside submitWord), yet a Prism rescue means the
-   *  commit may not reach endTurn at all. A flag is cleared by the next armCurrentTurn, so the
-   *  rescue path discards it automatically instead of needing a mutate-then-revert. */
-  private pendingNoShowElimination: string | null = null;
   /** Picker: the Offer pool and a lazily-built index over it. The index memoizes immutable pool
    *  facts (letter ranges, per-letter totals), so it is built once per match and reused — Classic
    *  builds neither. */
@@ -359,6 +331,22 @@ export class MatchController {
     return p.bay.some((b) => getCard(b.id, this.effectiveMode)?.hidesInput?.() ?? false);
   }
 
+  /** Whether `playerId` holds an unused clock-rescue charge (Prism).
+   *
+   *  Non-consuming read of the same charge `tryClockRescue` would consume: the bay
+   *  holds a card with a `rescueClock` hook and its once-per-era guard is still
+   *  armed. The solo input surface (`ac-word-entry`) checks this on its timeout
+   *  auto-submit path so a held Prism refills the clock instead of submitting
+   *  whatever is in the box. */
+  canRescueClock(playerId: string): boolean {
+    const p = this.state.players.find((x) => x.id === playerId);
+    if (!p || p.eliminated) return false;
+    const holdsRescue = p.bay.some(
+      (b) => getCard(b.id, this.effectiveMode)?.rescueClock !== undefined,
+    );
+    return holdsRescue && this.services.prismGuard.isAvailable(p.id);
+  }
+
   // ── Accessors ──────────────────────────────────────────────────────────────
   get current(): PlayerState {
     return this.state.players[this.state.currentPlayerIndex];
@@ -467,8 +455,9 @@ export class MatchController {
    * Two reasons the chain gets waived (`""` = free choice), both of which exist to stop a turn
    * being unplayable through no fault of the player:
    *
-   *  1. The letter is the banned letter — the original rule: you cannot be required to open on a
-   *     letter the Prism punishes.
+   *  1. The letter is a banned letter — the original rule: you cannot be required to open on a
+   *     letter the Prism punishes. Under Accumulate every past ban stays in force, so any
+   *     of them waives the chain.
    *  2. Word Builder only: the word pool cannot support a rack for that letter. `subWordFinder`
    *     returns only words STARTING with the required letter, so landing on `x` — one word in the
    *     shipped Reduced list — hands the next player a rack whose sole buildable word is the Golden
@@ -478,7 +467,16 @@ export class MatchController {
    * difficulty spike rather than a dead end, and waiving Succession would change Classic's rules.
    */
   private nextRequiredLetter(last: string): string {
-    if (this.state.bannedLetter && last === this.state.bannedLetter) return "";
+    if (last) {
+      const bans = new Set(
+        activeBannedLetters(
+          this.state.settings.banRepeatRule,
+          this.state.bannedLetter,
+          this.state.bannedLetterHistory,
+        ),
+      );
+      if (bans.has(last)) return "";
+    }
     if (this.isPicker && !letterSupportsRack(this.offerIndex, last, this.successorRackSize())) {
       return "";
     }
@@ -715,7 +713,6 @@ export class MatchController {
     this.currentDraft = ""; // each turn starts with a blank draft (no stale carry-over)
     this.currentSelection = null;
     this.offerIgnoresSuccession = false;
-    this.pendingNoShowElimination = null; // a rescued turn discards its armed no-show
     this.state.rack = [];
     this.state.rackRedrawAvailable = false;
     // Per-turn room state re-arms (currently a no-op seam; A5 uses it).
@@ -832,10 +829,17 @@ export class MatchController {
   }
 
   /** The letters that would tax `p` right now — Sentinel's definition of an unsafe word.
-   *  Mirrors submitWord's own tax check: the era ban unless exempt, plus personal and hijack bans. */
+   *  Mirrors submitWord's own tax check: the era ban(s) unless exempt, plus personal and hijack bans. */
   private preferenceContextFor(p: PlayerState): PreferenceContext {
     const letters = new Set<string>();
-    if (this.state.bannedLetter && !this.isExempt(p)) letters.add(this.state.bannedLetter);
+    if (!this.isExempt(p)) {
+      for (const b of activeBannedLetters(
+        this.state.settings.banRepeatRule,
+        this.state.bannedLetter,
+        this.state.bannedLetterHistory,
+      ))
+        letters.add(b);
+    }
     for (const b of this.services.cardBan.bansFor(p.id)) letters.add(b);
     const hijack = this.services.hijackBan.peek(p.id);
     if (hijack) letters.add(hijack);
@@ -843,13 +847,6 @@ export class MatchController {
   }
 
   private endTurn(fromSubmission = false): void {
-    // A Picker no-show elimination, applied before the Survival count below reads it.
-    if (this.pendingNoShowElimination) {
-      const id = this.pendingNoShowElimination;
-      this.pendingNoShowElimination = null;
-      const q = this.state.players.find((x) => x.id === id);
-      if (q) q.eliminated = true;
-    }
     // Survival: stop the match when one player remains.
     if (this.state.settings.survivalMode && this.activePlayers.length <= 1) {
       this.gameOver();
@@ -860,7 +857,15 @@ export class MatchController {
       this.state.round++;
       // The era ends once `eraInterval` full rounds have been completed.
       if (this.state.roundInEra >= this.state.settings.eraInterval) {
-        const eraEndsMatch = this.state.era >= this.state.settings.eraCount;
+        // Under Accumulate the ban pool can run dry before `eraCount` is reached
+        // (see banPoolExhausted): the match ends at the era boundary instead of
+        // opening another sniper ban.
+        const poolDone = banPoolExhausted(
+          this.state.settings.banMode,
+          this.state.settings.banRepeatRule,
+          this.state.bannedLetterHistory,
+        );
+        const eraEndsMatch = this.state.era >= this.state.settings.eraCount || poolDone;
         // A submission-driven era end waits for the score replay to finish so
         // every player sees the final word resolve. A timeout has no replay to
         // watch, so it transitions immediately.
@@ -880,9 +885,10 @@ export class MatchController {
   }
 
   // ── Turn resolution ──────────────────────────────────────────────────────────
-  /** Whether the era banned letter is currently waived for `player`. Only the
+  /** Whether the era banned letter(s) are currently waived for `player`. Only the
    *  single current last-place player (the ban's picker) is exempt — not every
-   *  player tied at the lowest score. Tracks live standings (GDD §2.2). */
+   *  player tied at the lowest score. Tracks live standings (GDD §2.2). Under
+   *  Accumulate the exemption covers every accumulated ban, not just the latest. */
   isExempt(player: PlayerState): boolean {
     return this.computeLastPlaceId() === player.id;
   }
@@ -940,15 +946,19 @@ export class MatchController {
     // 6. Dictionary — a non-word is simply rejected; the turn (and clock) carry on.
     if (!this.isWord(word)) return reject("not-a-word");
 
-    // 7. Zero-Point Tax — era ban (unless last-place exempt), personal hijack ban,
+    // 7. Zero-Point Tax — era ban(s) (unless last-place exempt), personal hijack ban,
     //    era-rolled card bans, or a card legality rule (Slow Burn's 6-letter floor).
+    //    Under Accumulate every past ban stays in force: any one of them taxes.
     const exempt = this.isExempt(player);
-    const eraBan = !exempt && s.bannedLetter ? s.bannedLetter : "";
+    const eraBans = exempt
+      ? []
+      : activeBannedLetters(s.settings.banRepeatRule, s.bannedLetter, s.bannedLetterHistory);
+    const eraOffender = eraBans.find((b) => word.includes(b)) ?? "";
     const hijack = this.services.hijackBan.peek(player.id) ?? "";
     const cardBans = this.services.cardBan.bansFor(player.id);
     const evCheck = this.bayEval(player, word, false);
     const taxed =
-      (eraBan !== "" && word.includes(eraBan)) ||
+      eraOffender !== "" ||
       (hijack !== "" && word.includes(hijack)) ||
       cardBans.some((b) => word.includes(b)) ||
       bayViolatesLegality(evCheck);
@@ -957,7 +967,7 @@ export class MatchController {
     // legality rule taxed it. Backs Bait & Switch's "that exact letter".
     let offendingLetter: string | null = null;
     if (taxed) {
-      if (eraBan !== "" && word.includes(eraBan)) offendingLetter = eraBan;
+      if (eraOffender !== "") offendingLetter = eraOffender;
       else if (hijack !== "" && word.includes(hijack)) offendingLetter = hijack;
       else offendingLetter = cardBans.find((b) => word.includes(b)) ?? null;
     }
@@ -1061,6 +1071,30 @@ export class MatchController {
       fireBayHook(this.bayEval(opp, word, false), "onOpponentWordResolved", { resolution: res });
     }
     fireBayHook(this.bayEval(owner, word, taxed), "onTurnEnded", { resolution: res });
+  }
+
+  /**
+   * Chrono Syphon timeout bounty. A real timeout leaves the clock at 0, so elapsed
+   * time equals the full armed clock — the shared hook below computes the capped
+   * amount from its own closure (rate, cap, magnification), keeping one source of
+   * truth for the numbers. Other reactive-economy hooks self-skip on this synthetic
+   * shape (untaxed, zero scores); only Chrono Syphon banks.
+   */
+  private fireChronoTimeoutBounty(timedOut: PlayerState): void {
+    const resolution: WordResolution = {
+      submitterId: timedOut.id,
+      word: "",
+      taxed: false,
+      wouldBeScore: 0,
+      earnedScore: 0,
+      offendingLetter: null,
+      siphonSuppressed: false,
+      remainingSeconds: 0,
+    };
+    for (const opp of this.state.players) {
+      if (opp.id === timedOut.id || opp.eliminated) continue;
+      fireBayHook(this.bayEval(opp, "", false), "onOpponentWordResolved", { resolution });
+    }
   }
 
   /** Record the current player's in-progress word so a shot-clock timeout can
@@ -1170,6 +1204,10 @@ export class MatchController {
     // Picker's clock means something different, so it gets its own path and Classic's stays
     // byte-identical below.
     if (this.isPicker) return this.pickerTimeoutCurrent();
+    // A held Prism refills the clock INSTEAD of auto-submitting: the card's purpose is
+    // more time to think, so the draft is kept for the extended turn rather than
+    // submitted from under the player. Consumes the once-per-era charge.
+    if (this.tryClockRescue(this.current)) return;
     // Auto-submit the live player's drafted word if it stands on its own; a blank or
     // illegal draft falls through to a real timeout below.
     const draft = this.currentDraft.trim();
@@ -1179,8 +1217,6 @@ export class MatchController {
       // auto-submit (clock refilled): either way the turn continues, no timeout.
       if (res.accepted || res.reason === "prism-saved") return;
     }
-    // Otherwise, give a held Prism its timeout save: refill to full instead of the penalty.
-    if (this.tryClockRescue(this.current)) return;
     const s = this.state;
     const p = this.current;
 
@@ -1213,6 +1249,12 @@ export class MatchController {
     // A timeout is not a clean submission: it breaks the Crescendo run, same as a tax.
     this.services.crescendoStreak.reset(p.id);
 
+    // Pure-elapsed Chrono Syphon still collects on a real timeout (its cap): stalling
+    // out the clock must cost the victim, not deny the holder.
+    this.fireChronoTimeoutBounty(p);
+    const bounties = this.effects.takeSiphons();
+    const notices = this.effects.takeNotices();
+
     // A synthetic "timed-out" submission drives the same theater + leaderboard
     // reveal as a scored word. It is NOT pushed to history (no real word, so it
     // never feeds Scavenger / the word feed / the used-word set).
@@ -1224,137 +1266,108 @@ export class MatchController {
       word: draft || "—",
       score: breakdown.finalScore,
       taxed: false,
-      taxBounty: 0,
+      taxBounty: bounties.reduce((a, b) => a + b.amount, 0),
       breakdown,
       timedOut: true,
+      siphonedBy: bounties.map((b) => b.playerId),
+      effects: notices.length ? notices : undefined,
     };
 
     if (s.settings.survivalMode) p.eliminated = true;
     // Required letter is unchanged: the next player still faces it.
     this.events.emit("timeout", { playerId: p.id, penalty });
-    this.events.emit("submission", { submission, bounties: [] });
+    this.events.emit("submission", { submission, bounties });
     // There is now a replay to watch (the penalty walk), so settle like a real
     // submission — an era-ending timeout waits it out before transitioning.
     this.endTurn(true);
   }
 
   /**
-   * Word Builder: a random word THIS turn's rack can actually build, for the no-show commit.
-   *
-   * Three things this has to get right, and the bare `subWordFinder` call it replaces got none of
-   * them — it only ever ran once the Offer path was retired, which is what exposed all three:
-   *
-   *  1. `usedWords`. The candidate has to survive `submitWord`, which rejects an already-played
-   *     word — and the rejection lands on a player who merely timed out, flashing "Already used"
-   *     at them and resolving the turn as the dead "—" submission with the chain letter unmoved.
-   *     The odds of drawing a played word rise with every word in the match.
-   *  2. The WAIVED letter. On a Wildcard turn the rack is drawn free of `state.requiredLetter`
-   *     while the letter itself stands, so filtering by it hunts for a letter the rack was
-   *     deliberately built without. See `successionWaivedThisTurn`.
-   *  3. A bounded scan — `NO_SHOW_CANDIDATE_CAP`. The cap alone would bias the pick: with a free
-   *     letter `subWordFinder` walks `startLetters()` in order, so the first N hits are all "a"
-   *     words and every free-letter no-show would commit one. The letters are therefore visited in
-   *     a RANDOM order and the first that yields anything wins — the same shape as the bot's own
-   *     candidate gathering (`botCandidateTiers`, bots.ts).
-   *  4. A bounded COST — `NO_SHOW_SCAN_BUDGET`. `maxResults` bounds what the scan returns, which
-   *     is no bound at all on the case that actually hurts: a rack whose words are nearly all
-   *     played walks every letter to the end and finds nothing. subWordFinder now skips buckets no
-   *     tile can start, which is most of them, but the budget is what makes the ceiling a number
-   *     rather than a hope.
-   */
-  private randomBuildableWord(): string | null {
-    const s = this.state;
-    if (s.rack.length === 0 || !this.wordPool) return null;
-    const letters =
-      this.offerIgnoresSuccession || s.requiredLetter === ""
-        ? shuffle(this.offerIndex.startLetters(), this.rng)
-        : [s.requiredLetter];
-    // One budget threaded across every letter, so the random visit order still decides WHICH
-    // letters get looked at while the total work stays bounded. subWordFinder writes the budget
-    // back at its single exit, so the remainder carries correctly from one letter to the next.
-    const budget: ScanBudget = { remaining: NO_SHOW_SCAN_BUDGET };
-    for (const letter of letters) {
-      const candidates = subWordFinder(s.rack, this.wordPool, this.offerIndex, letter, {
-        usedWords: s.usedWords,
-        maxResults: NO_SHOW_CANDIDATE_CAP,
-        budget,
-      });
-      if (candidates.length > 0) return candidates[Math.floor(this.rng() * candidates.length)];
-      if (budget.remaining <= 0) return null;
-    }
-    return null;
-  }
-
-  /**
-   * Picker: the shot clock expired. Commit the current selection; with none selected, commit one
-   * at random so the chain continues.
+   * Picker: the shot clock expired. Auto-submit the staged word when it is a real word;
+   * otherwise levy the timeout penalty — mirroring Classic's timeoutCurrent.
    */
   private pickerTimeoutCurrent(): void {
     const s = this.state;
     const p = this.current;
 
-    // No tryClockRescue here, deliberately. Classic offers a held Prism a refill INSTEAD of the
-    // penalty; Picker has no penalty to be rescued from, and refilling a turn that always resolves
-    // would let a Prism owner stall the table. The Prism's banned-letter half still fires below,
-    // via submitWord — which is its primary mode in Picker anyway.
+    // A held Prism refills the clock INSTEAD of auto-submitting or penalising, exactly as in
+    // Classic: the card's purpose is more time to think, so the staging is kept for the extended
+    // turn rather than submitted from under the player. Consumes the once-per-era charge — a
+    // second timeout this era takes the normal path below.
+    if (this.tryClockRescue(this.current)) return;
 
     // Try what the player actually staged, exactly as Classic's timeoutCurrent tries the draft.
     // Showing up means producing a word the engine ACCEPTS — NOT merely holding a non-null
     // selection: the Word Builder streams one on every tile tap (ac-word-builder.streamStaging),
     // so a two-tile fragment that spells nothing would otherwise read as a real pick and spare a
-    // Survival player who plainly timed out. Anything short of an accepted word falls through to
-    // the no-show below.
+    // player who plainly timed out. Anything short of an accepted word falls through to the
+    // penalty below.
     const staged = this.currentSelection;
     if (staged) {
       const res = this.submitWord(p.id, staged);
       if (res.accepted) return; // a real commit, not a timeout — submitWord already ran endTurn
       // The commit tripped the Prism on a banned letter: word rejected, clock refilled, turn
-      // continues — "you picked the poisoned one, here is your Offer back". endTurn was never
-      // reached, so the armed no-show is discarded by the next armCurrentTurn.
+      // continues — "you picked the poisoned one, here is your rack back". endTurn was never
+      // reached, so the turn simply continues on the refilled clock.
       if (res.reason === "prism-saved") return;
       // Rejected (a fragment, a used word, a Succession break) — an ordinary path, not an error.
-      // The turn resolves as a no-show below, exactly as if nothing had been staged at all.
+      // The turn resolves as a real timeout below, exactly as if nothing had been staged at all.
     }
 
-    // Past here the player produced nothing committable: this IS a no-show. Armed BEFORE the
-    // random pick, which routes through submitWord → endTurn and applies the deferred flag there.
-    if (s.settings.survivalMode) this.pendingNoShowElimination = p.id;
+    // Past here the player produced nothing committable: a real timeout, scored like Classic's —
+    // the flat base loss plus each glass-cannon card's drain. Only a staged word the engine
+    // accepts is ever auto-submitted; an invalid or blank staging never commits a word.
+    const breakdown = scoreTimeout(p.bay, {
+      mode: this.effectiveMode,
+      prevWordLength: this.prevWordLength,
+      clockRemaining: s.clockRemaining,
+      clockTotal: s.clockTotal,
+      taxed: false,
+      baseClockSeconds: this.baseClockSeconds,
+      era: s.era,
+      slots: p.slots,
+      history: s.history,
+      services: this.services,
+      effects: this.effects,
+      player: p,
+      players: s.players,
+      clock: this.clockController,
+    });
+    p.score += breakdown.finalScore;
+    const penalty = -breakdown.finalScore;
+    // A timeout is not a clean submission: it breaks the Crescendo run, same as a tax.
+    this.services.crescendoStreak.reset(p.id);
 
-    // Commit something on their behalf so the chain continues rather than dying on a blank turn.
-    // RACK FIRST, mirroring the bot's own precedence in LocalController: the word has to be one the
-    // player could actually have built from the tiles in front of them. Committing from the Offer
-    // instead would credit them a word they never saw and could not have reached, and the tutorial
-    // promises "a word is built for you".
-    const chosen = this.randomBuildableWord();
+    // Pure-elapsed Chrono Syphon still collects on a real timeout (its cap): stalling
+    // out the clock must cost the victim, not deny the holder.
+    this.fireChronoTimeoutBounty(p);
+    const pickerBounties = this.effects.takeSiphons();
+    const pickerNotices = this.effects.takeNotices();
 
-    if (chosen !== null) {
-      const res = this.submitWord(p.id, chosen);
-      if (res.reason === "prism-saved") return;
-      if (res.accepted) return; // submitWord already ran endTurn
-      // Should be unreachable: `randomBuildableWord` satisfies Succession, uniqueness and the
-      // dictionary by construction, and a TAXED word is still accepted (scoring 0), not rejected.
-      log.error(`picker: commit unexpectedly rejected (${res.reason ?? "no reason"})`);
-    }
-
-    // Nothing committable — a rack that builds nothing, or the unreachable rejection above.
-    // Resolve the turn anyway so it cannot hang. Score and penalty are both 0; the required
-    // letter is unchanged.
+    // A synthetic "timed-out" submission drives the same theater + leaderboard
+    // reveal as a scored word. It is NOT pushed to history (no real word, so it
+    // never feeds Scavenger / the word feed / the used-word set).
     const submission: Submission = {
       playerId: p.id,
       displayName: p.name,
       accentIndex: p.accentIndex,
       era: s.era,
-      word: "—",
-      score: 0,
+      word: staged || "—",
+      score: breakdown.finalScore,
       taxed: false,
-      taxBounty: 0,
-      // An empty breakdown, built directly rather than through scoreTimeout — which is never
-      // called on this path, since calling it is exactly what would apply a penalty.
-      breakdown: { word: "—", seed: 0, steps: [], finalBeforeTax: 0, taxed: false, finalScore: 0 },
+      taxBounty: pickerBounties.reduce((a, b) => a + b.amount, 0),
+      breakdown,
       timedOut: true,
+      siphonedBy: pickerBounties.map((b) => b.playerId),
+      effects: pickerNotices.length ? pickerNotices : undefined,
     };
-    this.events.emit("timeout", { playerId: p.id, penalty: 0 });
-    this.events.emit("submission", { submission, bounties: [] });
+
+    if (s.settings.survivalMode) p.eliminated = true;
+    // Required letter is unchanged: the next player still faces it.
+    this.events.emit("timeout", { playerId: p.id, penalty });
+    this.events.emit("submission", { submission, bounties: pickerBounties });
+    // There is now a replay to watch (the penalty walk), so settle like a real
+    // submission — an era-ending timeout waits it out before transitioning.
     this.endTurn(true);
   }
 
@@ -1544,6 +1557,18 @@ export class MatchController {
   }
 
   private beginSniperBan(): void {
+    // Accumulate ran the pool dry (see banPoolExhausted): end the match instead of
+    // opening a ban grid with nothing (or a single forced letter) left to pick.
+    if (
+      banPoolExhausted(
+        this.state.settings.banMode,
+        this.state.settings.banRepeatRule,
+        this.state.bannedLetterHistory,
+      )
+    ) {
+      this.gameOver();
+      return;
+    }
     this.armSubTimer(this.state.settings.sniperBanSeconds);
     this.setIntermissionPhase("sniperBan", null);
   }
@@ -1563,7 +1588,18 @@ export class MatchController {
         this.completeOptimize();
         break;
       case "sniperBan":
-        // The last-place player ran out of time — apply a random legal ban.
+        // The last-place player ran out of time — apply a random legal ban. Under
+        // Accumulate an empty remainder means the pool ran dry: end the match.
+        if (
+          banPoolExhausted(
+            this.state.settings.banMode,
+            this.state.settings.banRepeatRule,
+            this.state.bannedLetterHistory,
+          )
+        ) {
+          this.gameOver();
+          break;
+        }
         this.applySniperBanAndAdvance(this.randomBanLetter());
         break;
     }
@@ -1716,16 +1752,24 @@ export class MatchController {
   /** Apply the sniper ban then roll into the next era's countdown. The chosen letter
    *  is validated against the ban-repeat rule (an illegal/repeat pick — or a malicious
    *  guest intent — falls back to a random legal letter); the exclusion set is reset
-   *  when every legal letter has already been banned (NoRepeat exhaustion). */
+   *  when every legal letter has already been banned (NoRepeat exhaustion).
+   *  Under Accumulate the history is never reset: every ban stays in force, and an
+   *  empty remainder ends the match instead of picking (see banPoolExhausted — the
+   *  era boundary normally gets there first, this is the defensive path). */
   applySniperBanAndAdvance(letter: string): void {
     const { banMode, banRepeatRule } = this.state.settings;
     // Exhaustion reset (only reachable under NoRepeat across many eras): once every
     // legal letter has been banned, clear the history so the pool reopens.
+    // Accumulate deliberately skips this: the pool stays shut and the match ends.
     if (banRepeatRule === "NoRepeat") {
       const banned = new Set(this.state.bannedLetterHistory.map((l) => l.toLowerCase()));
       if (legalBanLetters(banMode).every((c) => banned.has(c))) this.state.bannedLetterHistory = [];
     }
     const available = availableBanLetters(banMode, banRepeatRule, this.state.bannedLetterHistory);
+    if (available.length === 0) {
+      this.gameOver();
+      return;
+    }
     const allowed = new Set(available);
     const lower = letter.toLowerCase();
     const choice = allowed.has(lower)
@@ -1752,6 +1796,9 @@ export class MatchController {
       this.state.settings.banRepeatRule,
       this.state.bannedLetterHistory,
     );
+    // Under Accumulate the remainder can run dry (the era boundary ends the match
+    // before this is reached); "" signals "nothing left to ban" to that path.
+    if (available.length === 0) return "";
     return available[Math.floor(this.rng() * available.length)];
   }
 

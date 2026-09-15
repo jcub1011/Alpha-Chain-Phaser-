@@ -28,14 +28,51 @@ const make = (overrides: Partial<AlphaChainSettings> = {}) => {
   return m;
 };
 
-describe("Chrono Syphon — banks an opponent's leftover seconds", () => {
-  it("an opponent with Chrono Syphon gains the submitter's remaining whole seconds", () => {
+describe("Chrono Syphon — banks elapsed seconds (pure elapsed, capped)", () => {
+  it("banks +1 per whole second taken, so a normal submit pays elapsed time", () => {
     const m = make();
     m.state.players[1].bay = [{ id: "ChronoSyphon" }];
-    m.tick(5); // 5s of p1's clock burned
-    const remaining = Math.floor(m.state.clockRemaining);
+    m.tick(5); // 5s of p1's 20s clock burned → 5s elapsed
+    const elapsed = Math.floor(m.state.clockTotal - m.state.clockRemaining);
+    expect(elapsed).toBe(5);
     m.submitWord("p1", "cat");
-    expect(m.state.players[1].score).toBe(remaining * 2); // +2 per whole second
+    expect(m.state.players[1].score).toBe(5); // +1 per whole second taken
+  });
+
+  it("an instant submit pays nothing — fast play denies the card", () => {
+    const m = make();
+    m.state.players[1].bay = [{ id: "ChronoSyphon" }];
+    m.submitWord("p1", "cat"); // straight off the armed clock, 0s elapsed
+    expect(m.state.players[1].score).toBe(0);
+  });
+
+  it("banks the full elapsed time on a long stall, up to the cap", () => {
+    const m = make();
+    m.state.players[1].bay = [{ id: "ChronoSyphon" }];
+    m.tick(15); // 15s elapsed → min(30, 15) = 15
+    m.submitWord("p1", "cat");
+    expect(m.state.players[1].score).toBe(15);
+  });
+
+  it("caps a magnified full-clock stall at 30", () => {
+    const m = make();
+    m.state.players[1].bay = [{ id: "MagnifyingGlass" }, { id: "ChronoSyphon" }];
+    m.state.clockRemaining = 0; // 20s elapsed without tripping the timeout path
+    m.submitWord("p1", "cat");
+    expect(m.state.players[1].score).toBe(30); // min(30, 20) × 1.5
+  });
+
+  it("still collects on a real timeout — stalling out costs the victim", () => {
+    const m = make();
+    m.state.players[1].bay = [{ id: "ChronoSyphon" }];
+    let submission: import("../types").Submission | undefined;
+    m.events.on("submission", ({ submission: s }) => (submission = s));
+    m.tick(m.state.clockTotal + 1); // no draft → a real timeout
+    expect(m.state.players[0].score).toBe(-10); // base timeout penalty
+    expect(m.state.players[1].score).toBe(20); // timeout bounty = min(30, 20s clock)
+    expect(submission?.timedOut).toBe(true);
+    expect(submission?.taxBounty).toBe(20);
+    expect(submission?.siphonedBy).toContain("p2");
   });
 });
 

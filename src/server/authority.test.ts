@@ -1062,18 +1062,20 @@ describe("authority — Word Builder racks through the server", () => {
     expect(c1.match.current.id).not.toBe(upId);
   });
 
-  it("treats an expiry with no staged word as a no-show, but still resolves the turn", () => {
+  it("treats an expiry with no staged word as a timeout penalty, but still resolves the turn", () => {
     const { hub, c1, c2, upId } = pickerSession();
-    const buildable = rackWords(c1.match);
     hub.advance((c1.match.state.clockRemaining + 2) * 1000); // clock + the 1s submit grace
 
-    // A word built from the player's OWN RACK still resolves, so the chain continues...
-    const played = c1.match.state.history[c1.match.state.history.length - 1]?.word;
-    expect(buildable).toContain(played);
-    expect([...c2.match.state.usedWords]).toContain(played);
-    // ...and there is NO timeout point penalty in Picker.
+    // Nothing is committed on the player's behalf — no word reaches either mirror...
+    expect(c1.match.state.history.length).toBe(0);
+    expect(c2.match.state.history.length).toBe(0);
+    expect(c2.match.state.usedWords.size).toBe(0);
+    // ...the base timeout penalty fires like Classic...
     const scorer = c1.match.state.players.find((p) => p.id === upId);
-    expect(scorer && scorer.score).toBeGreaterThanOrEqual(0);
+    expect(scorer && scorer.score).toBe(-10);
+    // ...and the turn still advances.
+    expect(c1.match.current.id).not.toBe(upId);
+    expect(c2.match.current.id).not.toBe(upId);
   });
 
   it("refuses a commit from the player whose turn it is not", () => {
@@ -1109,5 +1111,6 @@ describe("authority — Word Builder racks through the server", () => {
     hub.advance((c1.match.state.clockRemaining + 2) * 1000); // clock + the 1s submit grace
     const played = c1.match.state.history[c1.match.state.history.length - 1]?.word;
     expect(played).not.toBe(unbuildable);
+    expect(c1.match.state.history.length).toBe(0); // a timeout commits nothing
   });
 });

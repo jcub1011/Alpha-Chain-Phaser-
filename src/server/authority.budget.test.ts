@@ -14,8 +14,8 @@
  * per-candidate work wrapped around it. A wall-clock assertion here would flake; this will not.
  *
  * The match is driven with nobody ever submitting, so every shot clock expires — which exercises
- * the no-show auto-pick (randomBuildableWord), the single most expensive call measured anywhere
- * (26,258 queries in one tick on the Full list) and a fatal path in its own right.
+ * the timeout penalty path on every turn, alongside rack generation, the most expensive calls
+ * measured anywhere and fatal paths in their own right.
  */
 
 import { readFileSync } from "node:fs";
@@ -30,15 +30,18 @@ import { createAuthority, type Kb } from "./authority";
  * separate numbers because a single ceiling loose enough for Full would not catch a Reduced
  * regression. Before the fix the era-opener tick issued 8,947 queries on Reduced and 26,349 on
  * Full, and real-Jint runs of that build went fatal on every configuration tested. After it the
- * worst call across a full match is ~1,400 (Reduced, ~2,300 at rackSize 7) and ~6,300 (Full).
+ * worst call across a full match is a few thousand queries — two orders of magnitude below the
+ * fatal fan-out.
  *
  * Queries alone do not decide the time — a 12,615-query call measured 27 ms under Jint while a
  * 3,585-query one measured 117 ms, because the per-candidate exact-cover work dominates on a
- * chunked rack. The wall-clock side is bounded separately, by RACK_SCAN_BUDGET and
- * NO_SHOW_SCAN_BUDGET; over 120 simulated matches Jint came in at p50 8.2 ms / p99 46.9 ms /
- * max 97.1 ms against the 250 ms budget. These ceilings are here to fail loudly if a 26-letter
- * fan-out ever comes back. */
-const REDUCED_QUERY_CEILING = 3500;
+ * chunked rack. The wall-clock side is bounded separately, by RACK_SCAN_BUDGET; over 120 simulated
+ * matches Jint came in at p50 8.2 ms / p99 46.9 ms / max 97.1 ms against the 250 ms budget. These
+ * ceilings sit an order of magnitude below the 26,258-query fan-out that used to kill the lobby,
+ * with headroom for trajectory shifts: an all-timeout match leaves usedWords empty (timeouts
+ * commit nothing), which moves the draws around without changing their shape. They are here to
+ * fail loudly if a 26-letter fan-out ever comes back. */
+const REDUCED_QUERY_CEILING = 4000;
 const FULL_QUERY_CEILING = 9000;
 
 function readWords(file: string): string[] {

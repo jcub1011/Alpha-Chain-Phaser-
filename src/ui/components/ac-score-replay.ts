@@ -9,7 +9,9 @@
  * left-most card sits on top, and hovering any card lifts it to the front so it can
  * be read even when clustered. Cards that didn't activate gray out as the walk
  * passes them; every card consumes the same beat whether it fired or not. A taxed
- * word slams the total to zero; a clean word erupts (+ confetti) — both localized to
+ * word strikes through its missed (pre-tax) total with a Taxed chip (a partial
+ * salvage shows the struck missed total plus the amber kept score); a clean word
+ * erupts (+ confetti) — both localized to this zone. The theater is always visible:
  * this zone. The theater is always visible: between plays it shows the human's own
  * engine (centered score when the bay is empty). The whole run is a cancelable async
  * sequencer.
@@ -52,6 +54,9 @@ export class AcScoreReplay extends AcElement {
   /** Off-turn effects (siphons banked + aggression hits) that fired as this word
    *  resolved — shown once the engine walk settles, empty while idle. */
   @state() private effects: EngineEffectNotice[] = [];
+  /** Tax chip shown beside the settled total ("Taxed" / "Partial Tax"), empty
+   *  for clean words and while idle. Surfaces the missed (pre-tax) total. */
+  @state() private taxChip: "" | "Taxed" | "Partial Tax" = "";
   @query(".sr-num") private numEl?: HTMLElement;
   @query(".sr-fan") private fanEl?: HTMLElement;
 
@@ -103,6 +108,7 @@ export class AcScoreReplay extends AcElement {
     this.cards = human ? [...human.bay] : [];
     this.activated = [];
     this.effects = [];
+    this.taxChip = "";
     this.current = -1;
     this.revealed = -1;
     this.heading = "YOUR ENGINE";
@@ -110,7 +116,7 @@ export class AcScoreReplay extends AcElement {
     this.accent = human ? playerAccentVar(human.accentIndex) : "";
     this.active = true;
     void this.updateComplete.then(() => {
-      this.numEl?.classList.remove("is-final", "is-taxed");
+      this.numEl?.classList.remove("is-final", "is-partial", "is-taxed", "is-strike");
       if (this.numEl) {
         this.numEl.style.minWidth = ""; // release the per-play width reservation
         this.numEl.textContent = "0";
@@ -166,7 +172,8 @@ export class AcScoreReplay extends AcElement {
     this.accent = playerAccentVar(sub.accentIndex);
     this.word = sub.word.toUpperCase();
     this.active = true;
-    this.numEl?.classList.remove("is-final", "is-taxed");
+    this.taxChip = "";
+    this.numEl?.classList.remove("is-final", "is-partial", "is-taxed", "is-strike");
 
     await this.updateComplete;
     if (signal.aborted) return;
@@ -190,13 +197,24 @@ export class AcScoreReplay extends AcElement {
 
     if (prefersReducedMotion()) {
       this.revealed = this.cards.length - 1; // gray out every card that didn't fire
-      if (this.numEl) this.numEl.textContent = fmtScore(sub.score);
-      // A taxed word that still scored positive (e.g. Tax Write-Off salvage) reads
-      // as a partial, not a wipe — amber, not red.
       const partial = sub.taxed && sub.score > 0;
-      this.numEl?.classList.add(
-        partial ? "is-partial" : sub.taxed || sub.timedOut ? "is-taxed" : "is-final",
-      );
+      if (partial) {
+        // Struck missed total in red + kept score in amber, no animation.
+        if (this.numEl)
+          this.numEl.innerHTML =
+            `<s class="sr-was">${fmtScore(sub.breakdown.finalBeforeTax)}</s>` +
+            `<span class="sr-net is-partial">${fmtScore(sub.score)}</span>`;
+        this.numEl?.classList.add("is-partial");
+        this.taxChip = "Partial Tax";
+      } else if (sub.taxed) {
+        // Settle on the missed (pre-tax) total, struck through — never 0.
+        if (this.numEl) this.numEl.textContent = fmtScore(sub.breakdown.finalBeforeTax);
+        this.numEl?.classList.add("is-taxed");
+        this.taxChip = "Taxed";
+      } else {
+        if (this.numEl) this.numEl.textContent = fmtScore(sub.score);
+        this.numEl?.classList.add(sub.timedOut ? "is-taxed" : "is-final");
+      }
       this.effects = sub.effects ?? [];
       this.announceRevealed(sub);
       return;
@@ -230,16 +248,25 @@ export class AcScoreReplay extends AcElement {
     this.revealed = this.cards.length - 1; // settle: non-activated cards stay gray
 
     if (sub.taxed && sub.score > 0) {
-      // Taxed, but a salvage (e.g. Tax Write-Off) kept some points: crash the
-      // pre-tax total down to the reduced score and settle in the partial (amber)
-      // style — it scored, just not fully.
+      // Partial salvage (e.g. Tax Write-Off): crash the pre-tax total down to the
+      // kept score, then split into struck-red missed + amber net with a chip.
       this.numEl?.classList.add("is-partial");
+      this.taxChip = "Partial Tax";
       await this.ramp(sub.breakdown.finalBeforeTax, sub.score, 420, signal);
       fx.shake(0.4, theater);
+      if (!signal.aborted && this.numEl)
+        this.numEl.innerHTML =
+          `<s class="sr-was">${fmtScore(sub.breakdown.finalBeforeTax)}</s>` +
+          `<span class="sr-net is-partial">${fmtScore(sub.score)}</span>`;
     } else if (sub.taxed) {
-      // Crash the pre-tax total down to zero.
+      // Full tax: the walk already landed on the missed (pre-tax) total — strike
+      // it out in place (CSS sweep on .is-strike) instead of crashing to zero.
+      if (this.numEl) this.numEl.textContent = fmtScore(sub.breakdown.finalBeforeTax);
       this.numEl?.classList.add("is-taxed");
-      await this.ramp(sub.breakdown.finalBeforeTax, 0, 420, signal);
+      this.taxChip = "Taxed";
+      // Force a reflow so the strike sweep replays even if the class was set.
+      if (this.numEl) void this.numEl.offsetWidth;
+      this.numEl?.classList.add("is-strike");
       fx.shake(0.8, theater);
       await new Promise((r) => setTimeout(r, 500));
     } else if (sub.timedOut) {
@@ -306,6 +333,12 @@ export class AcScoreReplay extends AcElement {
                     </div>`
                   : nothing}
                 <div class="sr-num">0</div>
+                ${this.taxChip
+                  ? html`<span
+                      class="sr-tax-chip ${this.taxChip === "Partial Tax" ? "is-partial" : ""}"
+                      >${this.taxChip}</span
+                    >`
+                  : nothing}
               </div>
               <!-- Always rendered: a hidden placeholder pill reserves the row so the
                    strip appearing on a play never shifts the layout below it. -->

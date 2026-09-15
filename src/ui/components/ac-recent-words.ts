@@ -1,6 +1,8 @@
 /*
  * <ac-recent-words> — a feed of recent submissions, newest first. Each chip shows
- * the word, who played it, and the score (or a TAXED tag). The newest chip is
+ * the word, who played it, and the score. A taxed word shows its missed
+ * (pre-tax) total struck through in red with a Taxed chip (or the struck missed
+ * total plus the amber kept score with a Partial Tax chip). The newest chip is
  * accented and pops in. Renders as a horizontal scroller by default (mobile, above
  * the input) or a vertical column when `vertical` is set (desktop, under the rail).
  */
@@ -69,25 +71,35 @@ export class AcRecentWords extends AcElement {
       return html`<div class="recent is-empty"><span class="ac-eyebrow">no words yet</span></div>`;
     return html`
       <div class="recent" role="list">
-        ${this.items.map(
-          (s, i) => html`
+        ${this.items.map((s, i) => {
+          const partial = s.taxed && s.score > 0;
+          const fullTax = s.taxed && s.score <= 0;
+          const missed = s.breakdown.finalBeforeTax;
+          return html`
             <div
-              class="recent-item ${i === 0 ? "is-new" : ""} ${s.taxed ? "is-taxed" : ""}"
+              class="recent-item ${i === 0 ? "is-new" : ""} ${s.taxed ? "is-taxed" : ""} ${partial
+                ? "is-partial-tax"
+                : ""}"
               role="listitem"
               style="--accent:${playerAccentVar(s.accentIndex)};"
             >
               <span class="recent-word">${s.word}</span>
               <span class="recent-meta">
                 <span class="recent-who">${s.displayName}</span>
-                ${s.taxed
-                  ? s.score > 0
-                    ? html`<span class="recent-pts is-partial">+${fmtScore(s.score)}</span>`
-                    : html`<span class="recent-tag">TAXED</span>`
-                  : html`<span class="recent-pts">+${fmtScore(s.score)}</span>`}
+                <span class="recent-scores">
+                  ${fullTax
+                    ? html`<span class="recent-tag">Taxed</span
+                        ><span class="recent-missed">+${fmtScore(missed)}</span>`
+                    : partial
+                      ? html`<span class="recent-tag is-partial">Partial Tax</span
+                          ><span class="recent-missed">+${fmtScore(missed)}</span
+                          ><span class="recent-pts is-partial">+${fmtScore(s.score)}</span>`
+                      : html`<span class="recent-pts">+${fmtScore(s.score)}</span>`}
+                </span>
               </span>
             </div>
-          `,
-        )}
+          `;
+        })}
       </div>
     `;
   }

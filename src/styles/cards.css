@@ -39,6 +39,8 @@ ac-engine-bay[mini] {
 }
 .bay-total.is-taxed {
   color: var(--state-bad);
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
 }
 /* ── Card fan ──────────────────────────────────────────────────────────────
    Shared by <ac-card-fan> and the score-replay theater (<ac-score-replay>'s

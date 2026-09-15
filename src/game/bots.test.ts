@@ -69,6 +69,16 @@ describe("chooseBotWordScored", () => {
     expect(word).not.toBeNull();
     expect(word!.includes("z")).toBe(false);
   });
+
+  it("avoids every accumulated ban (bannedLetters) when a clean candidate exists", () => {
+    // 'q' (old ban) + 'z' (latest) both in force; only "tang" is clean.
+    const dict = new Dictionary(["tang", "tzar", "taq"]);
+    const word = chooseBotWordScored(
+      dict,
+      basePick({ requiredLetter: "t", bannedLetter: "z", bannedLetters: ["q", "z"] }),
+    );
+    expect(word).toBe("tang");
+  });
 });
 
 describe("planBotBay", () => {
@@ -144,7 +154,7 @@ describe("chooseBotWordFromRack", () => {
     /* Falling back to the used set made the bot commit a word submitWord rejects as already-used,
      * which spends its one action, runs the clock out into a dead turn, and in Survival eliminates
      * it — with a rejection flash on the way past. Returning null reaches the same resolved turn
-     * quietly, which is what the engine's own no-show auto-pick already does. */
+     * quietly, through the engine's own timeout penalty path. */
     for (const difficulty of ["easy", "medium", "hard"] as const) {
       const word = chooseBotWordFromRack(testRack, pool, index, {
         ...basePick({

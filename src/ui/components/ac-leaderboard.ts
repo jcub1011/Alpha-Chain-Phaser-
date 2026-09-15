@@ -2,8 +2,8 @@
  * <ac-leaderboard> — live standings. Re-renders only on low-frequency events
  * (turn changes, submissions, timeouts). The active player's row glows; the
  * human's row is bordered; a score change flashes the row, bumps its score, and
- * ghosts the signed delta over it (contained within the row so the list's scroll
- * never clips it) — on the submitter plus any off-turn siphons/drains it triggers.
+ * ghosts the signed delta to the left of the score (right-aligned with it) —
+ * on the submitter plus any off-turn siphons/drains it triggers.
  */
 
 import { html, nothing, type PropertyValues, type TemplateResult } from "lit";
@@ -25,7 +25,7 @@ export class AcLeaderboard extends AcElement {
 
   @state() private rows: LbRow[] = [];
   @state() private activeId = "";
-  @state() private pops: { id: string; amount: number; key: number }[] = [];
+  @state() private pops: { id: string; amount: number; key: number; taxed?: boolean }[] = [];
 
   /** Window listener for the deferred score reveal (engine-replay completion). */
   private onRevealed?: (e: Event) => void;
@@ -68,14 +68,24 @@ export class AcLeaderboard extends AcElement {
         // A single word can move several players: the submitter's own score plus
         // any off-turn siphons/drains it triggers (Chrono Syphon, Tax Collector,
         // drains, …). Fold every signed delta per player so each changed row pops.
+        // A fully-taxed word moves nobody (score 0) — ghost its missed (pre-tax)
+        // total struck through instead of a +0 flash, so the loss reads.
         const delta = new Map<string, number>();
         if (sub.score) delta.set(sub.playerId, sub.score);
         for (const eff of sub.effects ?? [])
           if (eff.amount) delta.set(eff.targetId, (delta.get(eff.targetId) ?? 0) + eff.amount);
         const base = sub.breakdown.seed + Date.now();
-        this.pops = [...delta]
+        const next: { id: string; amount: number; key: number; taxed?: boolean }[] = [...delta]
           .filter(([, amount]) => amount !== 0)
           .map(([id, amount], i) => ({ id, amount, key: base + i }));
+        if (sub.taxed && sub.score <= 0)
+          next.push({
+            id: sub.playerId,
+            amount: sub.breakdown.finalBeforeTax,
+            key: base + next.length,
+            taxed: true,
+          });
+        this.pops = next;
       };
       window.addEventListener("ac-score-revealed", this.onRevealed);
 
@@ -96,29 +106,38 @@ export class AcLeaderboard extends AcElement {
           const accent = playerAccentVar(p.accentIndex);
           const isMe = p.id === human;
           const isActive = p.id === this.activeId;
-          // At most one pop per row per reveal (deltas are folded per player).
+          // At most one pop per row per reveal (deltas are folded per player,
+          // plus at most one taxed-missed ghost for a fully-taxed word).
           const pop = this.pops.find((q) => q.id === p.id);
+          const isNeg = pop && !pop.taxed && pop.amount < 0;
           return html`
             <li
               class="lb-row ${isActive ? "is-active" : ""} ${isMe ? "is-me" : ""} ${p.eliminated
                 ? "is-out"
-                : ""} ${pop ? "is-pop" : ""} ${pop && pop.amount < 0 ? "is-pop-neg" : ""}"
+                : ""} ${pop ? "is-pop" : ""} ${isNeg ? "is-pop-neg" : ""} ${pop?.taxed
+                ? "is-pop-taxed"
+                : ""}"
               style="--accent:${accent};"
             >
               <span class="lb-rank">${rank + 1}</span>
               <span class="lb-name">${p.name}${isMe ? html`<i> you</i>` : nothing}</span>
               ${p.eliminated ? html`<span class="lb-tag">OUT</span>` : nothing}
-              <span class="lb-score">${fmtScore(p.score)}</span>
-              ${this.pops
-                .filter((q) => q.id === p.id)
-                .map(
-                  (q) =>
-                    html`<span
-                      class="lb-pop ${q.amount < 0 ? "is-neg" : ""}"
-                      @animationend=${() => (this.pops = this.pops.filter((x) => x.key !== q.key))}
-                      >${q.amount > 0 ? "+" : ""}${fmtScore(q.amount)}</span
-                    >`,
-                )}
+              <span class="lb-right">
+                ${this.pops
+                  .filter((q) => q.id === p.id)
+                  .map(
+                    (q) =>
+                      html`<span
+                        class="lb-pop ${q.taxed ? "is-taxed" : q.amount < 0 ? "is-neg" : ""}"
+                        @animationend=${() =>
+                          (this.pops = this.pops.filter((x) => x.key !== q.key))}
+                        >${q.taxed
+                          ? html`<s>+${fmtScore(q.amount)}</s>`
+                          : html`${q.amount > 0 ? "+" : ""}${fmtScore(q.amount)}`}</span
+                      >`,
+                  )}
+                <span class="lb-score">${fmtScore(p.score)}</span>
+              </span>
             </li>
           `;
         })}

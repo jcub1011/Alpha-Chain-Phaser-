@@ -332,11 +332,10 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
    * never fire there at all. Writing the numbers once is what lets that be a numbers-only edit. */
   TheVault: tuned({
     tune: { factor: 1.5, clockPct: -0.2, timeoutLoss: 12 },
-    // Picker has no timeout penalty at all: `pickerTimeoutCurrent` never calls `scoreTimeout`, so
-    // BASE_TIMEOUT_PENALTY and every timeoutFold are unreachable there. The drain could not fire,
-    // yet the card face still advertised it. Zeroing the knob retires the clause AND the fold from
-    // the same number, so the two can never disagree again. NOT a balance change: the fold it
-    // disables was already unreachable.
+    // Picker levies the base timeout penalty but no per-card drain: `pickerTimeoutCurrent` scores
+    // through `scoreTimeout`, so BASE_TIMEOUT_PENALTY fires there while this card's own fold stays
+    // inert. Zeroing the knob retires the clause AND the fold from the same number, so the two can
+    // never disagree again.
     perMode: { [GameMode.Picker]: { timeoutLoss: 0 } },
     build: (t) => ({
       name: "Overclock",
@@ -358,11 +357,10 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
 
   Redline: tuned({
     tune: { factor: 2, clockPct: -0.3, timeoutLoss: 24 },
-    // Picker has no timeout penalty at all: `pickerTimeoutCurrent` never calls `scoreTimeout`, so
-    // BASE_TIMEOUT_PENALTY and every timeoutFold are unreachable there. The drain could not fire,
-    // yet the card face still advertised it. Zeroing the knob retires the clause AND the fold from
-    // the same number, so the two can never disagree again. NOT a balance change: the fold it
-    // disables was already unreachable.
+    // Picker levies the base timeout penalty but no per-card drain: `pickerTimeoutCurrent` scores
+    // through `scoreTimeout`, so BASE_TIMEOUT_PENALTY fires there while this card's own fold stays
+    // inert. Zeroing the knob retires the clause AND the fold from the same number, so the two can
+    // never disagree again.
     perMode: { [GameMode.Picker]: { timeoutLoss: 0 } },
     build: (t) => ({
       name: "Redline",
@@ -415,11 +413,10 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
      * expression differs from the original while the value does not, which is exactly what the
      * Classic lock verifies. A weight other than 1 must also reword the description below. */
     tune: { ratioWeight: 1, timeoutLoss: 10 },
-    // Picker has no timeout penalty at all: `pickerTimeoutCurrent` never calls `scoreTimeout`, so
-    // BASE_TIMEOUT_PENALTY and every timeoutFold are unreachable there. The drain could not fire,
-    // yet the card face still advertised it. Zeroing the knob retires the clause AND the fold from
-    // the same number, so the two can never disagree again. NOT a balance change: the fold it
-    // disables was already unreachable.
+    // Picker levies the base timeout penalty but no per-card drain: `pickerTimeoutCurrent` scores
+    // through `scoreTimeout`, so BASE_TIMEOUT_PENALTY fires there while this card's own fold stays
+    // inert. Zeroing the knob retires the clause AND the fold from the same number, so the two can
+    // never disagree again.
     perMode: { [GameMode.Picker]: { timeoutLoss: 0 } },
     build: (t) => ({
       name: "Speedracer",
@@ -650,10 +647,11 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     },
   },
 
-  /* Tuned: the GDD calls this "the most affected card in the catalogue" in Picker (§4.4), since a
-   * fast commit leaves far more seconds on an opponent's clock than typing a word does. */
+  /* Tuned: pure elapsed-time payout — fast submits deny the card, slow submits feed
+   * it (capped), and real timeouts bounty the cap (see timeoutCurrent/pickerTimeoutCurrent).
+   * Inverts the old remaining-time formula, whose dominant response was stalling to ~0s. */
   ChronoSyphon: tuned({
-    tune: { perSecond: 2 },
+    tune: { perSecond: 1, cap: 30 },
     build: (t) => ({
       name: "Chrono Syphon",
       rarity: CardRarity.Uncommon,
@@ -661,14 +659,16 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
       family: CardFamily.Economy,
       op: CardOp.Fx,
       magnitudeText: "FX",
-      description: `+${t.perSecond} per whole second left on an opponent's shot clock when they submit.`,
+      description: `+${t.perSecond} per whole second taken on an opponent's shot clock when they submit, max ${t.cap}.`,
       fold: (v) => fx(v),
       onOpponentWordResolved: (c) => {
         const res = c.resolution;
-        if (!res || res.remainingSeconds <= 0) return;
+        if (!res) return;
         const owner = c.player;
         if (!owner || owner.id === res.submitterId) return;
-        const amount = clampScore(res.remainingSeconds * t.perSecond * c.magnification());
+        const elapsed = Math.floor(c.clockTotal - c.clockRemaining);
+        if (elapsed <= 0) return;
+        const amount = clampScore(Math.min(t.cap, elapsed * t.perSecond) * c.magnification());
         if (amount > 0) {
           owner.score += amount;
           c.effects?.bankSiphon(owner.id, amount, "Chrono Syphon");
@@ -811,8 +811,9 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
   Insurance: {
     name: "Insurance",
     rarity: CardRarity.Common,
-    // Classic-only: it negates the timeout point penalty, and Picker has no timeout penalty (a
-    // Picker expiry commits a word and scores it), so the card would be pure dead weight.
+    // Classic-only: it negates the timeout point penalty, and Picker's timeout levies only the
+    // base loss with every per-card drain zeroed — so the card would refund just the base while
+    // taking up a bay slot tuned for Classic's deeper penalty walk. Kept out of the Picker pool.
     modes: [GameMode.Classic],
     color: "#6699bd",
     family: CardFamily.Utility,

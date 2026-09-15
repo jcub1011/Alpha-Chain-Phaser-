@@ -52,10 +52,10 @@ const SCRIPTS: Record<TutorialKind, Script> = {
   },
   pickerTimeout: {
     eyebrow: "how to play · the shot clock",
-    title: "The clock plays your word",
+    title: "Beat the clock",
     lines: [
       "When the shot clock expires, any valid word you've assembled is submitted automatically.",
-      "If nothing valid is staged, a word is built for you without penalty — but in Survival mode, that costs you your spot.",
+      "Time out with nothing valid staged and you lose points — and in Survival mode, your spot.",
     ],
   },
   engine: {

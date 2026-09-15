@@ -18,7 +18,7 @@ import { Dictionary } from "./dictionary";
 import { MatchController, type PlayerSeed } from "./match";
 import { buildPoolIndex } from "./picker/offer";
 import { dictionaryWordPool } from "./picker/wordPool";
-import { DEFAULT_SETTINGS } from "./settings";
+import { DEFAULT_SETTINGS, activeBannedLetters } from "./settings";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const wordsPath = resolve(here, "../../public/assets/words.txt");
@@ -82,6 +82,11 @@ describe("full match (integration)", () => {
           requiredLetter: s.requiredLetter,
           usedWords: s.usedWords,
           bannedLetter: s.bannedLetter,
+          bannedLetters: activeBannedLetters(
+            s.settings.banRepeatRule,
+            s.bannedLetter,
+            s.bannedLetterHistory,
+          ),
           difficulty: "hard",
         });
         if (word) {

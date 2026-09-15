@@ -230,6 +230,7 @@ ac-word-history {
   display: flex;
   align-items: baseline;
   gap: 0.6rem;
+  flex-wrap: wrap;
 }
 .go-wh-word {
   font-family: var(--font-display);
@@ -238,11 +239,22 @@ ac-word-history {
 }
 .go-wh-word.is-taxed {
   color: var(--state-bad);
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
 }
 .go-wh-who {
   flex: 1;
   color: var(--ac-ink-faint);
   font-size: 0.78rem;
+}
+/* Score cluster: chip(s) sit to the left of the score, both pinned right. */
+.go-wh-scores {
+  margin-left: auto;
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 0.45rem;
+  text-align: right;
 }
 .go-wh-pts {
   font-family: var(--font-mono);
@@ -250,10 +262,41 @@ ac-word-history {
   color: var(--state-good);
   font-variant-numeric: tabular-nums;
 }
-.go-wh-tax {
+.go-wh-pts.is-partial {
+  color: var(--ac-brass-lit);
+}
+.go-wh-missed {
   font-family: var(--font-mono);
   font-weight: 800;
   color: var(--state-bad);
+  font-variant-numeric: tabular-nums;
+  text-decoration-thickness: 2px;
+}
+.go-wh-tax-chip {
+  font-family: var(--font-mono);
+  font-weight: 800;
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--state-bad);
+  padding: 0.1em 0.45em;
+  border-radius: var(--r-xs);
+  border: 1px solid color-mix(in srgb, var(--state-bad) 60%, transparent);
+  background: color-mix(in srgb, var(--state-bad) 16%, transparent);
+  white-space: nowrap;
+}
+.go-wh-tax-chip.is-partial {
+  color: var(--ac-brass-lit);
+  border-color: color-mix(in srgb, var(--ac-brass-lit) 60%, transparent);
+  background: color-mix(in srgb, var(--ac-brass-lit) 14%, transparent);
+}
+.go-wh-run.is-missed {
+  color: var(--state-bad);
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+}
+.go-wh-run.is-partial {
+  color: var(--ac-brass-lit);
 }
 
 /* ── Per-word engine fan (static mirror of <ac-score-replay>) ──────────── */
