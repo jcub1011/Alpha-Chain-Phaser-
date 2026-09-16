@@ -9,7 +9,6 @@
 
 import { html, nothing, type PropertyValues, type TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import { GameMode } from "../../game/types";
 import type { AlphaChainSettings } from "../../game/types";
 import { applyPreset, type PresetId } from "../../game/presets";
 import { DEFAULT_SETTINGS, saveSettings } from "../../game/settings";
