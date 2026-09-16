@@ -9,7 +9,6 @@
 
 import { html, nothing, type PropertyValues, type TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import { GameMode } from "../../game/types";
 import type { AlphaChainSettings } from "../../game/types";
 import { applyPreset, type PresetId } from "../../game/presets";
 import { DEFAULT_SETTINGS, saveSettings } from "../../game/settings";
@@ -167,19 +166,29 @@ export class AcLobby extends AcElement {
         </div>
 
         <button class="ac-btn lobby-start" @click=${this.start}>START MATCH</button>
-        <button class="lobby-bay" @click=${this.openBay}>Testing Bay</button>
+        <button class="lobby-bay" @click=${this.openBay}>
+          <svg
+            class="lobby-bay-ico"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M10 2v7L4.5 19a1 1 0 0 0 .9 1.5h13.2a1 1 0 0 0 .9-1.5L14 9V2" />
+            <path d="M8.5 2h7" />
+            <path d="M7 16h10" />
+          </svg>
+          Testing Bay
+        </button>
 
         <!-- Mode-specific, because the two modes ask for genuinely different things: Word Builder
              asks you to assemble a word from what you are dealt, Classic asks you to think of
              one. The succession rule and the joke are common to both. -->
         <p class="lobby-rules">
-          ${d.gameMode === GameMode.Picker
-            ? html`Every word must start with the last letter of the previous word — but you build
-              yours from a rack of tiles, so it's your engine doing the work, not your spelling. It
-              sounds simple but don't worry, I've massively overcomplicated it.`
-            : html`Every word must start with the last letter of the previous word, and you type it
-              yourself against the clock. It sounds simple but don't worry, I've massively
-              overcomplicated it.`}
+          Every word must start with the last letter of the previous word. It sounds simple but don't worry, I've massively overcomplicated it.
         </p>
       </div>
     `;

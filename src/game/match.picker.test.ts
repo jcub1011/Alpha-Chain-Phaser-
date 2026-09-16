@@ -1,7 +1,7 @@
 /*
  * Word Builder mode through the real MatchController — Tile Rack generation per turn, the
- * two-stage stage/commit, and the timeout rules that differ from Classic (no point penalty,
- * Survival keyed on the no-show, the Prism still rescuing a poisoned pick).
+ * two-stage stage/commit, and the timeout rules (a valid staged word auto-submits, anything else
+ * takes the timeout penalty like Classic; Survival eliminates on top of it).
  *
  * Separate from match.test.ts, in the `forgery.match.test.ts` idiom: those cases all drive Classic,
  * and interleaving two modes in one harness is how a "Classic unregressed" assertion quietly stops
@@ -125,8 +125,8 @@ function rackWord(m: MatchController, index = 0): string {
 }
 
 /** Every word the current rack can build, respecting Succession and words already played.
- *  Succession is waived when the rack itself was drawn free of the letter (Wildcard), the same
- *  way the engine's own no-show pick waives it — otherwise a Wildcard turn reads as barren. */
+ *  Succession is waived when the rack itself was drawn free of the letter (Wildcard), mirroring
+ *  the engine's own waiver for the turn — otherwise a Wildcard turn reads as barren. */
 function rackWords(m: MatchController): string[] {
   const pool = m.wordPoolInstance;
   if (!pool || m.state.rack.length === 0) return [];
@@ -298,24 +298,56 @@ describe("word builder — timeout", () => {
     m.setSelection("p1", chosen);
     runClockOut(m);
     const p1 = m.state.players.find((p) => p.id === "p1")!;
-    // Classic would apply BASE_TIMEOUT_PENALTY (-10) before any card drain. Picker scores the
-    // word normally instead: the clock enforces pace, not punishment.
+    // A valid staged word is auto-submitted, exactly like Classic auto-submits a valid draft:
+    // showing up with a word is never punished.
     expect(p1.score).toBeGreaterThan(0);
     expect(m.state.usedWords.has(chosen)).toBe(true);
     expect(lastWord(m)).toBe(chosen);
     expect(lastSub(m)?.timedOut).toBeUndefined();
   });
 
-  it("commits a word built from the player's OWN RACK on a no-show, and still scores it", () => {
-    /* The word has to be one they could actually have built from the tiles in front of them.
-     * Committing from the retired Offer credited them a word they never saw and had no tiles for,
-     * while the tutorial promises "a word is built for you". */
+  it("refills the clock instead of penalising when a Prism is held", () => {
+    const m = makePicker();
+    m.benchSetBay("p1", ["Prism"]);
+    started(m);
+    runClockOut(m); // shot clock expires → Prism refills, turn continues
+    expect(m.state.clockRemaining).toBe(m.state.clockTotal);
+    expect(m.state.players.find((p) => p.id === "p1")!.score).toBe(0); // no timeout penalty
+    expect(m.current.id).toBe("p1");
+    // Charge spent: a second timeout this era applies the penalty as normal.
+    runClockOut(m);
+    expect(m.state.players.find((p) => p.id === "p1")!.score).toBe(-10);
+  });
+
+  it("refills instead of auto-submitting a valid staged word when a Prism is held", () => {
+    const m = makePicker();
+    m.benchSetBay("p1", ["Prism"]);
+    started(m);
+    const chosen = rackWord(m);
+    m.setSelection("p1", chosen);
+    runClockOut(m); // Prism refills, word kept for the extended turn
+    expect(m.state.usedWords.has(chosen)).toBe(false); // NOT submitted from under the player
+    expect(m.state.clockRemaining).toBe(m.state.clockTotal);
+    expect(m.state.players.find((p) => p.id === "p1")!.score).toBe(0);
+    expect(m.current.id).toBe("p1");
+    // The charge is now spent: the next timeout auto-submits the still-staged word.
+    runClockOut(m);
+    expect(m.state.usedWords.has(chosen)).toBe(true);
+    expect(m.state.players.find((p) => p.id === "p1")!.score).toBeGreaterThan(0);
+  });
+
+  it("takes the base timeout penalty on a no-show — nothing is committed on the player's behalf", () => {
+    /* Only a staged word the engine ACCEPTS is ever auto-submitted. An invalid or blank staging
+     * never conjures a word: the turn resolves as a real timeout, like Classic. */
     const m = started(makePicker());
-    const buildable = rackWords(m);
+    const penalties: number[] = [];
+    m.events.on("timeout", ({ penalty }) => penalties.push(penalty));
     runClockOut(m);
     const p1 = m.state.players.find((p) => p.id === "p1")!;
-    expect(p1.score).toBeGreaterThan(0);
-    expect(buildable).toContain(lastWord(m));
+    expect(p1.score).toBe(-10); // BASE_TIMEOUT_PENALTY, empty bay
+    expect(penalties).toEqual([10]);
+    expect(m.state.history.length).toBe(0); // a timeout is not a submission
+    expect(m.current.id).toBe("p2"); // turn still advances
   });
 
   it("does not eliminate a slow picker who did select, in Survival", () => {
@@ -325,13 +357,13 @@ describe("word builder — timeout", () => {
     expect(m.state.players.find((p) => p.id === "p1")!.eliminated).toBe(false);
   });
 
-  it("eliminates a no-show in Survival, while the random pick still resolves", () => {
+  it("eliminates a no-show in Survival, on top of the point penalty", () => {
     const m = started(makePicker({ survivalMode: true }, REDUCED, seeds3));
-    const buildable = rackWords(m);
     runClockOut(m);
     const p1 = m.state.players.find((p) => p.id === "p1")!;
-    expect(p1.eliminated).toBe(true); // Survival keys on the no-show, not the timeout
-    expect(buildable).toContain(lastWord(m)); // ...and the chain continued
+    expect(p1.eliminated).toBe(true);
+    expect(p1.score).toBe(-10); // elimination as well as the penalty, never instead of it
+    expect(m.state.history.length).toBe(0); // no word was committed for them
   });
 
   it("eliminates a builder who only ever staged a fragment, in Survival", () => {
@@ -343,7 +375,8 @@ describe("word builder — timeout", () => {
     runClockOut(m);
     const p1 = m.state.players.find((p) => p.id === "p1")!;
     expect(p1.eliminated).toBe(true);
-    expect(m.state.requiredLetter).not.toBe(""); // ...and the chain still continued on a real word
+    expect(p1.score).toBe(-10); // a fragment is not a word: the penalty fires too
+    expect(m.state.history.length).toBe(0);
   });
 
   it("treats a cleared board as a no-show, even after a valid word was staged", () => {
@@ -353,46 +386,47 @@ describe("word builder — timeout", () => {
     m.setSelection("p1", rackWord(m));
     m.setSelection("p1", "");
     runClockOut(m);
-    expect(m.state.players.find((p) => p.id === "p1")!.eliminated).toBe(true);
+    const p1 = m.state.players.find((p) => p.id === "p1")!;
+    expect(p1.eliminated).toBe(true);
+    expect(p1.score).toBe(-10);
   });
 
-  it("commits a real word rather than a dead turn when the staged fragment is rejected", () => {
-    // Survival aside: a rejected fragment must fall through to the same random pick a total
-    // no-show gets, not strand the chain on a blank "—" submission.
+  it("falls through to the timeout penalty when the staged fragment is rejected", () => {
+    // A rejected fragment resolves as a real timeout — penalty, no word — never a free pick.
     const m = started(makePicker());
     const frag = rackFragment(m);
     m.setSelection("p1", frag);
+    let timedOut = false;
+    m.events.on("timeout", () => (timedOut = true));
     runClockOut(m);
-    expect(lastWord(m)).not.toBe("—");
-    expect(lastWord(m)).not.toBe(frag);
-    expect(m.state.players.find((p) => p.id === "p1")!.score).toBeGreaterThan(0);
+    expect(timedOut).toBe(true);
+    expect(m.state.players.find((p) => p.id === "p1")!.score).toBe(-10);
+    expect(m.state.history.length).toBe(0);
+    expect(m.state.requiredLetter).toBe(""); // the chain letter is unmoved
   });
 
-  it("never auto-picks a word that has already been played", () => {
-    /* The candidate list has to exclude used words. `submitWord` rejects one at the already-used
-     * gate, and the rejection lands on a player whose only sin was timing out: "Already used"
-     * flashes at them and the turn resolves as the dead "—" submission with the chain letter
-     * unmoved. Every buildable word but one is played here, so an unfiltered pick is a near-certain
-     * hit — in a real match the odds simply climb with every word played. */
+  it("never commits a staged word that has already been played", () => {
+    /* `submitWord` rejects one at the already-used gate, and the rejection lands on a player
+     * whose only sin was timing out — so the turn resolves as a timeout with the chain letter
+     * unmoved, never by committing the duplicate. */
     const m = started(makePicker({}, REDUCED, [solo], mulberry(11)));
-    const buildable = rackWords(m);
-    expect(buildable.length).toBeGreaterThan(3);
-    const survivor = buildable[buildable.length - 1];
-    for (const w of buildable) if (w !== survivor) m.state.usedWords.add(w);
+    const staged = rackWord(m);
+    m.setSelection("p1", staged);
+    m.state.usedWords.add(staged);
 
     const rejects: string[] = [];
     m.events.on("rejected", ({ reason }) => rejects.push(reason));
     runClockOut(m);
 
-    expect(rejects).toEqual([]);
-    expect(lastWord(m)).toBe(survivor); // the one word left, not the dead "—"
+    expect(rejects).toEqual(["already-used"]);
+    expect(m.state.players.find((p) => p.id === "p1")!.score).toBe(-10);
+    expect(m.state.history.length).toBe(0);
   });
 
-  it("auto-picks from a Wildcard rack, which carries no required letter", () => {
+  it("takes the penalty on a Wildcard turn too, leaving the required letter standing", () => {
     /* In Word Builder the Wildcard is spent at GENERATION: the rack is drawn free of the required
-     * letter while the letter itself stands, since the chain still advances from it. Filtering the
-     * auto-pick by that letter searches a rack deliberately built without it — reliably nothing,
-     * so the turn died on "—" and the chain stalled on exactly the turn the card was spent. */
+     * letter while the letter itself stands, since the chain still advances from it. Timing out
+     * there is a real timeout like anywhere else — penalty, letter unmoved. */
     const m = makePicker({}, REDUCED, [solo], mulberry(5));
     m.benchSetBay(solo.id, ["Wildcard"]);
     started(m);
@@ -400,19 +434,21 @@ describe("word builder — timeout", () => {
     expect(m.state.requiredLetter).not.toBe("");
     expect(m.successionWaivedThisTurn).toBe(true);
 
-    let deadTurns = 0;
-    m.events.on("timeout", () => deadTurns++); // only the "—" path emits this in Word Builder
-    const buildable = rackWords(m);
+    let penalty = 0;
+    m.events.on("timeout", ({ penalty: p }) => (penalty = p));
+    const letter = m.state.requiredLetter;
+    const scoreBefore = m.state.players.find((p) => p.id === solo.id)!.score;
     runClockOut(m);
 
-    expect(deadTurns).toBe(0);
-    expect(buildable).toContain(lastWord(m));
+    expect(penalty).toBe(10);
+    expect(m.state.players.find((p) => p.id === solo.id)!.score).toBe(scoreBefore - 10);
+    expect(m.state.requiredLetter).toBe(letter); // unmoved
+    expect(m.state.history.length).toBe(1); // only the turn-2 commit; the timeout added none
   });
 
   it("ends the match on the no-show turn when it leaves one player standing", () => {
-    /* The ordering test. The elimination has to be visible to endTurn's Survival active-count
-     * check — which runs INSIDE submitWord, below the commit — so a deferred flag applied at the
-     * top of endTurn is the only place it can go. */
+    /* The ordering test. The elimination is applied before endTurn's Survival active-count
+     * check, so the match ends on the very turn the last rival times out. */
     const m = started(makePicker({ survivalMode: true }));
     m.state.players.find((p) => p.id === "p2")!.eliminated = true;
     runClockOut(m);

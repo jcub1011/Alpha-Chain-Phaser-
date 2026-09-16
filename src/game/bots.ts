@@ -34,8 +34,19 @@ export interface BotPick {
   requiredLetter: string; // "" = free choice
   usedWords: Set<string>;
   bannedLetter: string; // "" = none
+  /** Extra banned letters in force alongside `bannedLetter` (Accumulate mode).
+   *  Optional so existing callers keep compiling; the clean/taxed checks treat
+   *  the union as banned. */
+  bannedLetters?: readonly string[];
   difficulty: BotDifficulty;
   rng?: () => number;
+}
+
+/** Every banned letter in force for a bot pick (single + accumulated set). */
+function botBans(opts: Pick<BotPick, "bannedLetter" | "bannedLetters">): string[] {
+  const bans = opts.bannedLetter ? [opts.bannedLetter] : [];
+  for (const b of opts.bannedLetters ?? []) if (b && !bans.includes(b)) bans.push(b);
+  return bans;
 }
 
 /** Shared candidate-gathering setup both pickers walk: the per-letter pools to scan
@@ -47,7 +58,8 @@ function botCandidateTiers(opts: BotPick, rng: () => number) {
     ? [opts.requiredLetter.toLowerCase()]
     : shuffle(ALPHABET, rng);
   const fresh = (w: string) => !opts.usedWords.has(w);
-  const clean = (w: string) => opts.bannedLetter === "" || !w.includes(opts.bannedLetter);
+  const bans = botBans(opts);
+  const clean = (w: string) => bans.every((b) => !w.includes(b));
   const inBand = (w: string) => w.length >= lo && w.length <= hi;
   return {
     lettersToTry,
@@ -174,14 +186,15 @@ export function chooseBotWordScored(dict: Dictionary, opts: BotScoredPick): stri
  */
 export function bestScoredCandidate(
   candidates: Iterable<string>,
-  opts: Pick<BotScoredPick, "bay" | "scoreOpts" | "bannedLetter">,
+  opts: Pick<BotScoredPick, "bay" | "scoreOpts" | "bannedLetter" | "bannedLetters">,
   rng: () => number = Math.random,
 ): string | null {
   let best: string | null = null;
   let bestScore = -Infinity;
   let tieSeen = 0;
+  const bans = botBans(opts);
   for (const w of candidates) {
-    const taxed = opts.bannedLetter !== "" && w.includes(opts.bannedLetter);
+    const taxed = bans.some((b) => w.includes(b));
     const score = scoreWord(w, opts.bay, { ...opts.scoreOpts, taxed }).finalScore;
     if (score > bestScore) {
       bestScore = score;
@@ -207,7 +220,7 @@ export function chooseBotWordFromRack(
   rack: readonly Tile[],
   pool: WordPool,
   index: PoolIndex,
-  opts: Pick<BotScoredPick, "requiredLetter" | "usedWords" | "bannedLetter" | "difficulty" | "bay" | "scoreOpts">,
+  opts: Pick<BotScoredPick, "requiredLetter" | "usedWords" | "bannedLetter" | "bannedLetters" | "difficulty" | "bay" | "scoreOpts">,
   rng: () => number = Math.random,
 ): string | null {
   // `usedWords` goes INTO the scan rather than filtering its output, and the scan is bounded.
@@ -225,8 +238,8 @@ export function chooseBotWordFromRack(
   // Standing down beats knowingly repeating a word. Falling back to the used set here made the bot
   // commit a word submitWord rejects as already-used, which spends its one action, runs the clock
   // out into a dead turn, and in Survival eliminates it — all with a rejection flash on the way
-  // past. Returning null reaches the same resolved turn quietly, and matches what the engine's own
-  // no-show auto-pick already does.
+  // past. Returning null reaches the same resolved turn quietly, through the engine's own timeout
+  // penalty path.
   if (candidates.length === 0) return null;
 
   // Easy bot: picks shorter or random valid sub-word

@@ -251,7 +251,8 @@
 /* Leaderboard score change — kept fully inside the row so the standings' own
  * overflow-y scroll cannot clip it: the whole row background flashes (::after)
  * then fades back to its original colour, the score number bumps, and the
- * signed delta fades in/out in place. --pop-color drives all three. */
+ * signed delta fades in/out inline to the left of the score. --pop-color
+ * drives all three. */
 @keyframes ac-lb-flash {
   0% {
     opacity: 0;
@@ -272,27 +273,6 @@
   }
   100% {
     transform: scale(1);
-  }
-}
-/* Delta fades in then out in place (centred over the row) — no vertical travel.
- * translate(-50%, -50%) is held constant so only opacity/scale animate; the
- * scale tops out at 1 so the number never grows past the normal score size. */
-@keyframes ac-lb-pop {
-  0% {
-    opacity: 0;
-    transform: translate(-50%, -50%) scale(0.8);
-  }
-  20% {
-    opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
-  }
-  70% {
-    opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
-  }
-  100% {
-    opacity: 0;
-    transform: translate(-50%, -50%) scale(1);
   }
 }
 @keyframes ac-rise {

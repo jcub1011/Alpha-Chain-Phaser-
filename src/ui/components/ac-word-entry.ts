@@ -76,8 +76,17 @@ export class AcWordEntry extends AcElement {
       // BEFORE its own timeout check (match.tick): a successful submit re-arms the
       // clock so the engine never skips, while an empty/invalid box falls through
       // to the normal timeout below.
+      // A held Prism takes precedence over the auto-submit: the engine's
+      // timeoutCurrent refills the clock instead, so submitting here would steal
+      // the word from under the extended turn. Skip and let the engine rescue.
       this.listen(e, "clockTick", (remaining) => {
-        if (this.live && remaining <= 0) this.submit();
+        if (!this.live || remaining > 0) return;
+        // Flush the in-box word before the rescue check: the streamed draft is
+        // throttled (120ms), so without this a spent-Prism mirror would skip its
+        // submit and leave the authority with a stale draft. No-op in solo.
+        if (this.input) this.controller.reportDraft(this.input.value.trim());
+        if (this.controller.match.canRescueClock(human)) return;
+        this.submit();
       });
       this.listen(e, "timeout", ({ playerId }) => {
         this.live = false;
@@ -86,6 +95,9 @@ export class AcWordEntry extends AcElement {
         // Clear the box even when the auto-submit was rejected (garbage) or empty,
         // so no stale text survives into our next turn.
         if (playerId === human && this.input) this.input.value = "";
+        // The turn resolved: drop the engine projection (the HUD also clears on
+        // the event, this covers a box cleared with no submission attached).
+        this.publishPreview("");
       });
       this.listen(e, "rejected", ({ playerId, reason }) => {
         if (playerId !== human) return;
@@ -177,6 +189,11 @@ export class AcWordEntry extends AcElement {
    *  the input is read-at-submit and never re-renders while typing. */
   private onInput(): void {
     if (!this.live || !this.input) return;
+    const value = this.input.value.trim().toLowerCase();
+    // Live engine projection (the HUD highlights the cards this word would fire
+    // and swaps their chips to the exact fired magnitudes). Empty clears it.
+    // Piggybacks the draft throttle below — no second timer, no re-render here.
+    this.publishPreview(value);
     const THROTTLE = 120;
     const now = Date.now();
     const elapsed = now - this.lastDraftAt;
@@ -192,6 +209,17 @@ export class AcWordEntry extends AcElement {
       this.lastDraftAt = Date.now();
       this.controller.reportDraft(this.input.value.trim());
     }, THROTTLE - elapsed);
+  }
+
+  /** Publish the staged word for the engine-bay projection (see onInput). */
+  private publishPreview(word: string): void {
+    this.dispatchEvent(
+      new CustomEvent("ac-offer-preview", {
+        detail: { word },
+        bubbles: true,
+        composed: true,
+      }),
+    );
   }
 
   override disconnectedCallback(): void {

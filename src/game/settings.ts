@@ -82,7 +82,7 @@ const STORAGE_KEY = "alphachain.settings";
 
 /** Bump when a setting's valid range/enum changes so stale persisted blobs (which
  *  may now hold out-of-range values) are discarded rather than silently loaded. */
-const SETTINGS_VERSION = 4;
+const SETTINGS_VERSION = 5;
 
 /**
  * Load persisted settings, merged over defaults with per-field validation.
@@ -160,7 +160,12 @@ export const VOWELS = new Set(["a", "e", "i", "o", "u"]);
 export const isVowel = (c: string): boolean => VOWELS.has(c.toLowerCase());
 
 const BAN_MODES: readonly BanMode[] = ["All", "VowelsOnly", "ConsonantsOnly"];
-const BAN_REPEAT_RULES: readonly BanRepeatRule[] = ["AllowRepeat", "NoConsecutive", "NoRepeat"];
+const BAN_REPEAT_RULES: readonly BanRepeatRule[] = [
+  "AllowRepeat",
+  "NoConsecutive",
+  "NoRepeat",
+  "Accumulate",
+];
 const BOT_DIFFICULTIES: readonly BotDifficulty[] = ["easy", "medium", "hard"];
 const GAME_MODES: readonly GameMode[] = Object.values(GameMode);
 const DICTIONARY_TIERS: readonly DictionaryTier[] = Object.values(DictionaryTier);
@@ -281,6 +286,9 @@ export function legalBanLetters(mode: AlphaChainSettings["banMode"]): string[] {
  * Letters a player may pick this era under the ban-repeat rule, given the letters
  * banned in past eras (`history`, most-recent last). `AllowRepeat` never excludes;
  * `NoConsecutive` excludes only the last entry; `NoRepeat` excludes every entry.
+ * `Accumulate` excludes every entry like `NoRepeat`, except the pool is NEVER
+ * reset: once every legal letter is banned the result is empty, and the engine
+ * ends the match instead of opening another sniper ban (see `banPoolExhausted`).
  * If excluding would leave no legal letter (the pool is exhausted — only reachable
  * under `NoRepeat` across many eras), the exclusion set is reset and the full legal
  * pool is returned. The authority mirrors this reset on `bannedLetterHistory` when
@@ -298,6 +306,53 @@ export function availableBanLetters(
       ? new Set([history[history.length - 1].toLowerCase()])
       : new Set(history.map((l) => l.toLowerCase()));
   const available = legal.filter((c) => !excluded.has(c));
+  // Accumulate never reopens the pool: an empty result is the terminal signal
+  // the engine turns into an early game-over (see banPoolExhausted).
+  if (rule === "Accumulate") return available;
   // Pool exhausted: reset the exclusion set rather than leave nothing to ban.
   return available.length > 0 ? available : legal;
+}
+
+/**
+ * The letters currently taxing words under a ban-repeat rule. Normally just the
+ * latest ban (or none); under `Accumulate` every past ban stays in force, in era
+ * order with duplicates collapsed.
+ */
+export function activeBannedLetters(
+  rule: BanRepeatRule,
+  bannedLetter: string,
+  history: readonly string[],
+): string[] {
+  if (rule === "Accumulate") {
+    const seen = new Set<string>();
+    for (const l of [...history, bannedLetter]) {
+      const c = l.toLowerCase();
+      if (c && !seen.has(c)) seen.add(c);
+    }
+    return [...seen];
+  }
+  return bannedLetter ? [bannedLetter] : [];
+}
+
+/**
+ * Whether an accumulating match has run out of letters to ban and must end
+ * early, even if `eraCount` wasn't reached. Checked at era boundaries (never
+ * mid-era), so the era played under the final ban set always runs:
+ *  - `All` (every letter is a candidate): terminal once ONE letter is left.
+ *    Banning the 26th would tax every possible word to zero, so the match ends
+ *    instead of opening a ban grid with a single forced pick.
+ *  - `VowelsOnly` / `ConsonantsOnly`: terminal once every bannable letter is
+ *    banned. The fully-banned final era is still played (vowel-free and
+ *    consonant-free words exist, barely), and the match ends at its close.
+ * Only meaningful under `Accumulate`; always false for the other rules.
+ */
+export function banPoolExhausted(
+  mode: AlphaChainSettings["banMode"],
+  rule: BanRepeatRule,
+  history: readonly string[],
+): boolean {
+  if (rule !== "Accumulate") return false;
+  const banned = new Set(history.map((l) => l.toLowerCase()));
+  const remaining = legalBanLetters(mode).filter((c) => !banned.has(c)).length;
+  return mode === "All" ? remaining <= 1 : remaining === 0;
 }

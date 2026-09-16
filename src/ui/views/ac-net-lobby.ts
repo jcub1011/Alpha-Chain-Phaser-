@@ -1,13 +1,13 @@
 /*
  * <ac-net-lobby> — the pre-match multiplayer surface. The owner sees the joined
- * roster + the settings panel + START MATCH (and can join as a player or sit out
+ * roster + the settings panel + START MATCH as player or spectator (and can join as a player or sit out
  * as a shared display). Other players see the roster and wait for the owner to
  * start. Emits `ac-net-start` with the chosen settings (owner only).
  *
  * The settings rows themselves live in settings-sections.ts, shared with <ac-lobby>. What stays
  * here is this lobby's own machinery: the draft, persistence, the owner-only push, the row
- * primitives it lends the shared sections (which is what keeps guests read-only), and the
- * multiplayer-only host preference (host plays).
+ * primitives it lends the shared sections (which is what keeps guests read-only).
+ * Whether the owner plays or spectates is chosen with the two start buttons, not a setting.
  *
  * Server-authoritative: lobby powers gate on the owner (peer.isOwner), never the
  * host — in server mode there is no host client.
@@ -127,10 +127,23 @@ export class AcNetLobby extends AcElement {
     this.pushSettings();
   }
 
-  private start(): void {
+  /** Start the match, joining as a player or sitting out as a spectator. The role
+   *  is written into the draft (so it persists) and carried in the start payload
+   *  the authority seeds from. */
+  private startWithRole(hostPlays: boolean): void {
+    this.draft = { ...this.draft, hostPlays };
+    saveSettings(this.draft);
     this.dispatchEvent(
       new CustomEvent("ac-net-start", { detail: { ...this.draft }, bubbles: true, composed: true }),
     );
+  }
+
+  private startAsPlayer(): void {
+    this.startWithRole(true);
+  }
+
+  private startAsSpectator(): void {
+    this.startWithRole(false);
   }
 
   /** Open the Testing Bay (sandbox). URL-driven so it stays bookmarkable. */
@@ -243,6 +256,9 @@ export class AcNetLobby extends AcElement {
     const ownerId = ctrl?.ownerId ?? null;
     const d = this.draft;
     const c = this.controls;
+    // Spectating needs someone else to play: the roster includes the owner, so a
+    // lone owner has nobody to watch. (Net rosters hold real people only — no bots.)
+    const canSpectate = roster.length > 1;
 
     return html`
       <div class="lobby">
@@ -258,7 +274,7 @@ export class AcNetLobby extends AcElement {
           <ul class="net-roster">
             ${roster.map(
               (p) =>
-                html`<li>${p.displayName}${p.id === ownerId ? html` <em>(owner)</em>` : null}</li>`,
+                html`<li>${p.displayName}${p.id === ownerId ? html` <em>(Host)</em>` : null}</li>`,
             )}
           </ul>
 
@@ -269,14 +285,48 @@ export class AcNetLobby extends AcElement {
                 </p>`
               : nothing}
             ${renderSettingsPresets(d, this.applyPreset.bind(this), this.readOnly)}
-            ${renderHostPreferences(d, c, { hostPlays: true })} ${renderMatchRules(d, c)}
+            ${renderHostPreferences(d, c, {})} ${renderMatchRules(d, c)}
           </div>
         </div>
 
         ${isOwner
           ? html`
-              <button class="ac-btn lobby-start" @click=${this.start}>START MATCH</button>
-              <button class="lobby-bay" @click=${this.openBay}>🧪 Testing Bay</button>
+              <div class="lobby-start-group">
+                <button
+                  class="ac-btn lobby-start lobby-start--player"
+                  title="Start the match with you seated as a player"
+                  @click=${this.startAsPlayer}
+                >
+                  START MATCH (AS PLAYER)
+                </button>
+                <button
+                  class="ac-btn lobby-start lobby-start--spectator"
+                  ?disabled=${!canSpectate}
+                  title=${canSpectate
+                    ? "Start the match with you sitting out as a spectator"
+                    : "Needs another player to spectate"}
+                  @click=${this.startAsSpectator}
+                >
+                  START MATCH (AS SPECTATOR)
+                </button>
+              </div>
+              <button class="lobby-bay" @click=${this.openBay}>
+                <svg
+                  class="lobby-bay-ico"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M10 2v7L4.5 19a1 1 0 0 0 .9 1.5h13.2a1 1 0 0 0 .9-1.5L14 9V2" />
+                  <path d="M8.5 2h7" />
+                  <path d="M7 16h10" />
+                </svg>
+                Testing Bay
+              </button>
             `
           : html`<p class="lobby-rules">Waiting for the owner to start…</p>`}
       </div>

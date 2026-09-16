@@ -84,7 +84,17 @@
   align-items: center;
   gap: 0.3rem;
   cursor: grab;
-  /* Pointer-drag owns the gesture; stop touch from scrolling the panel mid-drag. */
+  /* Scroll wins by default so touch can pan the panel starting on a card; the
+     long-press drag explicitly blocks scrolling only while armed (below). */
+  touch-action: pan-x pan-y;
+  -webkit-touch-callout: none;
+}
+/* Armed touch drag in flight: blocks scroll for touches that start mid-drag (e.g. a
+   second finger). The in-flight touch itself is held off scrolling by a non-passive
+   touchmove preventDefault in ac-intermission — touch-action locks in at touch-start,
+   so flipping it mid-gesture alone would not stop the browser taking the drag. */
+.im-card.is-touch-dragging,
+.im-card.is-touch-dragging .im-slot {
   touch-action: none;
 }
 .im-slot:active {
@@ -113,6 +123,21 @@
   opacity: 0.9;
   transform: rotate(-2deg);
   filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.5));
+}
+.im-drag-ghost.is-touch {
+  opacity: 0.95;
+  transform: rotate(-2deg) scale(1.05);
+}
+/* Live insertion marker: the gap the card will land in on release. */
+.im-drop-line {
+  position: fixed;
+  z-index: 1001;
+  width: 4px;
+  margin-left: -2px;
+  border-radius: 2px;
+  background: var(--i-primary);
+  box-shadow: 0 0 4px color-mix(in srgb, var(--i-primary) 35%, transparent);
+  pointer-events: none;
 }
 .im-drag-ghost .im-actions,
 .im-drag-ghost .im-slot-no {
@@ -195,6 +220,9 @@
 .im-locked-note {
   margin: 0;
   align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
   padding: 0.4rem 0.8rem;
   border: 1px solid color-mix(in srgb, var(--state-live) 50%, var(--ac-border-strong));
   border-radius: var(--r-xs);
@@ -348,4 +376,63 @@
   to {
     transform: rotate(360deg);
   }
+}
+
+/* Spectating host (hostPlays=false) during optimize: ready count + per-player
+   lock-in roster instead of the engine configurator. */
+.im-ready-count {
+  margin: 0;
+  align-self: flex-start;
+  font-family: var(--font-mono);
+  font-weight: 800;
+  font-size: 1.05rem;
+  letter-spacing: 0.03em;
+  color: var(--state-live);
+  font-variant-numeric: tabular-nums;
+}
+.im-ready-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.im-ready-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--ac-border-strong);
+  border-radius: var(--r-xs);
+  background: rgba(255, 255, 255, 0.03);
+}
+.im-ready-row.is-locked {
+  border-color: color-mix(in srgb, var(--state-live) 50%, var(--ac-border-strong));
+}
+.im-ready-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.im-ready-status {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--ac-ink-soft);
+}
+.im-ready-row.is-locked .im-ready-status {
+  color: var(--state-live);
+}
+/* Inline status glyphs (lock / hourglass) — 1em so they track the text size. */
+.im-locked-note .im-ico,
+.im-ready-status .im-ico {
+  width: 1em;
+  height: 1em;
+  flex: 0 0 auto;
 }

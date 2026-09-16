@@ -15,7 +15,8 @@
 import { html, nothing, type TemplateResult } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import { getCard } from "../../game/cards/library";
-import type { ClockModifier } from "../../game/cards/card";
+import { DEFAULT_CARD_RENDER_CONTEXT } from "../../game/cards/card";
+import type { LiveCardText } from "../../game/cards/liveText";
 import { CardOp, type GameMode } from "../../game/types";
 import { familyAccentVar, rarityAccentVar } from "../app/util";
 import { AcElement } from "../app/AcElement";
@@ -27,16 +28,6 @@ const chipVar = (op: CardOp): string =>
     : op === CardOp.Multiplicative
       ? "var(--ac-multiplicative)"
       : "var(--ac-action)";
-
-/** A compact "−20% ⏱" / "+5s ⏱" clock chip for glass-cannon / utility cards. */
-const clockText = (clock: ClockModifier): string => {
-  const parts: string[] = [];
-  if (clock.pctDelta)
-    parts.push(`${clock.pctDelta > 0 ? "+" : "−"}${Math.round(Math.abs(clock.pctDelta) * 100)}%`);
-  if (clock.flatDelta)
-    parts.push(`${clock.flatDelta > 0 ? "+" : "−"}${Math.abs(clock.flatDelta)}s`);
-  return `${parts.join(" ")} ⏱`;
-};
 
 @customElement("ac-card")
 export class AcCard extends AcElement {
@@ -55,6 +46,10 @@ export class AcCard extends AcElement {
   /** Visual states used by the score replay. */
   @property({ type: Boolean, reflect: true }) dimmed = false;
   @property({ type: Boolean, reflect: true }) triggered = false;
+  /** Live face copy (chip + description + badge), resolved for this card's bay
+   *  slot via `describeCardLive`. Absent = neutral resting face (sandbox
+   *  palette, legacy history entries). */
+  @property({ attribute: false }) live?: LiveCardText;
 
   private onFlip = (): void => {
     // Mini cards don't flip; tapping toggles the description tooltip (and fan chip)
@@ -121,9 +116,15 @@ export class AcCard extends AcElement {
     const cardColor = card.color ?? accent;
     const chip = chipVar(card.op);
     const rarity = card.rarity;
+    // The card's template is the only source of text; without a live slot face
+    // the neutral resting face stands in.
+    const face = this.live ?? card.renderText(DEFAULT_CARD_RENDER_CONTEXT);
+    const magnitudeText = face.magnitudeText;
+    const description = face.description;
+    const clockChip = face.clockText ?? null;
     return html`
       <div
-        class="gc-flip"
+        class="gc-flip ${this.live?.spent ? "is-spent" : ""}"
         data-rarity=${rarity}
         style="--gc-accent:${accent}; --gc-card-color:${cardColor}; --gc-rarity:${rarityAccentVar(
           rarity,
@@ -159,16 +160,21 @@ export class AcCard extends AcElement {
               </svg>
             </span>
             <div class="gc-chips">
-              <span class="gc-chip" style="--chip:${chip};">${card.magnitudeText}</span>
-              ${card.clock
+              <span class="gc-chip" style="--chip:${chip};">${magnitudeText}</span>
+              ${this.live?.badge
+                ? html`<span class="gc-chip gc-badge" style="--chip:var(--ac-action);"
+                    >${this.live.badge}</span
+                  >`
+                : nothing}
+              ${clockChip
                 ? html`<span class="gc-chip" style="--chip:var(--ac-accent-clock);"
-                    >${clockText(card.clock)}</span
+                    >${clockChip}</span
                   >`
                 : nothing}
             </div>
           </div>
           <div class="gc-name">${card.name}</div>
-          <p class="gc-front-desc">${card.description}</p>
+          <p class="gc-front-desc">${description}</p>
           ${this.mini
             ? nothing
             : html`<span class="gc-flip-icon" aria-hidden="true">
@@ -189,7 +195,7 @@ export class AcCard extends AcElement {
         </div>
         <div class="gc gc-back">
           <span class="gc-rarity-label">${rarity}</span>
-          <p class="gc-desc">${card.description}</p>
+          <p class="gc-desc">${description}</p>
         </div>
       </div>
     `;

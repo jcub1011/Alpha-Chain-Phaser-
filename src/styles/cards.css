@@ -39,6 +39,8 @@ ac-engine-bay[mini] {
 }
 .bay-total.is-taxed {
   color: var(--state-bad);
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
 }
 /* ── Card fan ──────────────────────────────────────────────────────────────
    Shared by <ac-card-fan> and the score-replay theater (<ac-score-replay>'s
@@ -270,6 +272,16 @@ ac-card[flipped] .gc-flip {
   color: var(--chip, var(--gc-accent));
   background: color-mix(in srgb, var(--chip, var(--gc-accent)) 16%, transparent);
   border: 1px solid color-mix(in srgb, var(--chip, var(--gc-accent)) 55%, transparent);
+}
+/* Live-face chip: the READY/SPENT/STREAK badge sits under
+   the magnitude chip (the column already stacks). Slightly smaller so two
+   chips still fit a full-size card. */
+.gc-chip.gc-badge {
+  font-size: calc(var(--gc-w) * 0.08);
+}
+/* A spent once-per-era/turn charge reads as disarmed, not broken. */
+.gc-flip.is-spent .gc-front {
+  filter: saturate(0.55);
 }
 .gc-name {
   font-family: var(--font-display);

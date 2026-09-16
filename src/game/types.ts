@@ -10,8 +10,11 @@ export type BanMode = "All" | "VowelsOnly" | "ConsonantsOnly";
 /** Whether a letter banned in a past era may be banned again.
  *  - AllowRepeat:    any legal letter, every era.
  *  - NoConsecutive:  the immediately-previous era's banned letter is off-limits.
- *  - NoRepeat:       a letter can never be banned twice (until the pool is exhausted). */
-export type BanRepeatRule = "AllowRepeat" | "NoConsecutive" | "NoRepeat";
+ *  - NoRepeat:       a letter can never be banned twice (until the pool is exhausted).
+ *  - Accumulate:     every past ban stays in force (taxes words) and can never be
+ *    picked again. The match ends early once the legal pool runs down (see
+ *    banPoolExhausted in settings.ts). */
+export type BanRepeatRule = "AllowRepeat" | "NoConsecutive" | "NoRepeat" | "Accumulate";
 
 /** Single source of truth for a card's family. Values are byte-identical to the
  *  former string-literal union (they tint the family accent in the UI). */
@@ -260,6 +263,17 @@ export interface BayCard {
   discarded?: boolean;
 }
 
+/** Per-player engine state that moves every turn (Crescendo streak, guard
+ *  charges). The host stamps it onto the player so it rides the snapshot to
+ *  guests — the same pattern as `personalBans` and `rackRedrawAvailable`, which
+ *  exist because room services are host-local. Optional so older snapshots load. */
+export interface PlayerLiveState {
+  streak: number;
+  wildcardAvailable: boolean;
+  prismAvailable: boolean;
+  winnowerAvailable: boolean;
+}
+
 export interface PlayerState {
   id: string;
   name: string;
@@ -279,6 +293,9 @@ export interface PlayerState {
    *  tagged with its source card. Host-stamped at era arm so it rides the snapshot
    *  to guests; the host itself reads the live CardBanService. */
   personalBans?: { letter: string; cardName: string }[];
+  /** Guard/streak state stamped by the host (see PlayerLiveState). Absent on
+   *  older snapshots; readers must fall back to static card copy. */
+  liveState?: PlayerLiveState;
 }
 
 /** Compare two players for a high→low leaderboard. Explicit comparison rather than
@@ -321,6 +338,35 @@ export interface EngineEffectNotice {
   amount?: number;
 }
 
+/** One engine slot frozen at score time. Primitives only (JSON-safe): the face
+ *  is re-resolved at render through `describeCardLive`, so frozen text and live
+ *  faces share one code path. Aligned 1:1 with `ScoreBreakdown.steps`. */
+export interface EngineCardSnapshot {
+  id: string;
+  /** Magnifying-Glass factor on this slot when the word scored. */
+  magnification: number;
+  /** Personal ban this instance had rolled (Roulette / Toll Booth slot key). */
+  ban?: string;
+}
+
+/** A player's whole engine frozen at score time (see Submission.engine). */
+export interface EngineSnapshot {
+  bay: EngineCardSnapshot[];
+  /** Consecutive clean words BEFORE this word scored (Crescendo folds on the
+   *  prior streak — the increment lands after scoring). */
+  streak: number;
+  slots: number;
+  /** The mode whose card values this engine scored with — frozen faces re-resolve
+   *  under it, never the ambient display mode. Absent on legacy entries (falls
+   *  back to the current effective mode). */
+  mode?: GameMode;
+  wildcardAvailable: boolean;
+  /** The scored word consumed the Wildcard charge. */
+  wildcardUsed: boolean;
+  prismAvailable: boolean;
+  winnowerAvailable: boolean;
+}
+
 export interface Submission {
   playerId: string;
   displayName: string;
@@ -333,6 +379,12 @@ export interface Submission {
   taxed: boolean;
   taxBounty: number;
   breakdown: ScoreBreakdown;
+  /** The engine as it was when this word scored: per-slot card order,
+   *  glass magnification, rolled bans, and the streak/guard states the faces
+   *  rendered from. Lets replays and the word history play back exactly what
+   *  happened instead of re-resolving today's bay. Optional so older histories
+   *  load (readers fall back to live state). */
+  engine?: EngineSnapshot;
   /** Automated effects that fired as this word resolved (UI overlay). */
   effects?: EngineEffectNotice[];
   /** Ids of players who siphoned points from this submission (tax/toll/chrono). */
@@ -376,7 +428,9 @@ export interface MatchState {
   requiredLetter: string;
   bannedLetter: string; // "" before first sniper ban
   /** Every letter banned so far, in era order. Drives the ban-repeat rule
-   *  (no-consecutive / no-repeat) and is cleared when the legal pool is exhausted. */
+   *  (no-consecutive / no-repeat / accumulate). Cleared when the legal pool is
+   *  exhausted under NoRepeat; never cleared under Accumulate (the match ends
+   *  instead — see banPoolExhausted). */
   bannedLetterHistory: string[];
   /** Words used this whole match (lowercased), forbidden to repeat. */
   usedWords: Set<string>;

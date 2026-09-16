@@ -158,3 +158,79 @@ describe("<ac-net-lobby> settings publish", () => {
     expect(detectPreset(pushes[pushes.length - 1])).toBeNull();
   });
 });
+
+describe("<ac-net-lobby> start buttons", () => {
+  it("labels the owner as Host and offers player + spectator starts", async () => {
+    const { stub, fireLobbyChange } = stubController();
+    const el = await mount(stub);
+    stub.isOwner = true;
+    fireLobbyChange();
+    await el.updateComplete;
+
+    const rosterText = el.querySelector(".net-roster")?.textContent ?? "";
+    expect(rosterText).toContain("(Host)");
+    expect(rosterText).not.toContain("(owner)");
+
+    expect(el.querySelector(".net-settings")?.textContent ?? "").not.toContain("Host Plays");
+    expect(
+      el.querySelector<HTMLButtonElement>(".lobby-start--player")?.disabled,
+    ).toBe(false);
+    expect(
+      el.querySelector<HTMLButtonElement>(".lobby-start--player")?.getAttribute("title"),
+    ).toContain("as a player");
+    expect(
+      el.querySelector<HTMLButtonElement>(".lobby-start--spectator")?.disabled,
+    ).toBe(false);
+    expect(
+      el.querySelector<HTMLButtonElement>(".lobby-start--spectator")?.getAttribute("title"),
+    ).toContain("spectator");
+  });
+
+  it("disables the spectator start when the owner is alone", async () => {
+    const { stub, fireLobbyChange } = stubController();
+    stub.roster = [{ id: "p1", displayName: "One" }];
+    const el = await mount(stub);
+    stub.isOwner = true;
+    fireLobbyChange();
+    await el.updateComplete;
+
+    expect(el.querySelector<HTMLButtonElement>(".lobby-start--player")?.disabled).toBe(
+      false,
+    );
+    const spectBtn = el.querySelector<HTMLButtonElement>(".lobby-start--spectator");
+    expect(spectBtn?.disabled).toBe(true);
+    expect(spectBtn?.getAttribute("title")).toContain("another player");
+  });
+
+  it("starts as a player or spectator via the matching button", async () => {
+    const { stub, fireLobbyChange } = stubController();
+    const el = await mount(stub);
+    stub.isOwner = true;
+    fireLobbyChange();
+    await el.updateComplete;
+
+    const details: AlphaChainSettings[] = [];
+    el.addEventListener("ac-net-start", (e) =>
+      details.push((e as CustomEvent<AlphaChainSettings>).detail),
+    );
+
+    el.querySelector<HTMLButtonElement>(".lobby-start--player")?.click();
+    expect(details[details.length - 1].hostPlays).toBe(true);
+
+    el.querySelector<HTMLButtonElement>(".lobby-start--spectator")?.click();
+    expect(details[details.length - 1].hostPlays).toBe(false);
+  });
+
+  it("renders the Testing Bay button with an SVG icon, not an emoji", async () => {
+    const { stub, fireLobbyChange } = stubController();
+    const el = await mount(stub);
+    stub.isOwner = true;
+    fireLobbyChange();
+    await el.updateComplete;
+
+    const bay = el.querySelector(".lobby-bay");
+    expect(bay?.textContent).toContain("Testing Bay");
+    expect(bay?.textContent).not.toContain("🧪");
+    expect(bay?.querySelector("svg")).not.toBeNull();
+  });
+});

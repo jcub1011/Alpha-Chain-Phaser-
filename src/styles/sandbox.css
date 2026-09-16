@@ -268,6 +268,31 @@
 .sandbox-total .big.taxed b {
   color: var(--state-bad);
 }
+.sandbox-total .big.taxed .sandbox-kept {
+  color: var(--ac-brass-lit);
+}
+.sandbox-missed {
+  color: var(--state-bad);
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+}
+.sandbox-tax-chip {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--state-bad);
+  padding: 1px 7px;
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, var(--state-bad) 60%, transparent);
+  background: color-mix(in srgb, var(--state-bad) 16%, transparent);
+  white-space: nowrap;
+}
+.sandbox-tax-chip.is-partial {
+  color: var(--ac-brass-lit);
+  border-color: color-mix(in srgb, var(--ac-brass-lit) 60%, transparent);
+  background: color-mix(in srgb, var(--ac-brass-lit) 14%, transparent);
+}
 .sandbox-steps {
   list-style: none;
   margin: 0;
@@ -357,9 +382,19 @@
   color: var(--state-good);
   font-weight: 700;
 }
+.sandbox-history-score.is-partial {
+  color: var(--ac-brass-lit);
+}
+.sandbox-history-missed {
+  color: var(--state-bad);
+  font-weight: 700;
+}
 .sandbox-history-tax {
   color: var(--state-bad);
   font-weight: 700;
+}
+.sandbox-history-tax.is-partial {
+  color: var(--ac-brass-lit);
 }
 .sandbox-history-bounty {
   opacity: 0.7;

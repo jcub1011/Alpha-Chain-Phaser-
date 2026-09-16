@@ -10,8 +10,13 @@
 import { html, nothing, type PropertyValues, type TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type { GameController } from "../../net/controller";
+import { activeBannedLetters } from "../../game/settings";
 import { GameMode } from "../../game/types";
 import type { PlayerState } from "../../game/types";
+import { getCard } from "../../game/cards/library";
+import { buildMagnifier } from "../../game/cards/magnifier";
+import { describeCardLive } from "../../game/cards/liveText";
+import type { RoomServices } from "../../game/cards/roomServices";
 import { scoreWord } from "../../game/scoring";
 import type { FanCard } from "../components/ac-card-fan";
 import { playerAccentVar } from "../app/util";
@@ -30,7 +35,7 @@ export class AcHud extends AcElement {
   @property({ attribute: false }) controller!: GameController;
 
   @state() private requiredLetter = "";
-  @state() private bannedLetter = "";
+  @state() private bannedLetters: string[] = [];
   @state() private era = 1;
   @state() private roundInEra = 0;
   @state() private currentName = "";
@@ -44,16 +49,25 @@ export class AcHud extends AcElement {
   @state() private previewWord: string | null = null;
   @state() private humanSlots = 3;
   @state() private opponents: PlayerState[] = [];
+  /** Resting live faces per opponent id (see refresh — never match state). */
+  @state() private foeBays: Map<string, FanCard[]> = new Map();
 
   override willUpdate(changed: PropertyValues): void {
     if (changed.has("controller") && this.controller) {
       this.clearSubs();
       const e = this.controller.events;
       const refresh = (): void => this.refresh();
+      // A resolved turn leaves nothing staged: drop the projection, then re-derive
+      // the bays once, so last turn's highlights never linger into the next turn
+      // (or the game-over screen) — and each event refreshes exactly once.
+      const onSettled = (): void => {
+        if (this.previewWord !== null) this.previewWord = null;
+        this.refresh();
+      };
+      this.listen(e, "submission", onSettled);
+      this.listen(e, "timeout", onSettled);
+      this.listen(e, "phaseChanged", onSettled);
       this.listen(e, "turnArmed", refresh);
-      this.listen(e, "submission", refresh);
-      this.listen(e, "timeout", refresh);
-      this.listen(e, "phaseChanged", refresh);
       this.listen(e, "intermission", refresh);
       this.refresh();
     }
@@ -64,7 +78,12 @@ export class AcHud extends AcElement {
     const s = m.state;
     const human = this.controller.humanId;
     this.requiredLetter = s.requiredLetter;
-    this.bannedLetter = s.bannedLetter;
+    // Under Accumulate every past ban stays in force — the rail shows the whole set.
+    this.bannedLetters = activeBannedLetters(
+      s.settings.banRepeatRule,
+      s.bannedLetter,
+      s.bannedLetterHistory,
+    );
     this.era = s.era;
     this.roundInEra = s.roundInEra;
     const cur = m.current;
@@ -74,7 +93,7 @@ export class AcHud extends AcElement {
     // Survival's only real consequence, and until now the only sign of it was a small OUT tag
     // on the leaderboard — from the stage it just looked like your turn never came round again.
     this.humanEliminated = !!me?.eliminated;
-    this.humanBay = me ? this.projectBay(me) : [];
+    this.humanBay = me ? this.projectBayLive(me, true) : [];
     this.humanSlots = me?.slots ?? 3;
     // Sort opponents by their (stable) accent index for display, not by array
     // order: the host reshuffles `players` every era for turn order, which would
@@ -82,47 +101,91 @@ export class AcHud extends AcElement {
     this.opponents = s.players
       .filter((p) => p.id !== human)
       .sort((a, b) => a.accentIndex - b.accentIndex);
+    // Opponent bays render resting live faces (their streak/guards ride the
+    // snapshot, so even mini cards show accurate magnitudes). Kept in a side
+    // map — never written back onto the match state (mirrors may be frozen).
+    this.foeBays = new Map(this.opponents.map((p) => [p.id, this.projectBayLive(p, false)]));
     // The last-place player is exempt from the banned-letter tax (they picked
     // it). Surface it so keeping points on a banned word never reads as a bug.
-    this.humanExempt = !!me && !!s.bannedLetter && m.isExempt(me);
+    // Under Accumulate the exemption covers every accumulated ban.
+    this.humanExempt = !!me && this.bannedLetters.length > 0 && m.isExempt(me);
     this.personalBans = me ? m.personalBansFor(me.id) : [];
   }
 
   /**
-   * The human's bay, with `triggered` set on the cards that WOULD fire for the currently selected
-   * Offer word. This is Picker's primary teaching tool: it shows what your engine wants without
-   * solving the decision for you.
+   * A player's bay with live faces (`describeCardLive` per slot: glass
+   * magnification, bay-size magnitudes, streak, guard badges, rolled bans).
    *
-   * THE NUMBER IS DISCARDED ON PURPOSE. `scoreWord` returns a full breakdown and only
-   * `steps[].triggered` is read — showing the projected total would turn evaluation into a lookup.
+   * When `withPreview` and a word is staged/typed, each card ALSO projects the
+   * exact step outcome (`scoreWord` with a read-only Crescendo stub — a preview
+   * that ran on every keystroke must never touch room state), which both lights
+   * the card and replaces its chip with the accurate fired magnitude.
    *
-   * Called with the PURE scoreOpts shape only. `makeBayEvaluator` is side-effect-free until it is
-   * handed `services` / `effects` / `clock`, at which point card hooks can mutate room state — a
-   * preview that ran on every tap must never do that.
+   * THE NUMBER IS DISCARDED ON PURPOSE. Only `steps[].triggered/valueText` are
+   * read — showing the projected total would turn evaluation into a lookup.
+   *
+   * Called WITHOUT `effects` / `clock`, and with a `services` stub that only
+   * implements `crescendoStreak.get()` — card hooks that mutate (rescueClock,
+   * guard consumes, ban rolls, siphons) can never fire from it.
    */
-  private projectBay(me: PlayerState): FanCard[] {
-    const bay = [...me.bay] as FanCard[];
-    const word = this.previewWord;
-    if (!word) return bay;
-    const s = this.controller.match.state;
-    const fired = scoreWord(word, me.bay, {
-      mode: this.controller.match.effectiveMode,
-      prevWordLength: 0,
-      clockRemaining: s.clockRemaining,
-      clockTotal: s.clockTotal,
-      taxed: false,
-      era: s.era,
-      slots: me.slots,
-      history: s.history,
-    }).steps;
+  private projectBayLive(me: PlayerState, withPreview: boolean): FanCard[] {
+    const m = this.controller.match;
+    const mode = m.effectiveMode;
+    const bay = me.bay;
+    const s = m.state;
+    const resolved = bay.map((slot) => getCard(slot.id, mode));
+    const reg = buildMagnifier(resolved);
+    const live = m.liveStateFor(me.id);
+    const banByCard = new Map(m.personalBansFor(me.id).map((b) => [b.cardName, b.letter] as const));
+    const bayIds = bay.map((slot) => slot.id);
+    const word = withPreview ? this.previewWord : null;
     // Index-aligned to the bay: both flow from the same player state, the same contract
     // <ac-score-replay> relies on.
-    return bay.map((c, i) => ({ ...c, triggered: fired[i]?.triggered === true }));
+    // The preview is service-free EXCEPT a read-only Crescendo stub: Crescendo's fold
+    // reads services.crescendoStreak, so without it a streaking word never lights.
+    // The stub only implements get() (no guards/effects/clock), so it can never
+    // consume charges or mutate room state on a keystroke.
+    const previewServices = word
+      ? ({ crescendoStreak: { get: () => live.streak } } as unknown as RoomServices)
+      : undefined;
+    const previewPlayer = word ? ({ id: me.id } as PlayerState) : undefined;
+    const fired = word
+      ? scoreWord(word, bay, {
+          mode,
+          prevWordLength: m.lastWordLength,
+          clockRemaining: s.clockRemaining,
+          clockTotal: s.clockTotal,
+          taxed: false,
+          era: s.era,
+          slots: me.slots,
+          history: s.history,
+          services: previewServices,
+          player: previewPlayer,
+        }).steps
+      : undefined;
+    return bay.map((c, i) => ({
+      ...c,
+      triggered: fired?.[i]?.triggered === true,
+      live: describeCardLive(c.id, mode, {
+        mode,
+        bayIds,
+        index: i,
+        magnification: reg.getMagnification(i),
+        slots: me.slots,
+        streak: live.streak,
+        wildcardAvailable: live.wildcardAvailable,
+        prismAvailable: live.prismAvailable,
+        winnowerAvailable: live.winnowerAvailable,
+        personalBan: banByCard.get(getCard(c.id, mode)?.name ?? ""),
+        previewValueText: fired?.[i]?.valueText,
+        previewTriggered: fired?.[i]?.triggered,
+      }),
+    }));
   }
 
   /** <ac-word-builder> publishes the staged word; re-derive the bay projection from it. */
   private onOfferPreview = (e: CustomEvent<{ word: string | null }>): void => {
-    this.previewWord = e.detail.word;
+    this.previewWord = e.detail.word || null;
     this.refresh();
   };
 
@@ -165,10 +228,15 @@ export class AcHud extends AcElement {
             </div>
             <div class="cmd-cell cmd-right">
               <span class="ac-eyebrow">banned</span>
-              ${this.bannedLetter
-                ? html`<span class="cmd-banned ${this.humanExempt ? "is-exempt" : ""}"
-                    >${this.bannedLetter.toUpperCase()}</span
-                  >`
+              ${this.bannedLetters.length
+                ? html`<div class="cmd-personal-letters">
+                    ${this.bannedLetters.map(
+                      (l) =>
+                        html`<span class="cmd-banned ${this.humanExempt ? "is-exempt" : ""}"
+                          >${l.toUpperCase()}</span
+                        >`,
+                    )}
+                  </div>`
                 : html`<span class="cmd-banned is-none">—</span>`}
               ${this.humanExempt
                 ? html`<span
@@ -239,7 +307,10 @@ export class AcHud extends AcElement {
                 .controller=${c}
                 @ac-offer-preview=${this.onOfferPreview}
               ></ac-word-builder>`
-            : html`<ac-word-entry .controller=${c}></ac-word-entry>`}
+            : html`<ac-word-entry
+                .controller=${c}
+                @ac-offer-preview=${this.onOfferPreview}
+              ></ac-word-entry>`}
 
           <ac-score-replay .controller=${c}></ac-score-replay>
 
@@ -251,7 +322,7 @@ export class AcHud extends AcElement {
                       <ac-engine-bay
                         mini
                         label=${p.name}
-                        .cards=${p.bay}
+                        .cards=${this.foeBays.get(p.id) ?? p.bay}
                         .slots=${p.slots}
                       ></ac-engine-bay>
                     </div>

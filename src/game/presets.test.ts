@@ -118,14 +118,20 @@ describe("applyPreset / detectPreset", () => {
     expect(after.survivalMode).toBe(true); // ...while the match rules did change
   });
 
-  it("switches back to picker mode and detects Normal after switching to Old-School", () => {
+  it.each([
+    PresetId.Normal,
+    PresetId.QuickMatch,
+    PresetId.Marathon,
+    PresetId.CardStorm,
+    PresetId.SuddenDeath,
+  ])("switches back to picker mode and detects %s after switching to Old-School", (id) => {
     const oldSchool = applyPreset(DEFAULT_SETTINGS, PresetId.OldSchool);
     expect(oldSchool.gameMode).toBe(GameMode.Classic);
     expect(detectPreset(oldSchool)).toBe(PresetId.OldSchool);
 
-    const normalAgain = applyPreset(oldSchool, PresetId.Normal);
-    expect(normalAgain.gameMode).toBe(GameMode.Picker);
-    expect(detectPreset(normalAgain)).toBe(PresetId.Normal);
+    const tilePresetAgain = applyPreset(oldSchool, id);
+    expect(tilePresetAgain.gameMode).toBe(GameMode.Picker);
+    expect(detectPreset(tilePresetAgain)).toBe(id);
   });
 });
 
@@ -140,8 +146,11 @@ describe("the host-preference boundary", () => {
     // If these drift, either a setting a preset refuses to touch becomes unreachable by hand,
     // or a match rule gets filed under "Host Preferences" where a preset then overwrites it
     // behind a heading promising it would not.
+    //
+    // Exception: `hostPlays` is button-driven in the net lobby (Start Match as
+    // player/spectator), not a Host Preferences row — so it is reachable without being shown.
     const shown = new Set([...HOST_PREFERENCE_KEYS.solo, ...HOST_PREFERENCE_KEYS.net]);
-    expect([...shown].sort()).toEqual(Object.keys(PRESET_EXCLUDED_KEYS).sort());
+    expect([...shown, "hostPlays"].sort()).toEqual(Object.keys(PRESET_EXCLUDED_KEYS).sort());
     expect(PRESET_KEYS.filter((k) => shown.has(k as never))).toEqual([]);
   });
 

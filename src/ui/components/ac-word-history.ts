@@ -10,9 +10,11 @@
 
 import { html, nothing, type TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import type { Submission } from "../../game/types";
+import type { GameMode, Submission } from "../../game/types";
+import { describeCardLive } from "../../game/cards/liveText";
 import { fmtScore, playerAccentVar } from "../app/util";
 import { AcElement } from "../app/AcElement";
+import { cardDisplayMode } from "../app/cardMode";
 import type { FanCard } from "./ac-card-fan";
 import "./ac-card-fan";
 
@@ -22,12 +24,18 @@ type SortOrder = "high" | "old" | "new";
 export class AcWordHistory extends AcElement {
   /** The match's full submission history (chronological, oldest → newest). */
   @property({ attribute: false }) history: Submission[] = [];
+  /** The mode the match scored with. Frozen faces prefer each snapshot's own
+   *  mode; this is the fallback for legacy entries — pass effectiveMode. */
+  @property({ attribute: false }) mode?: GameMode;
 
   @state() private sort: SortOrder = "high";
 
   /** Pair each entry with its chronological index so ties (and the time-based
-   *  orders) stay stable, mirroring the Blazor Resort(). */
+   *  orders) stay stable, mirroring the Blazor Resort(). The "Highest" order
+   *  ranks taxed words by their missed (pre-tax) potential, not the zeroed net,
+   *  so players can see what the biggest lost plays were. */
   private sorted(): Submission[] {
+    const rankOf = (s: Submission): number => (s.taxed ? s.breakdown.finalBeforeTax : s.score);
     const indexed = this.history.map((s, i) => ({ s, i }));
     switch (this.sort) {
       case "old":
@@ -37,34 +45,64 @@ export class AcWordHistory extends AcElement {
         indexed.sort((a, b) => b.i - a.i);
         break;
       default:
-        indexed.sort((a, b) => b.s.score - a.s.score || a.i - b.i);
+        indexed.sort((a, b) => rankOf(b.s) - rankOf(a.s) || a.i - b.i);
     }
     return indexed.map((x) => x.s);
   }
 
   private renderRow(s: Submission): TemplateResult {
     const b = s.breakdown;
-    // The engine cards as an overlapping fan. The per-card delta + running score is
-    // shown always-on in the .go-wh-deltas row below (so it's readable on touch),
-    // and additionally as a hover chip aligned to each card (progressive enhancement).
-    const fanCards: FanCard[] = b.steps.map((step) => ({
-      id: step.cardId,
-      dimmed: !step.triggered,
-      hover: html`
-        <span class="go-wh-delta">${step.triggered ? step.valueText : "—"}</span>
-        <span class="go-wh-run">${fmtScore(step.runningScore)}</span>
-      `,
-    }));
+    // The engine cards as an overlapping fan. With a snapshot the strip shows
+    // the frozen score-time order + faces (exact fired chips); otherwise it
+    // falls back to the step order with neutral faces (legacy entries).
+    const eng = s.engine && s.engine.bay.length === b.steps.length ? s.engine : undefined;
+    // Frozen faces re-resolve under the mode they scored with (legacy entries
+    // predate the snapshot mode — fall back to the passed-in match mode, then ambient).
+    const mode = eng?.mode ?? this.mode ?? cardDisplayMode();
+    const bayIds = eng ? eng.bay.map((slot) => slot.id) : b.steps.map((step) => step.cardId);
+    const fanCards: FanCard[] = bayIds.map((id, i) => {
+      const step = b.steps[i];
+      return {
+        id,
+        dimmed: !step?.triggered,
+        live: eng
+          ? describeCardLive(id, mode, {
+              mode,
+              bayIds,
+              index: i,
+              magnification: eng.bay[i]!.magnification,
+              slots: eng.slots,
+              streak: eng.streak,
+              wildcardAvailable: eng.wildcardAvailable,
+              wildcardUsed: eng.wildcardUsed,
+              prismAvailable: eng.prismAvailable,
+              winnowerAvailable: eng.winnowerAvailable,
+              personalBan: eng.bay[i]!.ban,
+              previewValueText: step?.valueText,
+              previewTriggered: step?.triggered,
+            })
+          : undefined,
+        hover: html`
+          <span class="go-wh-delta">${step?.triggered ? step.valueText : "—"}</span>
+          <span class="go-wh-run">${fmtScore(step?.runningScore ?? 0)}</span>
+        `,
+      };
+    });
     return html`
       <div class="go-wh-row" style="--accent:${playerAccentVar(s.accentIndex)};">
         <div class="go-wh-main">
           <span class="go-wh-word ${s.taxed ? "is-taxed" : ""}">${s.word.toUpperCase()}</span>
           <span class="go-wh-who">${s.displayName}</span>
-          ${s.taxed
-            ? html`<span class="go-wh-tax"
-                >${s.score > 0 ? `tax +${fmtScore(s.score)}` : "tax"}</span
-              >`
-            : html`<span class="go-wh-pts">+${fmtScore(s.score)}</span>`}
+          <span class="go-wh-scores">
+            ${s.taxed && s.score > 0
+              ? html`<span class="go-wh-tax-chip is-partial">Partial Tax</span
+                  ><s class="go-wh-missed">+${fmtScore(b.finalBeforeTax)}</s
+                  ><span class="go-wh-pts is-partial">+${fmtScore(s.score)}</span>`
+              : s.taxed
+                ? html`<span class="go-wh-tax-chip">Taxed</span
+                    ><s class="go-wh-missed">+${fmtScore(b.finalBeforeTax)}</s>`
+                : html`<span class="go-wh-pts">+${fmtScore(s.score)}</span>`}
+          </span>
         </div>
 
         <div class="go-wh-strip">
@@ -77,9 +115,12 @@ export class AcWordHistory extends AcElement {
             : html`<ac-card-fan mini .cards=${fanCards}></ac-card-fan>`}
           <span class="go-wh-final ${b.taxed ? "is-taxed" : ""}">
             <span class="go-wh-op">${b.taxed ? "tax" : "score"}</span>
-            <span class="go-wh-run"
-              >${b.taxed && b.finalScore <= 0 ? "0" : `+${fmtScore(b.finalScore)}`}</span
-            >
+            ${b.taxed && b.finalScore > 0
+              ? html`<s class="go-wh-run is-missed">+${fmtScore(b.finalBeforeTax)}</s
+                  ><span class="go-wh-run is-partial">+${fmtScore(b.finalScore)}</span>`
+              : b.taxed
+                ? html`<s class="go-wh-run is-missed">+${fmtScore(b.finalBeforeTax)}</s>`
+                : html`<span class="go-wh-run">+${fmtScore(b.finalScore)}</span>`}
           </span>
         </div>
 

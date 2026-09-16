@@ -9,12 +9,14 @@
  *     random legal ban if the timer runs out.
  * The tutorial sub-phases render the optimize bay underneath the <ac-tutorial>
  * overlay (mounted by <ac-app>). The countdown shown is the synced sub-timer.
+ * A spectating host (hostPlays=false, no player entry) sees a ready-list
+ * (X/Y active humans + per-player lock-in) instead of the configurator.
  */
 
 import { html, nothing, type PropertyValues, type TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type { GameController } from "../../net/controller";
-import { availableBanLetters, legalBanLetters } from "../../game/settings";
+import { activeBannedLetters, availableBanLetters, legalBanLetters } from "../../game/settings";
 import { cardIdentity } from "../../game/cards/library";
 import { bubblePreferences, isInertPreference } from "../../game/picker/preference";
 import { createLogger } from "../../log";
@@ -38,9 +40,17 @@ export class AcIntermission extends AcElement {
   // Drag is pointer-based (works for mouse + touch alike — HTML5 DnD never fires on
   // touch). `dragId`/`dragFrom` identify the card in flight; the rest track the active
   // pointer, the floating ghost, and the highlighted drop target.
+  //
+  // Mobile uses long-press-to-arm: a touch/pen press only becomes a drag after
+  // LONG_PRESS_MS with the finger held inside TOUCH_SLOP (otherwise the gesture is
+  // a scroll/tap and the browser keeps it). Mouse arms immediately with a 6px slop.
+  // pointercancel always aborts without committing; only pointerup commits.
   private dragId: string | null = null;
   private dragFrom: "engine" | "discard" | null = null;
   private dragPointerId: number | null = null;
+  private dragPointerType: string | null = null;
+  private pressArmed = false;
+  private pressTimer: number | null = null;
   private dragStartX = 0;
   private dragStartY = 0;
   private dragGrabX = 0;
@@ -48,12 +58,55 @@ export class AcIntermission extends AcElement {
   private dragging = false;
   private dragGhost: HTMLElement | null = null;
   private dropTarget: HTMLElement | null = null;
+  // Live insertion point computed during the drag (post-removal coordinates).
+  private insertRef: { zone: "engine" | "discard"; index: number } | null = null;
+  private insertLine: HTMLElement | null = null;
+  private lastAnchorX = 0;
+  private lastAnchorY = 0;
+  private autoScrollRaf: number | null = null;
+  private autoScrollSpeed = 0;
+  private suppressClickUntil = 0;
   private readonly onPointerMove = (e: PointerEvent): void => this.handlePointerMove(e);
   private readonly onPointerUp = (e: PointerEvent): void => this.handlePointerUp(e);
+  private readonly onPointerCancel = (e: PointerEvent): void => this.handlePointerCancel(e);
+  private readonly onClickCapture = (e: Event): void => {
+    if (performance.now() < this.suppressClickUntil) {
+      e.preventDefault();
+      e.stopPropagation();
+    } else {
+      window.removeEventListener("click", this.onClickCapture, true);
+    }
+  };
+  private readonly onContextMenu = (e: Event): void => {
+    if (this.dragging) e.preventDefault();
+  };
+  /**
+   * Cancelling `pointermove` does NOT stop scrolling (per spec) and flipping
+   * `touch-action` mid-gesture has no effect on the in-flight touch — the browser
+   * locks that in at touch-start. So while a drag is armed, a non-passive
+   * `touchmove` preventDefault is what actually keeps the page from scrolling
+   * away (and keeps the browser from firing `pointercancel` and killing the ghost).
+   * Before arming, touches fall through untouched so taps and scrolls work.
+   */
+  private readonly onTouchMove = (e: TouchEvent): void => {
+    if (this.dragging) e.preventDefault();
+  };
 
   override willUpdate(changed: PropertyValues): void {
     if (changed.has("controller") && this.controller) {
+      // Re-render the countdown whenever the synced sub-timer ticks; the FSM owns
+      // the authoritative dwell (per-frame event, never broadcast over the network).
+      // Spectators have no bay to split — subscribe and return early.
+      this.clearSubs();
+      this.listen(this.controller.match.events, "subTimerTick", () => this.requestUpdate());
       const me = this.controller.match.state.players.find((p) => p.id === this.controller.humanId);
+      if (!me) {
+        this.cardIdByUid = new Map();
+        this.engine = [];
+        this.discard = [];
+        this.slots = 3;
+        return;
+      }
       // Split the bay into the two zones. Before any edit a card has no explicit
       // flag, so newly-dealt cards (isNew) default into the discard bin; once the
       // player commits, the stored `discarded` flag drives the split.
@@ -69,10 +122,6 @@ export class AcIntermission extends AcElement {
       this.engine = engine;
       this.discard = discard;
       this.slots = me?.slots ?? 3;
-      // Re-render the countdown whenever the synced sub-timer ticks; the FSM owns
-      // the authoritative dwell (per-frame event, never broadcast over the network).
-      this.clearSubs();
-      this.listen(this.controller.match.events, "subTimerTick", () => this.requestUpdate());
     }
   }
 
@@ -84,6 +133,18 @@ export class AcIntermission extends AcElement {
   private get locked(): boolean {
     return !!this.controller.match.state.players.find((p) => p.id === this.controller.humanId)
       ?.lockedIn;
+  }
+
+  /** Whether the local client is spectating (e.g. a host with hostPlays=false):
+   *  their id has no entry in `match.state.players`, so there is no engine to
+   *  configure. Spectators get a ready-list instead of the configurator. */
+  private get isSpectator(): boolean {
+    return !this.controller.match.state.players.some((p) => p.id === this.controller.humanId);
+  }
+
+  /** Active humans only: bots never optimize and eliminated players can't lock in. */
+  private get activeHumans(): { id: string; name: string; lockedIn?: boolean }[] {
+    return this.controller.match.state.players.filter((p) => !p.isBot && !p.eliminated);
   }
 
   // ── Reorder / discard (committed to the host on every change) ────────────────
@@ -130,22 +191,68 @@ export class AcIntermission extends AcElement {
 
   // ── Pointer-based drag (mouse + touch) ──────────────────────────────────────
   /** Begin a drag from a slot. Ignored on the action buttons (so ◄ ► ✕ ＋ still
-   *  click), for non-primary buttons, and while the engine is locked. */
+   *  click), for non-primary buttons, while the engine is locked, and while another
+   *  press is already tracked (second finger never hijacks the in-flight drag). */
   private onPointerDown(e: PointerEvent, id: string, from: "engine" | "discard"): void {
     if (this.locked) return;
     if ((e.target as HTMLElement | null)?.closest("button")) return;
     if (e.pointerType === "mouse" && e.button !== 0) return;
+    if (this.dragPointerId !== null) return;
     this.dragId = id;
     this.dragFrom = from;
     this.dragPointerId = e.pointerId;
+    this.dragPointerType = e.pointerType;
     this.dragStartX = e.clientX;
     this.dragStartY = e.clientY;
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     this.dragGrabX = e.clientX - rect.left;
     this.dragGrabY = e.clientY - rect.top;
+    if (e.pointerType === "mouse") {
+      this.pressArmed = true;
+    } else {
+      // Touch/pen: wait for a long-press so scrolling and taps keep working.
+      // Moving past TOUCH_SLOP first means "scroll" — abort before any ghost.
+      this.pressArmed = false;
+      this.clearPressTimer();
+      this.pressTimer = window.setTimeout(() => {
+        this.pressTimer = null;
+        if (this.dragId === null || this.dragPointerId === null) return;
+        this.pressArmed = true;
+        this.beginGhost();
+        // Show the insertion line immediately so the lift point reads even before
+        // the finger moves (anchor sits above the fingertip — see anchorFor).
+        const ax = this.dragStartX;
+        const ay = this.dragStartY - 28;
+        this.lastAnchorX = ax;
+        this.lastAnchorY = ay;
+        this.updateInsertionIndicator(ax, ay);
+        try {
+          navigator.vibrate?.(10);
+        } catch {
+          /* haptics are best-effort */
+        }
+      }, 350);
+    }
     window.addEventListener("pointermove", this.onPointerMove, { passive: false });
+    window.addEventListener("touchmove", this.onTouchMove, { passive: false });
     window.addEventListener("pointerup", this.onPointerUp);
-    window.addEventListener("pointercancel", this.onPointerUp);
+    window.addEventListener("pointercancel", this.onPointerCancel);
+    window.addEventListener("contextmenu", this.onContextMenu);
+  }
+
+  private clearPressTimer(): void {
+    if (this.pressTimer !== null) {
+      window.clearTimeout(this.pressTimer);
+      this.pressTimer = null;
+    }
+  }
+
+  /** Anchor the hit test above the fingertip for touch/pen — the finger itself
+   *  occludes the card it covers, so testing the raw touch point always reports
+   *  the card *behind* the finger instead of the intended gap. */
+  private anchorFor(e: PointerEvent): { x: number; y: number } {
+    if (e.pointerType === "mouse") return { x: e.clientX, y: e.clientY };
+    return { x: e.clientX, y: e.clientY - 28 };
   }
 
   private handlePointerMove(e: PointerEvent): void {
@@ -153,34 +260,55 @@ export class AcIntermission extends AcElement {
     const dx = e.clientX - this.dragStartX;
     const dy = e.clientY - this.dragStartY;
     if (!this.dragging) {
+      if (!this.pressArmed) {
+        // Touch/pen still in the long-press window: any real travel is a scroll.
+        if (Math.hypot(dx, dy) > 12) {
+          this.clearPressTimer();
+          this.endDrag();
+        }
+        return;
+      }
       if (Math.hypot(dx, dy) < 6) return; // a tap/click, not a drag
       this.beginGhost();
     }
-    e.preventDefault(); // suppress scroll/selection once dragging
+    e.preventDefault(); // suppress selection once dragging (scroll is held off by onTouchMove)
     if (this.dragGhost) {
       this.dragGhost.style.left = `${e.clientX - this.dragGrabX}px`;
       this.dragGhost.style.top = `${e.clientY - this.dragGrabY}px`;
     }
-    this.highlightDropTarget(e.clientX, e.clientY);
+    const anchor = this.anchorFor(e);
+    this.lastAnchorX = anchor.x;
+    this.lastAnchorY = anchor.y;
+    this.updateInsertionIndicator(anchor.x, anchor.y);
+    this.maybeAutoScroll(anchor.y);
   }
 
   private handlePointerUp(e: PointerEvent): void {
     if (e.pointerId !== this.dragPointerId) return;
-    if (this.dragging && this.dragId && this.dragFrom) {
-      const el = document.elementFromPoint(e.clientX, e.clientY);
-      const slot = el?.closest<HTMLElement>(".im-slot");
-      const targetUid = slot?.dataset.uid;
-      const slotZone = slot?.dataset.zone as "engine" | "discard" | undefined;
-      if (targetUid && slotZone && targetUid !== this.dragId) {
-        this.applyDropOnCard(targetUid, slotZone);
-      } else if (!slot) {
-        const zone = el?.closest<HTMLElement>(".im-zone")?.dataset.zone as
-          | "engine"
-          | "discard"
-          | undefined;
-        if (zone) this.applyDropOnZone(zone);
-      }
+    const wasDrag = this.dragging;
+    if (wasDrag && this.dragId && this.dragFrom) {
+      const anchor = this.anchorFor(e);
+      this.updateInsertionIndicator(anchor.x, anchor.y);
+      this.commitInsertRef();
     }
+    this.endDrag();
+    // Swallow the click that follows a real drag so the card doesn't flip
+    // (ac-card toggles on click); plain taps never set this.
+    if (wasDrag) {
+      this.suppressClickUntil = performance.now() + 400;
+      window.addEventListener("click", this.onClickCapture, true);
+      window.setTimeout(() => {
+        if (performance.now() >= this.suppressClickUntil) {
+          window.removeEventListener("click", this.onClickCapture, true);
+        }
+      }, 450);
+    }
+  }
+
+  /** A cancelled gesture (browser scroll takeover, iOS interruption, alert, …)
+   *  must never commit a drop — just drop the ghost and keep the order. */
+  private handlePointerCancel(e: PointerEvent): void {
+    if (e.pointerId !== this.dragPointerId) return;
     this.endDrag();
   }
 
@@ -191,10 +319,12 @@ export class AcIntermission extends AcElement {
     const src = this.querySelector<HTMLElement>(`.im-slot[data-uid="${this.dragId}"]`);
     if (!src) return;
     src.classList.add("is-dragging");
+    this.querySelector(".im-card")?.classList.add("is-touch-dragging");
     const rect = src.getBoundingClientRect();
     const ghost = src.cloneNode(true) as HTMLElement;
     ghost.classList.add("im-drag-ghost");
     ghost.classList.remove("is-dragging");
+    if (this.dragPointerType !== "mouse") ghost.classList.add("is-touch");
     ghost.style.width = `${rect.width}px`;
     ghost.style.left = `${rect.left}px`;
     ghost.style.top = `${rect.top}px`;
@@ -206,90 +336,229 @@ export class AcIntermission extends AcElement {
     ghost.style.setProperty("--gc-h", cs.getPropertyValue("--gc-h"));
     document.body.appendChild(ghost);
     this.dragGhost = ghost;
+    // The ghost hides .im-slot-no/.im-actions (see CSS), which shifts the card face
+    // up inside the clone. Re-anchor the grab offset onto the card face so the card
+    // stays glued under the pointer, and park the ghost so its card face already
+    // coincides with the source card — otherwise it renders high until the first
+    // move snaps it down.
+    const srcCard = src.querySelector("ac-card")?.getBoundingClientRect();
+    const ghostCard = ghost.querySelector("ac-card")?.getBoundingClientRect();
+    if (srcCard) {
+      const srcDelta = srcCard.top - rect.top;
+      const ghostDelta = ghostCard ? ghostCard.top - ghost.getBoundingClientRect().top : 0;
+      this.dragGrabY += ghostDelta - srcDelta;
+      ghost.style.top = `${rect.top + srcDelta - ghostDelta}px`;
+    }
   }
 
-  private highlightDropTarget(x: number, y: number): void {
-    const el = document.elementFromPoint(x, y);
-    const target =
-      el?.closest<HTMLElement>(`.im-slot:not([data-uid="${this.dragId}"])`) ??
-      el?.closest<HTMLElement>(".im-zone") ??
-      null;
-    if (target === this.dropTarget) return;
-    this.dropTarget?.classList.remove("is-drop-target");
-    target?.classList.add("is-drop-target");
-    this.dropTarget = target;
+  /**
+   * Live insertion indicator: pick the target zone (element at the anchor, else
+   * nearest zone), then the gap within that zone nearest the anchor in the row's
+   * dominant axis. `insertRef` is stored in post-removal coordinates (dragged card
+   * excluded) so commit needs no index fixups. A fixed-position line marks the gap
+   * and the zone gets the familiar highlight; empty zones highlight with append.
+   */
+  private updateInsertionIndicator(x: number, y: number): void {
+    if (!this.dragId || !this.dragFrom) return;
+    const zones = [...this.querySelectorAll<HTMLElement>(".im-zone")];
+    if (zones.length === 0) return;
+    const atPoint = document.elementFromPoint(x, y);
+    let zoneEl = atPoint?.closest<HTMLElement>(".im-zone") ?? null;
+    let zoneName = zoneEl?.dataset.zone as "engine" | "discard" | undefined;
+    if (!zoneEl || !zoneName) {
+      // Finger is between zones / over the ghost gap: fall back to nearest zone.
+      let best: HTMLElement | null = null;
+      let bestDist = Infinity;
+      for (const z of zones) {
+        const r = z.getBoundingClientRect();
+        const dx = x < r.left ? r.left - x : x > r.right ? x - r.right : 0;
+        const dy = y < r.top ? r.top - y : y > r.bottom ? y - r.bottom : 0;
+        const d = Math.hypot(dx, dy);
+        if (d < bestDist) {
+          bestDist = d;
+          best = z;
+        }
+      }
+      zoneEl = best;
+      zoneName = zoneEl?.dataset.zone as "engine" | "discard" | undefined;
+    }
+    if (!zoneEl || !zoneName) return;
+
+    // Zone highlight (swap if changed).
+    if (this.dropTarget !== zoneEl) {
+      this.dropTarget?.classList.remove("is-drop-target");
+      zoneEl.classList.add("is-drop-target");
+      this.dropTarget = zoneEl;
+    }
+
+    const cardsEl = zoneEl.querySelector(".im-zone-cards");
+    const slots = [...(cardsEl ?? zoneEl).querySelectorAll<HTMLElement>(".im-slot")].filter(
+      (s) => s.dataset.uid !== this.dragId,
+    );
+    // Find the first slot the anchor sits "before": earlier row, or same row and
+    // left of center. Everything else is "after" → append.
+    let index = slots.length;
+    let lineX: number | null = null;
+    let lineY: number | null = null;
+    let lineH = 0;
+    for (let i = 0; i < slots.length; i++) {
+      const r = slots[i].getBoundingClientRect();
+      const beforeRow = y < r.top - 4;
+      const inRow = y <= r.bottom + 4;
+      const beforeInRow = inRow && x < r.left + r.width / 2;
+      if (beforeRow || beforeInRow) {
+        index = i;
+        lineX = r.left - 5;
+        const sized = this.dropLineForSlot(slots[i]);
+        lineY = sized.top;
+        lineH = sized.height;
+        break;
+      }
+    }
+    if (lineX === null) {
+      const lastSlot = slots[slots.length - 1];
+      if (lastSlot) {
+        const last = lastSlot.getBoundingClientRect();
+        lineX = last.right + 1;
+        const sized = this.dropLineForSlot(lastSlot);
+        lineY = sized.top;
+        lineH = sized.height;
+      } else {
+        // Empty zone: match the card size so the marker reads at a glance.
+        const cr = (cardsEl ?? zoneEl).getBoundingClientRect();
+        const gcH =
+          parseFloat(getComputedStyle(cardsEl ?? zoneEl).getPropertyValue("--gc-h")) || 150;
+        lineX = cr.left + 8;
+        lineY = cr.top + 8;
+        lineH = gcH + 12;
+      }
+    }
+    this.insertRef = { zone: zoneName, index };
+    let line = this.insertLine;
+    if (!line) {
+      line = document.createElement("div");
+      line.className = "im-drop-line";
+      document.body.appendChild(line);
+      this.insertLine = line;
+    }
+    line.style.left = `${lineX}px`;
+    line.style.top = `${lineY ?? 0}px`;
+    line.style.height = `${lineH}px`;
+  }
+
+  /**
+   * Size the insertion line to the card face (plus a little breathing room) rather
+   * than the whole slot — the slot-number label and action buttons would otherwise
+   * stretch it well past the cards it sits between.
+   */
+  private dropLineForSlot(slot: HTMLElement): { top: number; height: number } {
+    const card = slot.querySelector("ac-card")?.getBoundingClientRect();
+    if (!card || card.height === 0) {
+      const r = slot.getBoundingClientRect();
+      return { top: r.top, height: r.height };
+    }
+    const pad = 6;
+    return { top: card.top - pad, height: card.height + pad * 2 };
+  }
+  /** Commit the tracked insertion point. Same-zone drops splice in post-removal
+   *  coordinates; cross-zone drops reuse the existing slide/overflow rules. */
+  private commitInsertRef(): void {
+    const id = this.dragId;
+    const from = this.dragFrom;
+    const ref = this.insertRef;
+    if (!id || !from || !ref) return;
+    if (from === ref.zone) {
+      const source = from === "engine" ? this.engine : this.discard;
+      const without = source.filter((x) => x !== id);
+      const idx = Math.max(0, Math.min(ref.index, without.length));
+      without.splice(idx, 0, id);
+      if (without.every((v, i) => v === source[i]) && without.length === source.length) return;
+      if (from === "engine") this.engine = without;
+      else this.discard = without;
+      this.commit();
+      return;
+    }
+    if (ref.zone === "engine") {
+      // Discard → engine at the indicated gap; overflow slides out to the bin.
+      const engine = this.engine.filter((x) => x !== id);
+      const idx = Math.max(0, Math.min(ref.index, engine.length));
+      engine.splice(idx, 0, id);
+      let discard = this.discard.filter((x) => x !== id);
+      while (engine.length > this.slots) discard = [engine.pop()!, ...discard];
+      this.engine = engine;
+      this.discard = discard;
+      this.commit();
+      return;
+    }
+    // Engine → discard at the indicated gap; the engine just shrinks.
+    const discard = this.discard.filter((x) => x !== id);
+    const idx = Math.max(0, Math.min(ref.index, discard.length));
+    discard.splice(idx, 0, id);
+    this.discard = discard;
+    this.engine = this.engine.filter((x) => x !== id);
+    this.commit();
+  }
+
+  /** Edge auto-scroll while dragging near the top/bottom of the panel. */
+  private maybeAutoScroll(y: number): void {
+    const panel = this.querySelector(".im-card");
+    if (!panel) return;
+    const r = panel.getBoundingClientRect();
+    const edge = 56;
+    let speed = 0;
+    if (y < r.top + edge) speed = -Math.ceil((r.top + edge - y) / 8) - 2;
+    else if (y > r.bottom - edge) speed = Math.ceil((y - (r.bottom - edge)) / 8) + 2;
+    this.autoScrollSpeed = speed;
+    if (speed !== 0 && this.autoScrollRaf === null) {
+      const step = (): void => {
+        if (this.autoScrollSpeed === 0 || !this.dragging) {
+          this.autoScrollRaf = null;
+          return;
+        }
+        panel.scrollTop += this.autoScrollSpeed;
+        this.updateInsertionIndicator(this.lastAnchorX, this.lastAnchorY);
+        this.autoScrollRaf = requestAnimationFrame(step);
+      };
+      this.autoScrollRaf = requestAnimationFrame(step);
+    }
+  }
+
+  private stopAutoScroll(): void {
+    this.autoScrollSpeed = 0;
+    if (this.autoScrollRaf !== null) {
+      cancelAnimationFrame(this.autoScrollRaf);
+      this.autoScrollRaf = null;
+    }
   }
 
   private endDrag(): void {
+    this.clearPressTimer();
+    this.stopAutoScroll();
     window.removeEventListener("pointermove", this.onPointerMove);
+    window.removeEventListener("touchmove", this.onTouchMove);
     window.removeEventListener("pointerup", this.onPointerUp);
-    window.removeEventListener("pointercancel", this.onPointerUp);
+    window.removeEventListener("pointercancel", this.onPointerCancel);
+    window.removeEventListener("contextmenu", this.onContextMenu);
     this.dragGhost?.remove();
     this.dragGhost = null;
+    this.insertLine?.remove();
+    this.insertLine = null;
+    this.insertRef = null;
     this.dropTarget?.classList.remove("is-drop-target");
     this.dropTarget = null;
     this.querySelector(".im-slot.is-dragging")?.classList.remove("is-dragging");
+    this.querySelector(".im-card.is-touch-dragging")?.classList.remove("is-touch-dragging");
     this.dragId = null;
     this.dragFrom = null;
     this.dragPointerId = null;
+    this.dragPointerType = null;
+    this.pressArmed = false;
     this.dragging = false;
   }
 
   override disconnectedCallback(): void {
     super.disconnectedCallback();
     this.endDrag(); // tear down any in-flight drag listeners/ghost
-  }
-
-  /** Drop onto a card: reorder within the same zone, or slide across zones. */
-  private applyDropOnCard(targetId: string, targetZone: "engine" | "discard"): void {
-    const id = this.dragId;
-    const from = this.dragFrom;
-    if (!id || !from || id === targetId) return;
-
-    if (from === targetZone) {
-      // Same zone: insert the dragged card at the target's position (others shift,
-      // but only within this zone — nothing spills across the boundary).
-      const list = [...(from === "engine" ? this.engine : this.discard)];
-      const fromIdx = list.indexOf(id);
-      const toIdx = list.indexOf(targetId);
-      if (fromIdx < 0 || toIdx < 0) return;
-      list.splice(fromIdx, 1);
-      list.splice(list.indexOf(targetId) + (fromIdx < toIdx ? 1 : 0), 0, id);
-      if (from === "engine") this.engine = list;
-      else this.discard = list;
-    } else if (targetZone === "engine") {
-      // Discard → engine: insert before the target; the rest slide right. If that
-      // overflows the engine, the last card slides out into the discard bin.
-      const engine = [...this.engine];
-      engine.splice(engine.indexOf(targetId), 0, id);
-      let discard = this.discard.filter((x) => x !== id);
-      while (engine.length > this.slots) discard = [engine.pop()!, ...discard];
-      this.engine = engine;
-      this.discard = discard;
-    } else {
-      // Engine → discard: insert before the target; the engine just shrinks.
-      const discard = [...this.discard];
-      discard.splice(discard.indexOf(targetId), 0, id);
-      this.discard = discard;
-      this.engine = this.engine.filter((x) => x !== id);
-    }
-    this.commit();
-  }
-
-  /** Drop onto a zone's empty area: move the card into that zone (no swap). */
-  private applyDropOnZone(zone: "engine" | "discard"): void {
-    const id = this.dragId;
-    const from = this.dragFrom;
-    if (!id || !from || from === zone) return;
-    if (zone === "engine") {
-      if (this.engine.length >= this.slots) return; // no free slot
-      this.discard = this.discard.filter((x) => x !== id);
-      this.engine = [...this.engine, id];
-    } else {
-      this.engine = this.engine.filter((x) => x !== id);
-      this.discard = [...this.discard, id];
-    }
-    this.commit();
   }
 
   /** LOCK IN: commit the order, then fast-forward the optimize dwell. Solo advances
@@ -312,6 +581,41 @@ export class AcIntermission extends AcElement {
   }
 
   // ── Render ───────────────────────────────────────────────────────────────
+  /** Padlock glyph for lock-in states (inline SVG, currentColor). */
+  private renderLockIcon(): TemplateResult {
+    return html`<svg
+      class="im-ico"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="3" y="11" width="18" height="11" rx="2" />
+      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+    </svg>`;
+  }
+
+  /** Hourglass glyph for players still tuning (inline SVG, currentColor). */
+  private renderTuningIcon(): TemplateResult {
+    return html`<svg
+      class="im-ico"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M5 22h14" />
+      <path d="M5 2h14" />
+      <path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12 7.586 16.414A2 2 0 0 0 7 17.828V22" />
+      <path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2" />
+    </svg>`;
+  }
   private renderEngineSlot(id: string, i: number, locked: boolean): TemplateResult {
     return html`
       <div
@@ -372,25 +676,23 @@ export class AcIntermission extends AcElement {
     // Lock-in is per-player: optimize ends once every active human locks in (or the
     // timer elapses). Once you've locked in, wait on the rest rather than ending it
     // for everyone. (Solo never sets these, so it always shows a live LOCK IN button.)
-    const players = this.controller.match.state.players;
-    const humans = players.filter((p) => !p.isBot && !p.eliminated);
+    const humans = this.activeHumans;
     const lockedCount = humans.filter((p) => p.lockedIn).length;
     const locked = this.locked;
     return html`
       <div class="im-card ac-panel ${locked ? "is-locked" : ""}">
         <header class="im-head">
           <span class="ac-eyebrow">intermission · optimize</span>
-          <h2 class="im-title">Tune your engine</h2>
+          <h2 class="im-title">Tune Your Engine</h2>
           <p class="im-sub">
-            Cards score left → right. Drag within the engine to reorder, or use ◄ ►. New cards start
-            in the discard bin — drag one into the engine to slot it in (the rest slide over), or
-            press ＋. Anything left in the bin is discarded when the timer ends.
+            Cards score left → right. Drag within the engine to reorder (long-press first on touch),
+            or use ◄ ►. Anything left in the bin is discarded when the timer ends.
           </p>
           <span class="im-timer">${this.seconds}s</span>
         </header>
 
         ${locked
-          ? html`<p class="im-locked-note">🔒 Engine locked — tap UNLOCK to edit.</p>`
+          ? html`<p class="im-locked-note">${this.renderLockIcon()}<span>Engine locked. Press UNLOCK to edit.</span></p>`
           : nothing}
 
         <div class="im-zone im-engine" data-zone="engine">
@@ -405,11 +707,11 @@ export class AcIntermission extends AcElement {
         </div>
 
         <div class="im-zone im-bin" data-zone="discard">
-          <span class="im-zone-label">Discard bin · removed when the timer ends</span>
+          <span class="im-zone-label">Discard Bin</span>
           <div class="im-zone-cards">
             ${this.discard.map((id) => this.renderDiscardSlot(id, locked))}
             ${this.discard.length === 0
-              ? html`<p class="im-empty">Empty — drag a card here or press ✕ to discard it.</p>`
+              ? html`<p class="im-empty">Drag a card here or press X to discard it.</p>`
               : nothing}
           </div>
         </div>
@@ -426,12 +728,47 @@ export class AcIntermission extends AcElement {
     `;
   }
 
+  /** Spectating host (hostPlays=false): no engine of their own, so show the
+   *  active humans' lock-in progress instead of the configurator. */
+  private renderSpectatorOptimize(): TemplateResult {
+    const humans = this.activeHumans;
+    const lockedCount = humans.filter((p) => p.lockedIn).length;
+    return html`
+      <div class="im-card ac-panel im-spectate">
+        <header class="im-head">
+          <span class="ac-eyebrow">intermission · optimize</span>
+          <h2 class="im-title">Players Are Tuning Their Engines</h2>
+          <p class="im-ready-count" aria-live="polite">${lockedCount}/${humans.length} players ready</p>
+          <span class="im-timer">${this.seconds}s</span>
+        </header>
+        <ul class="im-ready-list">
+          ${humans.map(
+            (p) => html`<li class="im-ready-row ${p.lockedIn ? "is-locked" : ""}">
+              <span class="im-ready-name">${p.name}</span>
+              <span class="im-ready-status"
+                >${p.lockedIn ? this.renderLockIcon() : this.renderTuningIcon()}<span
+                  >${p.lockedIn ? "Locked in" : "Tuning…"}</span
+                ></span
+              >
+            </li>`,
+          )}
+        </ul>
+      </div>
+    `;
+  }
+
   private renderBan(): TemplateResult {
     const s = this.controller.match.state;
     const { banMode, banRepeatRule } = s.settings;
     const letters = legalBanLetters(banMode);
     const available = new Set(availableBanLetters(banMode, banRepeatRule, s.bannedLetterHistory));
     const prev = s.bannedLetter;
+    // Accumulate: every past ban stays in force — surface them so the picker sees
+    // the full set their pick joins (already-banned keys are disabled below).
+    const accumulating = banRepeatRule === "Accumulate";
+    const bannedSoFar = accumulating
+      ? activeBannedLetters(banRepeatRule, s.bannedLetter, s.bannedLetterHistory)
+      : [];
     // Words played this era (era only advances after the ban) so the picker can ban an
     // informed letter — what's been scoring, and how much.
     const played = s.history.filter((h) => h.era === s.era);
@@ -439,8 +776,17 @@ export class AcIntermission extends AcElement {
       <div class="im-card ac-panel">
         <header class="im-head">
           <span class="ac-eyebrow">intermission · sniper ban</span>
-          <h2 class="im-title">You're last — strike back</h2>
-          <p class="im-sub">Choose a letter. Words containing it score zero next era.</p>
+          <h2 class="im-title">Select A Letter To Ban</h2>
+          <p class="im-sub">
+            ${accumulating
+              ? "Choose a letter. Stacks with previous letter bans. Words containing any of the banned letters score zero next era."
+              : "Choose a letter. Words containing it score zero next era."}
+          </p>
+          ${bannedSoFar.length
+            ? html`<p class="im-sub">
+                Banned so far: ${bannedSoFar.map((l) => l.toUpperCase()).join(" · ")}
+              </p>`
+            : nothing}
           <span class="im-timer">${this.seconds}s</span>
         </header>
         <div class="ban-grid">
@@ -454,11 +800,13 @@ export class AcIntermission extends AcElement {
               class="ban-key ${isPrev ? "is-prev" : ""} ${isPrevAllowed ? "is-prev-allowed" : ""}"
               ?disabled=${disabled}
               title=${isPrevAllowed
-                ? "Banned last era — allowed again"
+                ? "Banned last era, allowed again"
                 : isPrev
                   ? "Banned last era"
                   : disabled
-                    ? "Not allowed by the ban-repeat rule"
+                    ? accumulating
+                      ? "Already banned, still in force"
+                      : "Not allowed by the ban-repeat rule"
                     : ""}
               @click=${() => this.pickBan(l)}
             >
@@ -503,7 +851,7 @@ export class AcIntermission extends AcElement {
     const sub = m.state.intermissionPhase;
     let body: TemplateResult | typeof nothing = nothing;
     if (sub === "optimize" || sub === "tutorial") {
-      body = this.renderOptimize();
+      body = this.isSpectator ? this.renderSpectatorOptimize() : this.renderOptimize();
     } else if (sub === "sniperBan") {
       body =
         m.computeLastPlaceId() === this.controller.humanId

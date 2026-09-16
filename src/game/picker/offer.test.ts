@@ -547,9 +547,9 @@ describe("the shipped Reduced pool", () => {
     /* THE regression guarding the packaging decision. The raw source list is NOT a subset of
      * words.txt (613 entries absent: aol, api, asn, apnic, adidas, alot...). submitWord validates
      * every commit through isWord, which stays bound to the Full list in BOTH modes — so a
-     * non-subset Reduced pool would make ~6% of offered words reject as "not-a-word", including
-     * the random pick a Picker timeout commits. tools/build-common-wordlist.mjs takes the
-     * intersection; this proves the shipped artefact actually has that property. */
+     * non-subset Reduced pool would make ~6% of offered words reject as "not-a-word".
+     * tools/build-common-wordlist.mjs takes the intersection; this proves the shipped artefact
+     * actually has that property. */
     const full = new Set(loadList("words.txt"));
     const missing = REDUCED_WORDS.filter((w) => !full.has(w));
     expect(missing).toEqual([]);

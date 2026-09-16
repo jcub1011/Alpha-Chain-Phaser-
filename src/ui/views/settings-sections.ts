@@ -6,7 +6,7 @@
  * in a different place, the Classic shot clock several rows away from the Word Builder rows it
  * substitutes for. Everything below is rendered from here instead, so a row added or moved lands
  * in both lobbies at once. What legitimately differs between them is the HOST PREFERENCES band
- * (bots are solo-only, host-plays is multiplayer-only) and nothing else — hence the flags on
+ * (bots are solo-only) and nothing else — hence the flags on
  * `renderHostPreferences` and no flags at all on `renderMatchRules`.
  *
  * Two bands, and the split is not cosmetic:
@@ -49,8 +49,9 @@ export const HOST_PREFERENCE_KEYS: {
 } = {
   // No `hostPlays`: there is no shared display to sit out of when you are playing bots.
   solo: ["botCount", "botDifficulty", "enableTutorials", "engineAnimationSeconds"],
-  // No bot rows: the multiplayer roster is real people.
-  net: ["hostPlays", "enableTutorials", "engineAnimationSeconds"],
+  // No bot rows: the multiplayer roster is real people. No `hostPlays` either: the owner
+  // picks player-vs-spectator with the two start buttons instead of a setting.
+  net: ["enableTutorials", "engineAnimationSeconds"],
 };
 
 /** One sub-section of the MATCH RULES band: a collapsible dropdown with heading, explanation, and rows. */
@@ -80,7 +81,7 @@ const section = (
 export const renderHostPreferences = (
   draft: AlphaChainSettings,
   c: SettingControls,
-  opts: { bots?: boolean; hostPlays?: boolean },
+  opts: { bots?: boolean },
 ): TemplateResult => html`
   <details class="set-group set-details">
     <summary class="set-summary set-summary--head">
@@ -107,18 +108,6 @@ export const renderHostPreferences = (
                 SETTING_HINTS.botDifficulty,
               )}
             `
-          : nothing}
-        ${opts.hostPlays
-          ? c.segmented(
-              "Host Plays",
-              draft.hostPlays ? "play" : "watch",
-              [
-                { value: "play", text: "yes" },
-                { value: "watch", text: "spectate" },
-              ],
-              (v) => c.set("hostPlays", v === "play"),
-              SETTING_HINTS.hostPlays,
-            )
           : nothing}
         ${c.toggle(
           "Tutorials",
@@ -222,6 +211,7 @@ export const renderMatchRules = (
         { value: "AllowRepeat", text: "allow" },
         { value: "NoConsecutive", text: "no consec." },
         { value: "NoRepeat", text: "never" },
+        { value: "Accumulate", text: "accum." },
       ],
       (v) => c.set("banRepeatRule", v),
       SETTING_HINTS.banRepeatRule,

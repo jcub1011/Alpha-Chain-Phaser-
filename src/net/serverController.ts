@@ -154,7 +154,7 @@ export class ServerController implements GameController {
   }
 
   /** Stream the staged word so the SERVER clock can commit it on expiry. Without this the authority
-   *  would see no selection and read every expiry as a no-show — which in Survival would eliminate a
+   *  would see no selection and time out every expiry — which in Survival would eliminate a
    *  player who had in fact built a word. Throttled by <ac-word-builder>, which flushes the throttle
    *  at the buzzer; the server's 1s submit grace covers the round trip. */
   stageTiles(tileIds: string[], word?: string): void {
