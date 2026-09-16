@@ -231,11 +231,6 @@
   <rect width="300" height="200" fill="url(#botPool)"/>
   <rect width="300" height="200" fill="url(#topSpec)"/>
 
-  <!-- Outer housing hairline (ac-border) with a specular top edge (ac-hi). -->
-  <rect x="0.5" y="0.5" width="299" height="199" fill="none"
-        stroke="#ffffff" stroke-opacity="0.14" stroke-width="1"/>
-  <line x1="1" y1="1" x2="299" y2="1" stroke="#ffffff" stroke-opacity="0.18" stroke-width="1"/>
-
   <!-- ── 2. Engine bay: five cards reading A L P H A ─────────────────────────
        50 x 71 (live 152 x 216), pitch 53.3 (50 plus FAN_GAP 10 times s). The row
        is 263.2 wide and centred, so it sits on the same margin as the builder
