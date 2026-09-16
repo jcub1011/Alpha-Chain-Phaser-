@@ -13,11 +13,12 @@
  * scoring stays in `fold()`; side-effecting state lives in the room services
  * (roomServices.ts), reached through `ctx.services` inside the hooks.
  *
- * ModifierCard is the RESOLVED shape: `description` / `magnitudeText` / `clock` are already
- * concrete for one game mode by the time anything sees one. A card whose values differ per mode
- * declares them once in a tuning bag instead — see {@link TunedCardDef} below, and note that
- * EvalContext deliberately carries no mode or tuning: a tuned fold closes over its numbers, which
- * keeps this the single channel by which a card can be mode-aware.
+ * ModifierCard is the RESOLVED shape: `clock` is already concrete for one game mode by the
+ * time anything sees one, and card text is read exclusively through `renderText` (required —
+ * there are no static `description` / `magnitudeText` fields to drift). A card whose values
+ * differ per mode declares them once in a tuning bag instead — see {@link TunedCardDef} below,
+ * and note that EvalContext deliberately carries no mode or tuning: a tuned fold closes over its
+ * numbers, which keeps this the single channel by which a card can be mode-aware.
  */
 
 import { isVowel, MAX_WORD_SCORE } from "../settings";
@@ -103,6 +104,81 @@ export interface FoldResult {
   valueText: string;
 }
 
+/* ── Display context ─────────────────────────────────────────────────────────
+ * The `fold` twin for READING. EvalContext carries everything scoring needs
+ * (the word, history, services, effect facades); a face needs far less — the
+ * numbers below are precomputed per slot by the resolver, so a render template
+ * is a pure interpolation with no bay-walking and no service access. */
+
+export interface CardRenderContext {
+  /** Magnifying-Glass factor on this slot (1.0 = none). */
+  magnification: number;
+  /** Consecutive clean words this era (Crescendo). */
+  streak: number;
+  /** Owner's bay slot capacity (Booster Pack scales by it). */
+  slots: number;
+  /** Scoring cards strictly to its right (inert Preference Cards excluded —
+   *  the same masking the fold sees, so the face and the score agree). */
+  cardsToRight: number;
+  /** Scoring cards in the bay (same masking). */
+  scoringCount: number;
+  /** Other multiplier cards in the bay (The Flywheel counts these). */
+  otherMultipliers: number;
+  wildcardAvailable: boolean;
+  /** The scored word consumed the Wildcard charge (history playback only). */
+  wildcardUsed?: boolean;
+  prismAvailable: boolean;
+  winnowerAvailable: boolean;
+  /** Personal ban this card instance rolled (Roulette Wheel / Toll Booth). */
+  personalBan?: string;
+  /** Exact fired outcome for a staged/typed word (mag already baked in). */
+  previewValueText?: string;
+  previewTriggered?: boolean;
+}
+
+/** One reactive card face. */
+export interface CardFaceText {
+  magnitudeText: string;
+  description: string;
+  /** State pill, e.g. "READY", "SPENT", "STREAK 2", "USED". Omitted when N/A. */
+  badge?: string;
+  /** True when the charge is spent (lets the face dim the card). */
+  spent?: boolean;
+  /** Shot-clock chip (glass-cannon / utility cards): the effective clock delta
+   *  with this slot's magnification applied. Omitted when the card has no clock. */
+  clockText?: string;
+}
+
+/**
+ * Neutral display context for context-free surfaces (sandbox palette, legacy history).
+ * Every `renderText` template must produce reasonable output under this context with no
+ * null special-casing: ×1 magnification, empty bay position, zero streak, all guard
+ * charges available. Bay-size reads resolve to single-card-bay semantics
+ * (`scoringCount` 1, `cardsToRight` 0, `otherMultipliers` 0), so e.g. Dividend reads
+ * "+2" and Booster Pack reads "+0 (no cards to its right)" rather than blanking.
+ */
+export const DEFAULT_CARD_RENDER_CONTEXT: CardRenderContext = {
+  magnification: 1,
+  streak: 0,
+  slots: 3,
+  cardsToRight: 0,
+  scoringCount: 1,
+  otherMultipliers: 0,
+  wildcardAvailable: true,
+  prismAvailable: true,
+  winnowerAvailable: true,
+};
+
+/**
+ * A constant face for cards whose prose states no magnitude (pure-FX / capability
+ * cards). Keeps those definitions one-liners while still going through the single
+ * `renderText` channel — the context is accepted and ignored.
+ */
+export const staticFace = (magnitudeText: string, description: string): CardFaceText => ({
+  magnitudeText,
+  description,
+});
+
 /** A permanent shot-clock adjustment the card applies when its owner's turn arms. */
 export interface ClockModifier {
   /** Fractional delta applied first, e.g. -0.10 (Vault) or +0.30 (Heat Sink). */
@@ -125,9 +201,6 @@ export interface ModifierCard {
    *  Independent of {@link maxInstances}. Required so every card declares one
    *  (compile-time safety, like {@link family}). */
   rarity: CardRarity;
-  /** Static chip shown on the card face, e.g. "+10", "×1.5", "FX". */
-  magnitudeText: string;
-  description: string;
   /**
    * Hand-tuned per-card identity color (the `--gc-card-color` that tints the
    * gradient / icon box / watermark), distinct from the standardized family
@@ -215,6 +288,13 @@ export interface ModifierCard {
   hidesInput?(): boolean;
   /** Magnifying Glass pushes a magnification onto its immediate-right neighbor. */
   submitMagnifications?(reg: EffectMagnifier, selfIndex: number): void;
+  /** Reactive face copy: the chip + description (+ optional state badge) as
+   *  interpolated strings over the display context — the `fold` twin for READING
+   *  a card rather than SCORING it, and the ONLY way to obtain card text. A tuned
+   *  card closes over the same `t` bag its fold does, so a retune moves the face
+   *  and the score together. Required; context-free surfaces render through
+   *  {@link DEFAULT_CARD_RENDER_CONTEXT}. Pure display — never mutates room state. */
+  renderText(ctx: CardRenderContext): CardFaceText;
 
   // ── Lifecycle hooks (default no-op; only override what a card needs) ──
   onEraStart?(ctx: EvalContext): void;
@@ -308,8 +388,10 @@ const fx = (value: number): FoldResult => ({
 });
 
 /** Round a factor/amount for DISPLAY only (the underlying value stays exact) —
- *  Magnifying-Glass stacking otherwise yields e.g. ×2.6999999999999997. */
-const fmtMag = (n: number): string => `${Math.round(n * 100) / 100}`;
+ *  Magnifying-Glass stacking otherwise yields e.g. ×2.6999999999999997.
+ *  Render templates share this with the fold so face chips and replay chips
+ *  can never disagree typographically. */
+export const fmtMag = (n: number): string => `${Math.round(n * 100) / 100}`;
 
 /** A signed percentage from a fraction: `-0.3` → `"−30%"`.
  *

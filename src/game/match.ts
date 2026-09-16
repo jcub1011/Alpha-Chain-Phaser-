@@ -56,9 +56,12 @@ import { byScoreDesc, emptyMatchState, GameMode } from "./types";
 import type {
   AlphaChainSettings,
   BayCard,
+  EngineCardSnapshot,
+  EngineSnapshot,
   GamePhase,
   IntermissionPhase,
   MatchState,
+  PlayerLiveState,
   PlayerState,
   Submission,
   SubmitResult,
@@ -719,6 +722,7 @@ export class MatchController {
     this.services.fireTurnStarted(p);
     // Word Builder: draw the Tile Rack BEFORE the clock is armed and turnArmed is emitted.
     if (this.isPicker) this.generateRackForTurn(p);
+    this.stampLiveState(p); // re-armed winnower + generation-spent wildcard ride the snapshot
     let armed = armedClockSeconds(this.baseClockSeconds, p.bay, this.effectiveMode);
     // A time-penalty card (Blind Sniper) queued a shave onto this player's next clock.
     const penalty = this.services.timePenalty.consumeFor(p.id);
@@ -902,6 +906,56 @@ export class MatchController {
     }));
   }
 
+  /** Live engine state for a player's bay faces (streak + guard charges). Read
+   *  straight from room services — the host stamps the same values onto
+   *  `PlayerState.liveState` (see stampLiveState) so guests render from them. */
+  liveStateFor(playerId: string): PlayerLiveState {
+    return {
+      streak: this.services.crescendoStreak.get(playerId),
+      wildcardAvailable: this.services.wildcardGuard.isAvailable(playerId),
+      prismAvailable: this.services.prismGuard.isAvailable(playerId),
+      winnowerAvailable: this.services.winnowerGuard.isAvailable(playerId),
+    };
+  }
+
+  /** Stamp the live engine state onto the player so it rides the snapshot to
+   *  guests (room services are host-local). Call after every mutation of the
+   *  underlying guards/streak. */
+  private stampLiveState(p: PlayerState): void {
+    p.liveState = this.liveStateFor(p.id);
+  }
+
+  /** Freeze a player's engine as it scores: per-slot order, glass
+   *  magnification, rolled bans, and the pre-mutation streak/guard states the
+   *  faces rendered from. MUST run before streak increments and guard consumes
+   *  for this word — callers pass `wildcardUsed` once the succession check has
+   *  decided it. */
+  private captureEngine(
+    player: PlayerState,
+    ev: BayEvaluator,
+    wildcardUsed: boolean,
+  ): EngineSnapshot {
+    const bay: EngineCardSnapshot[] = player.bay.map((slot, i) => {
+      const snap: EngineCardSnapshot = {
+        id: slot.id,
+        magnification: ev.ctxFor(i).magnification(),
+      };
+      const ban = this.services.cardBan.letterFor(player.id, i);
+      if (ban) snap.ban = ban;
+      return snap;
+    });
+    return {
+      bay,
+      streak: this.services.crescendoStreak.get(player.id),
+      slots: player.slots,
+      mode: this.effectiveMode,
+      wildcardAvailable: wildcardUsed ? true : this.services.wildcardGuard.isAvailable(player.id),
+      wildcardUsed,
+      prismAvailable: this.services.prismGuard.isAvailable(player.id),
+      winnowerAvailable: this.services.winnowerGuard.isAvailable(player.id),
+    };
+  }
+
   submitWord(playerId: string, rawWord: string): SubmitResult {
     const s = this.state;
     if (s.phase !== "Round" || this.roundSettleRemaining > 0 || playerId !== this.current.id) {
@@ -979,6 +1033,9 @@ export class MatchController {
 
     // 8. Score, then the two owner-side tax rules (IRS Agent flat override +
     //    bounty suppression, then Tax Write-Off's first-letter salvage on top).
+    // Freeze the engine BEFORE the consumes + streak update below, so playback
+    // shows the faces as they scored (prior streak, available charge).
+    const engine = this.captureEngine(player, evCheck, usedWildcard);
     const scoreOpts = {
       mode: this.effectiveMode,
       prevWordLength: this.prevWordLength,
@@ -1016,6 +1073,7 @@ export class MatchController {
     // AFTER scoring so the current word folds on the prior (pre-increment) streak.
     if (taxed) this.services.crescendoStreak.reset(player.id);
     else this.services.crescendoStreak.increment(player.id);
+    this.stampLiveState(player);
     s.usedWords.add(word);
     this.prevWordLength = word.length;
     const last = word[word.length - 1];
@@ -1048,6 +1106,7 @@ export class MatchController {
       taxed,
       taxBounty: bounties.reduce((a, b) => a + b.amount, 0),
       breakdown,
+      engine,
       siphonedBy: bounties.map((b) => b.playerId),
       effects: notices.length ? notices : undefined,
     };
@@ -1136,6 +1195,7 @@ export class MatchController {
     this.currentSelection = null;
     this.currentDraft = "";
     this.generateRackForTurn(p);
+    this.stampLiveState(p);
     this.events.emit("clockTick", s.clockRemaining);
     this.events.emit("turnArmed", {
       playerIndex: s.currentPlayerIndex,
@@ -1197,7 +1257,10 @@ export class MatchController {
    *  returns true if one fired (consumed its charge and refilled the clock). */
   private tryClockRescue(player: PlayerState): boolean {
     const ev = this.bayEval(player, "", false);
-    return ev.resolved.some((c, i) => c?.rescueClock?.(ev.ctxFor(i)) ?? false);
+    const rescued = ev.resolved.some((c, i) => c?.rescueClock?.(ev.ctxFor(i)) ?? false);
+    // The rescue consumes the Prism guard; stamp so guests see SPENT instead of a stale READY.
+    if (rescued) this.stampLiveState(player);
+    return rescued;
   }
 
   private timeoutCurrent(): void {
@@ -1244,10 +1307,14 @@ export class MatchController {
     // Apply the (negative) net delta to the score. No floor at 0 — scores can
     // already go negative via drains (Bounty Hunter / The Leech), and clamping
     // here would hide the penalty whenever the player is at or below it.
+    // Freeze the engine BEFORE the streak reset below, so the penalty replay
+    // shows the faces as they stood (prior streak, live charges).
+    const classicEngine = this.captureEngine(p, this.bayEval(p, "", false), false);
     p.score += breakdown.finalScore;
     const penalty = -breakdown.finalScore;
     // A timeout is not a clean submission: it breaks the Crescendo run, same as a tax.
     this.services.crescendoStreak.reset(p.id);
+    this.stampLiveState(p);
 
     // Pure-elapsed Chrono Syphon still collects on a real timeout (its cap): stalling
     // out the clock must cost the victim, not deny the holder.
@@ -1268,6 +1335,7 @@ export class MatchController {
       taxed: false,
       taxBounty: bounties.reduce((a, b) => a + b.amount, 0),
       breakdown,
+      engine: classicEngine,
       timedOut: true,
       siphonedBy: bounties.map((b) => b.playerId),
       effects: notices.length ? notices : undefined,
@@ -1335,8 +1403,12 @@ export class MatchController {
     });
     p.score += breakdown.finalScore;
     const penalty = -breakdown.finalScore;
+    // Freeze the engine BEFORE the streak reset below, so the penalty replay
+    // shows the faces as they stood (prior streak, live charges).
+    const pickerEngine = this.captureEngine(p, this.bayEval(p, "", false), false);
     // A timeout is not a clean submission: it breaks the Crescendo run, same as a tax.
     this.services.crescendoStreak.reset(p.id);
+    this.stampLiveState(p);
 
     // Pure-elapsed Chrono Syphon still collects on a real timeout (its cap): stalling
     // out the clock must cost the victim, not deny the holder.
@@ -1357,6 +1429,7 @@ export class MatchController {
       taxed: false,
       taxBounty: pickerBounties.reduce((a, b) => a + b.amount, 0),
       breakdown,
+      engine: pickerEngine,
       timedOut: true,
       siphonedBy: pickerBounties.map((b) => b.playerId),
       effects: pickerNotices.length ? pickerNotices : undefined,
@@ -1807,6 +1880,7 @@ export class MatchController {
    *  testing bench's bay edits. */
   private armPlayerForEra(p: PlayerState): void {
     this.services.fireEraStarted(p);
+    this.stampLiveState(p);
     fireBayHook(this.bayEval(p, "", false), "onEraStart");
     // Stamp the rolled bans onto the player so they ride the snapshot to guests
     // (the host itself reads the live CardBanService via personalBansFor). This is

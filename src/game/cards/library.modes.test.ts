@@ -17,7 +17,13 @@ import {
   getCard,
   tunedCardEntries,
 } from "./library";
-import { tuned, type TuneValue } from "./card";
+import {
+  DEFAULT_CARD_RENDER_CONTEXT,
+  staticFace,
+  tuned,
+  type CardRenderContext,
+  type TuneValue,
+} from "./card";
 
 const bay = (...ids: string[]): BayCard[] => ids.map((id) => ({ id }));
 const ids = () => Object.keys(CARD_CATALOGUE) as CardId[];
@@ -109,9 +115,10 @@ describe("per-mode resolution — parity and its converse", () => {
   /** A card's mode-visible surface, excluding the identity fields checked above. */
   const surface = (id: CardId, mode: GameMode): string => {
     const c = cardLibrary(mode)[id];
+    const face = c.renderText(DEFAULT_CARD_RENDER_CONTEXT);
     return [
-      c.magnitudeText,
-      c.description,
+      face.magnitudeText,
+      face.description,
       c.clock ? `${c.clock.pctDelta ?? 0}/${c.clock.flatDelta ?? 0}` : "-",
       armedClockSeconds(20, bay(id), mode),
       c.timeoutFold ? foldChip(id, mode, true) : "-",
@@ -154,6 +161,19 @@ describe("tuning is load-bearing — every declared knob must reach the rendered
   const perturb = (v: TuneValue): TuneValue =>
     typeof v === "number" ? v * 1.5 + 1 : typeof v === "boolean" ? !v : `${v}x`;
 
+  /** Neutral display context for the face template (×1 and glassed). */
+  const renderCtx = (magnification: number): CardRenderContext => ({
+    magnification,
+    streak: 0,
+    slots: 3,
+    cardsToRight: 0,
+    scoringCount: 1,
+    otherMultipliers: 0,
+    wildcardAvailable: true,
+    prismAvailable: true,
+    winnowerAvailable: true,
+  });
+
   /** Everything a knob could plausibly drive, rendered from a freshly built card. */
   const signature = (
     card: ReturnType<ReturnType<typeof tunedCardEntries>[0][1]["build"]>,
@@ -168,13 +188,24 @@ describe("tuning is load-bearing — every declared knob must reach the rendered
     const ctx = ev.ctxFor(0);
     const fold = card.fold(10, ctx);
     const timeout = card.timeoutFold?.(-10, ctx);
+    // The face template is part of the rendered card too: a knob the prose and
+    // chip ignore is a retune the player never sees. Read at ×1 and under glass.
+    const face = (m: number): string => {
+      const r = card.renderText?.(renderCtx(m));
+      return r
+        ? `${r.magnitudeText} | ${r.description} | ${r.badge ?? "-"} | ${r.clockText ?? "-"}`
+        : "-";
+    };
+    const neutral = card.renderText(DEFAULT_CARD_RENDER_CONTEXT);
     return [
-      card.magnitudeText,
-      card.description,
+      neutral.magnitudeText,
+      neutral.description,
       card.clock ? `${card.clock.pctDelta ?? 0}/${card.clock.flatDelta ?? 0}` : "-",
       card.preference?.redraw?.clockCostFraction ?? "-",
       `${fold.valueText}@${fold.value}`,
       timeout ? `${timeout.valueText}@${timeout.value}` : "-",
+      face(1),
+      face(1.5),
     ].join(" | ");
   };
 
@@ -201,7 +232,7 @@ describe("Picker copy is honest about the timeout penalty", () => {
     // to satisfy a Picker check would be the tail wagging the dog.
     const lying = dealableCardIds(GameMode.Picker)
       .map((id) => cardLibrary(GameMode.Picker)[id])
-      .filter((c) => /time\s?d?\s?out/i.test(c.description))
+      .filter((c) => /time\s?d?\s?out/i.test(c.renderText(DEFAULT_CARD_RENDER_CONTEXT).description))
       .map((c) => c.id);
     expect(lying).toEqual([]);
   });
@@ -215,7 +246,8 @@ describe("Picker copy is honest about the timeout penalty", () => {
 
   it("keeps the penalty clause in Classic, where it does fire", () => {
     for (const id of PATCHED) {
-      expect(cardLibrary(GameMode.Classic)[id].description, id).toMatch(/Time out and lose \d+/);
+      const face = cardLibrary(GameMode.Classic)[id].renderText(DEFAULT_CARD_RENDER_CONTEXT);
+      expect(face.description, id).toMatch(/Time out and lose \d+/);
     }
   });
 
@@ -269,8 +301,7 @@ describe("structural guards (these are compile-time; the assertions only documen
         rarity: "common",
         family: "letter",
         op: "additive",
-        magnitudeText: `${t.x}`,
-        description: `${t.x}`,
+        renderText: () => staticFace(`${t.x}`, `${t.x}`),
         fold: (v) => ({ triggered: true, value: v, valueText: "FX" }),
       }),
     });
@@ -287,8 +318,7 @@ describe("structural guards (these are compile-time; the assertions only documen
         rarity: "common",
         family: "letter",
         op: "additive",
-        magnitudeText: `${t.x}`,
-        description: `${t.x}`,
+        renderText: () => staticFace(`${t.x}`, `${t.x}`),
         fold: (v) => ({ triggered: true, value: v, valueText: "FX" }),
       }),
     });

@@ -20,6 +20,7 @@
 import { describe, expect, it } from "vitest";
 import { armedClockSeconds, scoreTimeout, scoreWord } from "../scoring";
 import { CardId, GameMode, type BayCard } from "../types";
+import { DEFAULT_CARD_RENDER_CONTEXT } from "./card";
 import { cardLibrary } from "./library";
 
 const bay = (...ids: string[]): BayCard[] => ids.map((id) => ({ id }));
@@ -93,9 +94,12 @@ function fingerprint(id: string): string {
     .filter((k) => card[k] !== undefined)
     .join("+");
 
+  // Card text comes from the template alone, read under the neutral context —
+  // the same face the sandbox palette shows.
+  const face = card.renderText(DEFAULT_CARD_RENDER_CONTEXT);
   const parts = [
-    `chip=${card.magnitudeText}`,
-    `desc=${card.description}`,
+    `chip=${face.magnitudeText}`,
+    `desc=${face.description}`,
     `clock=${card.clock ? `${card.clock.pctDelta ?? 0}/${card.clock.flatDelta ?? 0}` : "-"}`,
     `armed=${armedClockSeconds(20, bay(id), GameMode.Classic)}`,
     `hooks=${hooks || "-"}`,
@@ -130,7 +134,7 @@ describe("Classic lock — every card's resolved Classic behaviour", () => {
 /** Committed Classic behaviour. Generated from the pre-refactor build; see the file docblock. */
 const EXPECTED: Record<string, string> = {
   TheAnchor:
-    "chip=+10 | desc=+10 to your submission | clock=- | armed=20 | hooks=- | alone=+10:13 +10:16 +10:17 +10:18 +10:20 +10:14 +10:16 +10:16 | full=+10 +10 +10 +10 +10 +10 +10 +10 | glass=+15 | right=+10 | timeout=—",
+    "chip=+10 | desc=+10 to your word | clock=- | armed=20 | hooks=- | alone=+10:13 +10:16 +10:17 +10:18 +10:20 +10:14 +10:16 +10:16 | full=+10 +10 +10 +10 +10 +10 +10 +10 | glass=+15 | right=+10 | timeout=—",
   Vanilla:
     "chip=+1/ltr | desc=+1/letter; +2/letter at 7+ letters. | clock=- | armed=20 | hooks=- | alone=+3:6 +6:12 +14:21 +16:24 +20:30 +4:8 +6:12 +6:12 | full=+3 +6 +14 +16 +20 +4 +6 +6 | glass=+21 | right=+14 | timeout=—",
   ConsonantCrunch:
@@ -146,7 +150,7 @@ const EXPECTED: Record<string, string> = {
   HighRoller:
     "chip=+10/rare | desc=+10 per rare letter (Q, X, Z, J). | clock=- | armed=20 | hooks=- | alone=—:3 —:6 —:7 —:8 —:10 +20:24 —:6 —:6 | full=— — — — — +20 — — | glass=— | right=— | timeout=—",
   BoosterPack:
-    "chip=+2×slots /right | desc=+2 per card to its right in the bay, multiplied by your slot count. | clock=- | armed=20 | hooks=- | alone=—:3 —:6 —:7 —:8 —:10 —:4 —:6 —:6 | full=— — — — — — — — | glass=— | right=+4 | timeout=—",
+    "chip=+0 | desc=+2 per card to its right in the bay, multiplied by your slot count. (no cards to its right). | clock=- | armed=20 | hooks=- | alone=—:3 —:6 —:7 —:8 —:10 —:4 —:6 —:6 | full=— — — — — — — — | glass=— | right=+4 | timeout=—",
   Scavenger:
     "chip=+2/word | desc=+2 per previously submitted word (any player's) containing your starting letter. | clock=- | armed=20 | hooks=- | alone=—:3 —:6 —:7 —:8 —:10 —:4 —:6 —:6 | full=— — — — — — — — | glass=— | right=— | timeout=—",
   VowelSurge:
@@ -170,7 +174,7 @@ const EXPECTED: Record<string, string> = {
   PanicButton:
     "chip=≤×2 | desc=+×0.05 for every second left in your shot clock, capped at ×2. | clock=- | armed=20 | hooks=- | alone=×1.5:5 ×1.5:9 ×1.5:11 ×1.5:12 ×1.5:15 ×1.5:6 ×1.5:9 ×1.5:9 | full=×2 ×2 ×2 ×2 ×2 ×2 ×2 ×2 | glass=×2.25 | right=×1.5 | timeout=—",
   SlowBurn:
-    "chip=FX | desc=+30% shot clock. Words shorter than 6 letters are illegal and take the Zero-Point Tax. | clock=0.3/0 | armed=26 | hooks=illegalWord | alone=FX:3 FX:6 FX:7 FX:8 FX:10 FX:4 FX:6 FX:6 | full=FX FX FX FX FX FX FX FX | glass=FX | right=FX | timeout=—",
+    "chip=FX | desc=+30% shot clock. Words shorter than 6 letters are taxed. | clock=0.3/0 | armed=26 | hooks=illegalWord | alone=FX:3 FX:6 FX:7 FX:8 FX:10 FX:4 FX:6 FX:6 | full=FX FX FX FX FX FX FX FX | glass=FX | right=FX | timeout=—",
   Speedracer:
     "chip=×(1+Rem /Total) | desc=×(1 + remaining clock time ÷ total clock time). Time out and lose 10 points. | clock=- | armed=20 | hooks=timeoutFold | alone=×1.5:5 ×1.5:9 ×1.5:11 ×1.5:12 ×1.5:15 ×1.5:6 ×1.5:9 ×1.5:9 | full=×2 ×2 ×2 ×2 ×2 ×2 ×2 ×2 | glass=×2.25 | right=×1.5 | timeout=−10",
   Blindfold:
@@ -182,17 +186,17 @@ const EXPECTED: Record<string, string> = {
   Forgery:
     "chip=FX | desc=Every card that checks the word length percieves it to be twice as long. | clock=- | armed=20 | hooks=perceivedLength | alone=FX:3 FX:6 FX:7 FX:8 FX:10 FX:4 FX:6 FX:6 | full=FX FX FX FX FX FX FX FX | glass=FX | right=FX | timeout=—",
   MagnifyingGlass:
-    "chip=FX | desc=Magnifies the card to its right by ×1.5. Glasses in series compound. | clock=- | armed=20 | hooks=submitMagnifications | alone=FX:3 FX:6 FX:7 FX:8 FX:10 FX:4 FX:6 FX:6 | full=FX FX FX FX FX FX FX FX | glass=FX | right=FX | timeout=—",
+    "chip=FX | desc=Magnifies the card to its right by ×1.5. Stackable. | clock=- | armed=20 | hooks=submitMagnifications | alone=FX:3 FX:6 FX:7 FX:8 FX:10 FX:4 FX:6 FX:6 | full=FX FX FX FX FX FX FX FX | glass=FX | right=FX | timeout=—",
   Wildcard:
-    "chip=FX | desc=Once per era, one word may ignore the Succession rule — it need not begin with the previous word's last letter. | clock=- | armed=20 | hooks=ignoresSuccession | alone=FX:3 FX:6 FX:7 FX:8 FX:10 FX:4 FX:6 FX:6 | full=FX FX FX FX FX FX FX FX | glass=FX | right=FX | timeout=—",
+    "chip=FX | desc=Once per era, you may ignore the starting letter. Charge available. | clock=- | armed=20 | hooks=ignoresSuccession | alone=FX:3 FX:6 FX:7 FX:8 FX:10 FX:4 FX:6 FX:6 | full=FX FX FX FX FX FX FX FX | glass=FX | right=FX | timeout=—",
   Prism:
-    "chip=FX | desc=Once per era, when your shot clock runs out your clock resets to full instead of ending your turn. | clock=- | armed=20 | hooks=rescueClock | alone=FX:3 FX:6 FX:7 FX:8 FX:10 FX:4 FX:6 FX:6 | full=FX FX FX FX FX FX FX FX | glass=FX | right=FX | timeout=—",
+    "chip=FX | desc=Once per era, when your shot clock runs out your clock resets instead of ending your turn. Charge available. | clock=- | armed=20 | hooks=rescueClock | alone=FX:3 FX:6 FX:7 FX:8 FX:10 FX:4 FX:6 FX:6 | full=FX FX FX FX FX FX FX FX | glass=FX | right=FX | timeout=—",
   IrsAgent:
-    "chip=FX | desc=When your word is taxed, no opponent's Tax Collector collects from you. | clock=- | armed=20 | hooks=ownTaxScore+suppressesSiphon | alone=FX:3 FX:6 FX:7 FX:8 FX:10 FX:4 FX:6 FX:6 | full=FX FX FX FX FX FX FX FX | glass=FX | right=FX | timeout=—",
+    "chip=FX | desc=When your word is taxed, no Tax Collector collects from you. | clock=- | armed=20 | hooks=ownTaxScore+suppressesSiphon | alone=FX:3 FX:6 FX:7 FX:8 FX:10 FX:4 FX:6 FX:6 | full=FX FX FX FX FX FX FX FX | glass=FX | right=FX | timeout=—",
   TaxWriteOff:
     "chip=FX | desc=When your word is taxed, score the first half of it through your engine anyways. | clock=- | armed=20 | hooks=writeOffBonus | alone=FX:3 FX:6 FX:7 FX:8 FX:10 FX:4 FX:6 FX:6 | full=FX FX FX FX FX FX FX FX | glass=FX | right=FX | timeout=—",
   RouletteWheel:
-    "chip=×2 | desc=Each era, rolls you a personal banned letter (Zero-Point Tax if you use it). ×2 on every clean word. | clock=- | armed=20 | hooks=onEraStart | alone=×2:6 ×2:12 ×2:14 ×2:16 ×2:20 ×2:8 ×2:12 ×2:12 | full=×2 ×2 ×2 ×2 ×2 ×2 ×2 ×2 | glass=×3 | right=×2 | timeout=—",
+    "chip=×2 | desc=Each era, you get a new personal banned letter. ×2 on every word. | clock=- | armed=20 | hooks=onEraStart | alone=×2:6 ×2:12 ×2:14 ×2:16 ×2:20 ×2:8 ×2:12 ×2:12 | full=×2 ×2 ×2 ×2 ×2 ×2 ×2 ×2 | glass=×3 | right=×2 | timeout=—",
   TollBooth:
     "chip=FX | desc=Each era, you get a personal banned letter. Bank 20% of any opponent's score when their word uses that letter. | clock=- | armed=20 | hooks=onEraStart+onOpponentWordResolved | alone=FX:3 FX:6 FX:7 FX:8 FX:10 FX:4 FX:6 FX:6 | full=FX FX FX FX FX FX FX FX | glass=FX | right=FX | timeout=—",
   TaxCollector:
@@ -200,40 +204,41 @@ const EXPECTED: Record<string, string> = {
   ChronoSyphon:
     "chip=FX | desc=+1 per whole second taken on an opponent's shot clock when they submit, max 30. | clock=- | armed=20 | hooks=onOpponentWordResolved | alone=FX:3 FX:6 FX:7 FX:8 FX:10 FX:4 FX:6 FX:6 | full=FX FX FX FX FX FX FX FX | glass=FX | right=FX | timeout=—",
   BaitAndSwitch:
-    "chip=FX | desc=When your word is taxed, curse the next player with that banned letter for their next turn. | clock=- | armed=20 | hooks=onTurnEnded | alone=FX:3 FX:6 FX:7 FX:8 FX:10 FX:4 FX:6 FX:6 | full=FX FX FX FX FX FX FX FX | glass=FX | right=FX | timeout=—",
+    "chip=FX | desc=When your word is taxed, the next player must use that banned letter for their turn. | clock=- | armed=20 | hooks=onTurnEnded | alone=FX:3 FX:6 FX:7 FX:8 FX:10 FX:4 FX:6 FX:6 | full=FX FX FX FX FX FX FX FX | glass=FX | right=FX | timeout=—",
   TheLexicon:
     "chip=×2 @9+ | desc=×2 when your word is 9+ letters; +15% shot clock. | clock=0.15/0 | armed=23 | hooks=- | alone=—:3 —:6 —:7 —:8 ×2:20 —:4 —:6 —:6 | full=— — — — ×2 — — — | glass=— | right=— | timeout=—",
   Stonemason:
     "chip=+4/ltr | desc=+4/letter, only at 8+ letters. | clock=- | armed=20 | hooks=- | alone=—:3 —:6 —:7 +32:40 +40:50 —:4 —:6 —:6 | full=— — — +32 +40 — — — | glass=— | right=— | timeout=—",
   LoanShark:
-    "chip=FX | desc=Bank 15% of any opponent's word scoring more than 30 points, but only if they're ahead of you on the leaderboard. | clock=- | armed=20 | hooks=onOpponentWordResolved | alone=FX:3 FX:6 FX:7 FX:8 FX:10 FX:4 FX:6 FX:6 | full=FX FX FX FX FX FX FX FX | glass=FX | right=FX | timeout=—",
+    "chip=FX | desc=Bank 15% of any opponent's word worth more than 30 points. Only applies if they are ahead of you on the leaderboard. | clock=- | armed=20 | hooks=onOpponentWordResolved | alone=FX:3 FX:6 FX:7 FX:8 FX:10 FX:4 FX:6 FX:6 | full=FX FX FX FX FX FX FX FX | glass=FX | right=FX | timeout=—",
   Numismatist:
     "chip=×1.6 /rare | desc=×(1 + 0.6 per rare letter Q, X, Z, J). | clock=- | armed=20 | hooks=- | alone=—:3 —:6 —:7 —:8 —:10 ×2.2:9 —:6 —:6 | full=— — — — — ×2.2 — — | glass=— | right=— | timeout=—",
   TheSniper:
     "chip=FX | desc=Shave 20% off the shot clock of the leader. This applies to you if you are in the lead. | clock=- | armed=20 | hooks=onTurnEnded | alone=FX:3 FX:6 FX:7 FX:8 FX:10 FX:4 FX:6 FX:6 | full=FX FX FX FX FX FX FX FX | glass=FX | right=FX | timeout=—",
   Insurance:
-    "chip=FX | desc=Scores nothing on a normal word. If you time out, you lose no points. | clock=- | armed=20 | hooks=timeoutFold+negatesTimeoutLoss | alone=FX:3 FX:6 FX:7 FX:8 FX:10 FX:4 FX:6 FX:6 | full=FX FX FX FX FX FX FX FX | glass=FX | right=FX | timeout=+10",
+    "chip=FX | desc=If you time out, you lose no points. | clock=- | armed=20 | hooks=timeoutFold+negatesTimeoutLoss | alone=FX:3 FX:6 FX:7 FX:8 FX:10 FX:4 FX:6 FX:6 | full=FX FX FX FX FX FX FX FX | glass=FX | right=FX | timeout=+10",
   TheFlywheel:
-    "chip=×1.15+ | desc=×1.15 for each other multiplier card in your bay (capped at ×2.3). | clock=- | armed=20 | hooks=- | alone=—:3 —:6 —:7 —:8 —:10 —:4 —:6 —:6 | full=— — — — — — — — | glass=— | right=— | timeout=—",
+    "chip=— | desc=×1.15 for each other multiplier card in your bay (capped at ×2.3). (no other multipliers in your bay). | clock=- | armed=20 | hooks=- | alone=—:3 —:6 —:7 —:8 —:10 —:4 —:6 —:6 | full=— — — — — — — — | glass=— | right=— | timeout=—",
   Tilesmith:
     "chip=+tile | desc=Scores the word based on its letter-tile values (Scrabble-style). | clock=- | armed=20 | hooks=- | alone=+5:8 +15:21 +9:16 +13:21 +18:28 +22:26 +6:12 +17:23 | full=+5 +15 +9 +13 +18 +22 +6 +17 | glass=+13.5 | right=+9 | timeout=—",
   Crescendo:
-    "chip=×1+0.25 /clean | desc=×(1 + 0.25 per clean word you've played this era), capped at ×2. Being taxed or timing out resets it. | clock=- | armed=20 | hooks=- | alone=—:3 —:6 —:7 —:8 —:10 —:4 —:6 —:6 | full=— — — — — — — — | glass=— | right=— | timeout=—",
+    "chip=×1 | desc=×(1 + 0.25 per word you've played this era), capped at ×2. Being taxed or timing out resets it. Streak 0 — play clean to start it. | clock=- | armed=20 | hooks=- | alone=—:3 —:6 —:7 —:8 —:10 —:4 —:6 —:6 | full=— — — — — — — — | glass=— | right=— | timeout=—",
   Bookends:
     "chip=×2 | desc=×2 when the word's first and last letter are the same. | clock=- | armed=20 | hooks=- | alone=—:3 —:6 —:7 —:8 —:10 —:4 —:6 —:6 | full=— — — — — — — — | glass=— | right=— | timeout=—",
   Dividend:
-    "chip=+2/card | desc=+2 for each card in your bay. | clock=- | armed=20 | hooks=- | alone=+2:5 +2:8 +2:9 +2:10 +2:12 +2:6 +2:8 +2:8 | full=+2 +2 +2 +2 +2 +2 +2 +2 | glass=+6 | right=+4 | timeout=—",
+    "chip=+2 | desc=+2 for each card in your bay. (1 cards = +2). | clock=- | armed=20 | hooks=- | alone=+2:5 +2:8 +2:9 +2:10 +2:12 +2:6 +2:8 +2:8 | full=+2 +2 +2 +2 +2 +2 +2 +2 | glass=+6 | right=+4 | timeout=—",
   Sieve:
-    "chip=8+ seed | desc=Your Tile Rack is seeded from a word of 8+ letters — or your whole rack, when that is shorter. Scores nothing itself. | clock=- | armed=20 | hooks=preference | alone=FX:3 FX:6 FX:7 FX:8 FX:10 FX:4 FX:6 FX:6 | full=FX FX FX FX FX FX FX FX | glass=FX | right=FX | timeout=—",
+    "chip=8+ seed | desc=Seeds your Tile Rack from a word of 8+ letters. | clock=- | armed=20 | hooks=preference | alone=FX:3 FX:6 FX:7 FX:8 FX:10 FX:4 FX:6 FX:6 | full=FX FX FX FX FX FX FX FX | glass=FX | right=FX | timeout=—",
   Winnower:
-    "chip=redraw | desc=Once per turn, redraw your whole Tile Rack for 30% of your shot clock. | clock=- | armed=20 | hooks=preference | alone=FX:3 FX:6 FX:7 FX:8 FX:10 FX:4 FX:6 FX:6 | full=FX FX FX FX FX FX FX FX | glass=FX | right=FX | timeout=—",
+    "chip=redraw | desc=Once per turn, redraw your whole Tile Rack for 30% of your shot clock. Redraw available. | clock=- | armed=20 | hooks=preference | alone=FX:3 FX:6 FX:7 FX:8 FX:10 FX:4 FX:6 FX:6 | full=FX FX FX FX FX FX FX FX | glass=FX | right=FX | timeout=—",
   WideNet:
-    "chip=+2 / −15% | desc=+2 Rack tiles, and −15% shot clock. More to build with, less time to build. | clock=-0.15/0 | armed=17 | hooks=preference | alone=FX:3 FX:6 FX:7 FX:8 FX:10 FX:4 FX:6 FX:6 | full=FX FX FX FX FX FX FX FX | glass=FX | right=FX | timeout=—",
+    "chip=+2 / −15% | desc=+2 Rack tiles, and −15% shot clock. | clock=-0.15/0 | armed=17 | hooks=preference | alone=FX:3 FX:6 FX:7 FX:8 FX:10 FX:4 FX:6 FX:6 | full=FX FX FX FX FX FX FX FX | glass=FX | right=FX | timeout=—",
   TunnelVision:
-    "chip=×1.4 | desc=×1.4 always, but you have 2 fewer Rack tiles. Raw multiplier, less to build with. | clock=- | armed=20 | hooks=preference | alone=×1.4:4 ×1.4:8 ×1.4:10 ×1.4:11 ×1.4:14 ×1.4:6 ×1.4:8 ×1.4:8 | full=×1.4 ×1.4 ×1.4 ×1.4 ×1.4 ×1.4 ×1.4 ×1.4 | glass=×2.1 | right=×1.4 | timeout=—",
+    "chip=×1.4 | desc=×1.4 always, but you have 2 fewer Rack tiles. | clock=- | armed=20 | hooks=preference | alone=×1.4:4 ×1.4:8 ×1.4:10 ×1.4:11 ×1.4:14 ×1.4:6 ×1.4:8 ×1.4:8 | full=×1.4 ×1.4 ×1.4 ×1.4 ×1.4 ×1.4 ×1.4 ×1.4 | glass=×2.1 | right=×1.4 | timeout=—",
   Prospector:
-    "chip=1 rare | desc=Guaranteed at least one rare letter (Q, X, Z, J) on your Tile Rack. Scores nothing itself. | clock=- | armed=20 | hooks=preference | alone=FX:3 FX:6 FX:7 FX:8 FX:10 FX:4 FX:6 FX:6 | full=FX FX FX FX FX FX FX FX | glass=FX | right=FX | timeout=—",
-  Tide: "chip=vowels | desc=Your Tile Rack is guaranteed vowel-heavy (>=50% vowels). Scores nothing itself. | clock=- | armed=20 | hooks=preference | alone=FX:3 FX:6 FX:7 FX:8 FX:10 FX:4 FX:6 FX:6 | full=FX FX FX FX FX FX FX FX | glass=FX | right=FX | timeout=—",
+    "chip=1 rare | desc=Guarantees at least one rare letter (Q, X, Z, J) in your Tile Rack. | clock=- | armed=20 | hooks=preference | alone=FX:3 FX:6 FX:7 FX:8 FX:10 FX:4 FX:6 FX:6 | full=FX FX FX FX FX FX FX FX | glass=FX | right=FX | timeout=—",
+  Tide:
+    "chip=vowels | desc=Your Tile Rack is made vowel-heavy (>=50% vowels). | clock=- | armed=20 | hooks=preference | alone=FX:3 FX:6 FX:7 FX:8 FX:10 FX:4 FX:6 FX:6 | full=FX FX FX FX FX FX FX FX | glass=FX | right=FX | timeout=—",
   Sentinel:
-    "chip=1 safe | desc=Your Tile Rack is guaranteed free of every letter banned against you. Scores nothing itself. | clock=- | armed=20 | hooks=preference | alone=FX:3 FX:6 FX:7 FX:8 FX:10 FX:4 FX:6 FX:6 | full=FX FX FX FX FX FX FX FX | glass=FX | right=FX | timeout=—",
+    "chip=1 safe | desc=Ensures your Tile Rack doesn't contain banned letters. | clock=- | armed=20 | hooks=preference | alone=FX:3 FX:6 FX:7 FX:8 FX:10 FX:4 FX:6 FX:6 | full=FX FX FX FX FX FX FX FX | glass=FX | right=FX | timeout=—",
 };

@@ -94,7 +94,10 @@ export class AcGameOver extends AcElement {
         </div>
 
         <div class="go-breakdown ac-panel">
-          <ac-word-history .history=${this.controller.match.state.history}></ac-word-history>
+          <ac-word-history
+            .history=${this.controller.match.state.history}
+            .mode=${this.controller.match.effectiveMode}
+          ></ac-word-history>
         </div>
       </div>
     `;

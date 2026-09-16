@@ -19,6 +19,7 @@ import {
   type GameMode,
   type GamePhase,
   type MatchState,
+  type PlayerLiveState,
   type PlayerState,
 } from "../game/types";
 import type { MatchLike } from "./controller";
@@ -184,6 +185,18 @@ export class NetMatch implements MatchLike {
     // snapshot carries them; read straight from the synced state.
     return this._state.players.find((p) => p.id === playerId)?.personalBans ?? [];
   }
+  liveStateFor(playerId: string): PlayerLiveState {
+    // Same pattern: the host stamps liveState after every guard/streak mutation.
+    // Absent on older snapshots — fall back to a fresh era (neutral faces, no crash).
+    return (
+      this._state.players.find((p) => p.id === playerId)?.liveState ?? {
+        streak: 0,
+        wildcardAvailable: true,
+        prismAvailable: true,
+        winnowerAvailable: true,
+      }
+    );
+  }
   /**
    * The mode this mirror renders card values for.
    *
@@ -194,6 +207,13 @@ export class NetMatch implements MatchLike {
    */
   get effectiveMode(): GameMode {
     return this._state.settings.gameMode;
+  }
+
+  get lastWordLength(): number {
+    // Mirrors MatchController.prevWordLength: timeout pseudo-submissions never enter
+    // history, so the last history word is the last accepted word.
+    const h = this._state.history;
+    return h.length > 0 ? (h[h.length - 1]?.word.length ?? 0) : 0;
   }
 
   hidesInput(playerId: string): boolean {

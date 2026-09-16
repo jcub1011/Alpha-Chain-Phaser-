@@ -28,13 +28,16 @@ import {
   add,
   clampScore,
   DEFAULT_MAX_INSTANCES,
+  fmtMag,
   fmtPct,
   fx,
   isVowel,
   mul,
   RARE_START,
   skip,
+  staticFace,
   tuned,
+  type CardRenderContext,
   type ModifierCard,
   type TunedCardDef,
   type TuneValue,
@@ -45,6 +48,18 @@ import type { PlayerState } from "../types";
 
 /** Round to one decimal (per-letter multiplier steps are 0.1) for clean chips. */
 const round1 = (n: number): number => Math.round(n * 10) / 10;
+
+/* ── Render-template helpers ─────────────────────────────────────────────────
+ * Every `renderText` below interpolates the same numbers its `fold` uses, so
+ * the face and the score cannot disagree. At ×1 each template reproduces the
+ * neutral face byte-identically (pinned by the render tests); under a
+ * Magnifying Glass the stated magnitudes scale with it. */
+
+/** Glass note for cards whose resting magnitude cannot resolve without a word
+ *  (length curves, rare counts, clock ratios) or whose effect is reactive:
+ *  names the glass factor so the face still reads magnified. Empty at ×1. */
+const glassNote = (c: CardRenderContext): string =>
+  c.magnification > 1 ? ` (×${fmtMag(c.magnification)} glass)` : "";
 
 /** Scrabble-style letter-tile point values (Tilesmith). Rarer letters score more. */
 const TILE_VALUES: Record<string, number> = {
@@ -89,9 +104,9 @@ type CardDef = Omit<ModifierCard, "id">;
  * declares its numbers once and renders itself per mode from them.
  *
  * Both shapes are allowed ON PURPOSE. Only the cards whose values are actually mode-sensitive are
- * converted; the rest keep their source text byte-identical. A mechanical rewrite of all 54 cards
- * in the one file that must not change behaviour would be the largest regression risk in this work,
- * for no benefit on the cards nobody is retuning.
+ * converted; the rest keep their single `renderText` template byte-identical. A mechanical rewrite
+ * of all 54 cards in the one file that must not change behaviour would be the largest regression
+ * risk in this work, for no benefit on the cards nobody is retuning.
  */
 type CardEntry = CardDef | TunedCardDef<TuningBag>;
 
@@ -105,9 +120,11 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     color: "#6699bd",
     family: CardFamily.Letter,
     op: CardOp.Additive,
-    magnitudeText: "+10",
-    description: "+10 to your word",
     fold: (v, c) => add(v, 10 * c.magnification()),
+    renderText: (c) => ({
+      magnitudeText: `+${fmtMag(10 * c.magnification)}`,
+      description: `+${fmtMag(10 * c.magnification)} to your word`,
+    }),
   },
 
   Vanilla: {
@@ -116,12 +133,14 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     color: "#dcae4c",
     family: CardFamily.Letter,
     op: CardOp.Additive,
-    magnitudeText: "+1/ltr",
-    description: "+1/letter; +2/letter at 7+ letters.",
     fold: (v, c) => {
       const L = c.resolveWordLength();
       return add(v, L * (L >= 7 ? 2 : 1) * c.magnification());
     },
+    renderText: (c) => ({
+      magnitudeText: `+${fmtMag(c.magnification)}/ltr`,
+      description: `+${fmtMag(c.magnification)}/letter; +${fmtMag(2 * c.magnification)}/letter at 7+ letters.`,
+    }),
   },
 
   ConsonantCrunch: {
@@ -130,13 +149,15 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     color: "#c25a3a",
     family: CardFamily.Letter,
     op: CardOp.Additive,
-    magnitudeText: "+2/con",
-    description: "+2/consonant; +3/consonant at 7+ letters.",
     fold: (v, c) =>
       add(
         v,
         c.consonantIndices().length * (c.resolveWordLength() >= 7 ? 3 : 2) * c.magnification(),
       ),
+    renderText: (c) => ({
+      magnitudeText: `+${fmtMag(2 * c.magnification)}/con`,
+      description: `+${fmtMag(2 * c.magnification)}/consonant; +${fmtMag(3 * c.magnification)}/consonant at 7+ letters.`,
+    }),
   },
 
   VocalVowels: {
@@ -145,10 +166,12 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     color: "#74b291",
     family: CardFamily.Letter,
     op: CardOp.Additive,
-    magnitudeText: "+3/vwl",
-    description: "+3/vowel; +4/vowel at 7+ letters.",
     fold: (v, c) =>
       add(v, c.vowelIndices().length * (c.resolveWordLength() >= 7 ? 4 : 3) * c.magnification()),
+    renderText: (c) => ({
+      magnitudeText: `+${fmtMag(3 * c.magnification)}/vwl`,
+      description: `+${fmtMag(3 * c.magnification)}/vowel; +${fmtMag(4 * c.magnification)}/vowel at 7+ letters.`,
+    }),
   },
 
   BrickLayer: {
@@ -157,12 +180,14 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     color: "#b26a3a",
     family: CardFamily.Letter,
     op: CardOp.Additive,
-    magnitudeText: "+3/ltr",
-    description: "+3/letter, only at 6+ letters.",
     fold: (v, c) => {
       const L = c.resolveWordLength();
       return L >= 6 ? add(v, 3 * L * c.magnification()) : skip(v);
     },
+    renderText: (c) => ({
+      magnitudeText: `+${fmtMag(3 * c.magnification)}/ltr`,
+      description: `+${fmtMag(3 * c.magnification)}/letter, only at 6+ letters.`,
+    }),
   },
 
   TheBlueprint: {
@@ -171,15 +196,16 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     color: "#6699bd",
     family: CardFamily.Letter,
     op: CardOp.Additive,
-    magnitudeText: "+3/ltr",
-    description:
-      "+3/letter when your word is at least as long as the previous word; always pays on the first word.",
     fold: (v, c) => {
       const L = c.resolveWordLength();
       return c.prevWordLength === 0 || L >= c.prevWordLength
         ? add(v, 3 * L * c.magnification())
         : skip(v);
     },
+    renderText: (c) => ({
+      magnitudeText: `+${fmtMag(3 * c.magnification)}/ltr`,
+      description: `+${fmtMag(3 * c.magnification)}/letter when your word is at least as long as the previous word; always pays on the first word.`,
+    }),
   },
 
   LetterHoarder: {
@@ -188,9 +214,11 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     color: "#dcae4c",
     family: CardFamily.Letter,
     op: CardOp.Additive,
-    magnitudeText: "+2/uniq",
-    description: "+2 for each distinct letter.",
     fold: (v, c) => add(v, 2 * c.distinctLetters * c.magnification()),
+    renderText: (c) => ({
+      magnitudeText: `+${fmtMag(2 * c.magnification)}/uniq`,
+      description: `+${fmtMag(2 * c.magnification)} for each distinct letter.`,
+    }),
   },
 
   HighRoller: {
@@ -199,12 +227,14 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     color: "#b56276",
     family: CardFamily.Economy,
     op: CardOp.Additive,
-    magnitudeText: "+10/rare",
-    description: "+10 per rare letter (Q, X, Z, J).",
     fold: (v, c) => {
       const rareCount = [...c.word].filter((ch) => RARE_START.has(ch)).length;
       return rareCount > 0 ? add(v, 10 * rareCount * c.magnification()) : skip(v);
     },
+    renderText: (c) => ({
+      magnitudeText: `+${fmtMag(10 * c.magnification)}/rare`,
+      description: `+${fmtMag(10 * c.magnification)} per rare letter (Q, X, Z, J).`,
+    }),
   },
 
   BoosterPack: {
@@ -213,12 +243,20 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     color: "#b26a3a",
     family: CardFamily.Economy,
     op: CardOp.Additive,
-    magnitudeText: "+2×slots /right",
-    description: "+2 per card to its right in the bay, multiplied by your slot count.",
     fold: (v, c) =>
       c.cardsToRight > 0
         ? add(v, 2 * c.cardsToRight * (c.slots ?? c.bayLength) * c.magnification())
         : skip(v),
+    renderText: (c) => {
+      const amount = 2 * c.cardsToRight * c.slots * c.magnification;
+      return {
+        magnitudeText: c.cardsToRight > 0 ? `+${fmtMag(amount)}` : "+0",
+        description:
+          c.cardsToRight > 0
+            ? `+${fmtMag(2 * c.magnification)} per card to its right in the bay, multiplied by your slot count. (${c.cardsToRight} right × ${c.slots} slots = +${fmtMag(amount)}).`
+            : "+2 per card to its right in the bay, multiplied by your slot count. (no cards to its right).",
+      };
+    },
   },
 
   Scavenger: {
@@ -227,12 +265,14 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     color: "#b26a3a",
     family: CardFamily.Economy,
     op: CardOp.Additive,
-    magnitudeText: "+2/word",
-    description: "+2 per previously submitted word (any player's) containing your starting letter.",
     fold: (v, c) => {
       const n = c.history.filter((h) => h.word.includes(c.startsWith)).length;
       return n > 0 ? add(v, 2 * n * c.magnification()) : skip(v);
     },
+    renderText: (c) => ({
+      magnitudeText: `+${fmtMag(2 * c.magnification)}/word`,
+      description: `+${fmtMag(2 * c.magnification)} per previously submitted word (any player's) containing your starting letter.`,
+    }),
   },
 
   // ── §3.2 Core Multipliers (place right so they scale accumulated additives) ──
@@ -242,12 +282,14 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     color: "#5c9a78",
     family: CardFamily.Letter,
     op: CardOp.Multiplicative,
-    magnitudeText: "×3",
-    description: "×3 when the word has more vowels than consonants.",
     fold: (v, c) =>
       c.vowelIndices().length > c.consonantIndices().length
         ? mul(v, 3 * c.magnification())
         : skip(v),
+    renderText: (c) => ({
+      magnitudeText: `×${fmtMag(3 * c.magnification)}`,
+      description: `×${fmtMag(3 * c.magnification)} when the word has more vowels than consonants.`,
+    }),
   },
 
   TheArchitect: {
@@ -256,9 +298,11 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     color: "#6699bd",
     family: CardFamily.Letter,
     op: CardOp.Multiplicative,
-    magnitudeText: "×3",
-    description: "×3 when the word is 8+ letters.",
     fold: (v, c) => (c.resolveWordLength() >= 8 ? mul(v, 3 * c.magnification()) : skip(v)),
+    renderText: (c) => ({
+      magnitudeText: `×${fmtMag(3 * c.magnification)}`,
+      description: `×${fmtMag(3 * c.magnification)} when the word is 8+ letters.`,
+    }),
   },
 
   Sesquipedalian: {
@@ -268,9 +312,11 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     color: "#9878ae",
     family: CardFamily.Letter,
     op: CardOp.Multiplicative,
-    magnitudeText: "×5",
-    description: "×5 when the word is 10+ letters.",
     fold: (v, c) => (c.resolveWordLength() >= 10 ? mul(v, 5 * c.magnification()) : skip(v)),
+    renderText: (c) => ({
+      magnitudeText: `×${fmtMag(5 * c.magnification)}`,
+      description: `×${fmtMag(5 * c.magnification)} when the word is 10+ letters.`,
+    }),
   },
 
   GutturalRoar: {
@@ -279,13 +325,15 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     color: "#b26a3a",
     family: CardFamily.Letter,
     op: CardOp.Multiplicative,
-    magnitudeText: "×2",
-    description: "×2 when the word's only vowels are A or E.",
     // Matches C# LINQ .All(): a word with no (active-classifier) vowels triggers vacuously.
     fold: (v, c) =>
       c.vowelIndices().every((i) => c.word[i] === "a" || c.word[i] === "e")
         ? mul(v, 2 * c.magnification())
         : skip(v),
+    renderText: (c) => ({
+      magnitudeText: `×${fmtMag(2 * c.magnification)}`,
+      description: `×${fmtMag(2 * c.magnification)} when the word's only vowels are A or E.`,
+    }),
   },
 
   PerfectLink: {
@@ -294,10 +342,12 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     color: "#5c9a78",
     family: CardFamily.Letter,
     op: CardOp.Multiplicative,
-    magnitudeText: "×1.5",
-    description: "×1.5 when the word ends in a vowel.",
     fold: (v, c) =>
       c.vowelIndices().includes(c.length - 1) ? mul(v, 1.5 * c.magnification()) : skip(v),
+    renderText: (c) => ({
+      magnitudeText: `×${fmtMag(1.5 * c.magnification)}`,
+      description: `×${fmtMag(1.5 * c.magnification)} when the word ends in a vowel.`,
+    }),
   },
 
   TryHard: {
@@ -306,12 +356,16 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     color: "#cb8450",
     family: CardFamily.Letter,
     op: CardOp.Multiplicative,
-    magnitudeText: "×1.5+",
-    description: "×1.5 at 7 letters, +0.1 per letter beyond.",
     fold: (v, c) => {
       const L = c.resolveWordLength();
       return L > 6 ? mul(v, round1(1.4 + 0.1 * (L - 6)) * c.magnification()) : skip(v);
     },
+    // A length curve, not a flat factor: the resting face keeps the curve prose
+    // and names the glass; the exact factor appears once a word is staged.
+    renderText: (c) => ({
+      magnitudeText: "×1.5+",
+      description: `×1.5 at 7 letters, +0.1 per letter beyond.${glassNote(c)}`,
+    }),
   },
 
   DoubleDown: {
@@ -320,10 +374,14 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     color: "#b56276",
     family: CardFamily.Economy,
     op: CardOp.Multiplicative,
-    magnitudeText: "×2",
-    description: "×2 with a repeat letter, else ×0.5.",
     fold: (v, c) =>
       c.hasRepeatLetter ? mul(v, 2 * c.magnification()) : mul(v, 0.5 * c.magnification()),
+    // Word-dependent branch (repeat or not): the resting face keeps both
+    // outcomes and names the glass; the exact factor appears once staged.
+    renderText: (c) => ({
+      magnitudeText: "×2",
+      description: `×2 with a repeat letter, else ×0.5.${glassNote(c)}`,
+    }),
   },
 
   // ── §3.3 Glass cannon (multipliers paid in your own shot clock) ──
@@ -343,15 +401,20 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
       color: "#6699bd",
       family: CardFamily.Clock,
       op: CardOp.Multiplicative,
-      magnitudeText: `×${t.factor}`,
-      description:
-        `×${t.factor} always; permanently ${fmtPct(t.clockPct)} shot clock.` +
-        (t.timeoutLoss ? ` Time out and lose ${t.timeoutLoss} points.` : ""),
       clock: { pctDelta: t.clockPct },
       fold: (v, c) => mul(v, t.factor * c.magnification()),
       // `timeoutLoss: 0` means inert, and the description above drops its clause from the same
       // number — so a mode without a timeout penalty cannot end up advertising one.
       timeoutFold: (v, c) => (t.timeoutLoss ? add(v, -t.timeoutLoss * c.magnification()) : skip(v)),
+      renderText: (c) => ({
+        magnitudeText: `×${fmtMag(t.factor * c.magnification)}`,
+        description:
+          `×${fmtMag(t.factor * c.magnification)} always; permanently ${fmtPct(t.clockPct * c.magnification)} shot clock.` +
+          (t.timeoutLoss
+            ? ` Time out and lose ${fmtMag(t.timeoutLoss * c.magnification)} points.`
+            : ""),
+        clockText: `${fmtPct(t.clockPct * c.magnification)} ⏱`,
+      }),
     }),
   }),
 
@@ -368,13 +431,18 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
       color: "#c25a3a",
       family: CardFamily.Clock,
       op: CardOp.Multiplicative,
-      magnitudeText: `×${t.factor}`,
-      description:
-        `×${t.factor} always; permanently ${fmtPct(t.clockPct)} shot clock.` +
-        (t.timeoutLoss ? ` Time out and lose ${t.timeoutLoss} points.` : ""),
       clock: { pctDelta: t.clockPct },
       fold: (v, c) => mul(v, t.factor * c.magnification()),
       timeoutFold: (v, c) => (t.timeoutLoss ? add(v, -t.timeoutLoss * c.magnification()) : skip(v)),
+      renderText: (c) => ({
+        magnitudeText: `×${fmtMag(t.factor * c.magnification)}`,
+        description:
+          `×${fmtMag(t.factor * c.magnification)} always; permanently ${fmtPct(t.clockPct * c.magnification)} shot clock.` +
+          (t.timeoutLoss
+            ? ` Time out and lose ${fmtMag(t.timeoutLoss * c.magnification)} points.`
+            : ""),
+        clockText: `${fmtPct(t.clockPct * c.magnification)} ⏱`,
+      }),
     }),
   }),
 
@@ -386,10 +454,14 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
       color: "#9c4a5e",
       family: CardFamily.Clock,
       op: CardOp.Multiplicative,
-      magnitudeText: `≤×${t.cap}`,
-      description: `+×${t.perSecond} for every second left in your shot clock, capped at ×${t.cap}.`,
       fold: (v, c) =>
         mul(v, Math.min(t.cap, 1 + c.clockRemaining * t.perSecond) * c.magnification()),
+      // A clock ratio, not a flat factor: the resting face scales the cap the
+      // glass raises and names it; the exact factor appears once staged.
+      renderText: (c) => ({
+        magnitudeText: `≤×${fmtMag(t.cap * c.magnification)}`,
+        description: `+×${t.perSecond} for every second left in your shot clock, capped at ×${fmtMag(t.cap * c.magnification)}.${glassNote(c)}`,
+      }),
     }),
   }),
 
@@ -399,12 +471,14 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     color: "#cb8450",
     family: CardFamily.Clock,
     op: CardOp.Fx,
-    magnitudeText: "FX",
-    description:
-      "+30% shot clock. Words shorter than 6 letters are taxed.",
     clock: { pctDelta: 0.3 },
     fold: (v) => fx(v),
     illegalWord: (c) => c.resolveWordLength() < 6,
+    renderText: (c) => ({
+      magnitudeText: "FX",
+      description: `${fmtPct(0.3 * c.magnification)} shot clock. Words shorter than 6 letters are taxed.`,
+      clockText: `${fmtPct(0.3 * c.magnification)} ⏱`,
+    }),
   },
 
   Speedracer: tuned({
@@ -425,13 +499,21 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
       color: "#dcae4c",
       family: CardFamily.Clock,
       op: CardOp.Multiplicative,
-      magnitudeText: "×(1+Rem /Total)",
-      description:
-        "×(1 + remaining clock time ÷ total clock time)." +
-        (t.timeoutLoss ? ` Time out and lose ${t.timeoutLoss} points.` : ""),
       fold: (v, c) =>
         mul(v, (1 + t.ratioWeight * (c.clockRemaining / c.clockTotal)) * c.magnification()),
       timeoutFold: (v, c) => (t.timeoutLoss ? add(v, -t.timeoutLoss * c.magnification()) : skip(v)),
+      // A clock ratio: the resting face keeps the curve prose and names the
+      // glass; the timeout drain (a flat number) scales exactly. The curve
+      // coefficient renders too, so a retune of the curve rewords the face
+      // instead of leaving prose that describes the old one.
+      renderText: (c) => ({
+        magnitudeText: "×(1+Rem /Total)",
+        description:
+          `×(1 + ${t.ratioWeight === 1 ? "" : `${t.ratioWeight} × `}remaining clock time ÷ total clock time).${glassNote(c)}` +
+          (t.timeoutLoss
+            ? ` Time out and lose ${fmtMag(t.timeoutLoss * c.magnification)} points.`
+            : ""),
+      }),
     }),
   }),
 
@@ -445,12 +527,13 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     color: "#6699bd",
     family: CardFamily.Clock,
     op: CardOp.Multiplicative,
-    magnitudeText: "×1.5",
-    description:
-      "×1.5 always; hides your own input box while you type. Time out and lose 8 points.",
     fold: (v, c) => mul(v, 1.5 * c.magnification()),
     timeoutFold: (v, c) => add(v, -8 * c.magnification()),
     hidesInput: () => true,
+    renderText: (c) => ({
+      magnitudeText: `×${fmtMag(1.5 * c.magnification)}`,
+      description: `×${fmtMag(1.5 * c.magnification)} always; hides your own input box while you type. Time out and lose ${fmtMag(8 * c.magnification)} points.`,
+    }),
   },
 
   // ── §3.8 Utility (FX; 0 points, enabling capabilities) ──
@@ -460,10 +543,13 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     color: "#74b291",
     family: CardFamily.Clock,
     op: CardOp.Multiplicative,
-    magnitudeText: "×0.9",
-    description: "+30% shot clock, but ×0.9 to your score.",
     clock: { pctDelta: 0.3 },
     fold: (v, c) => mul(v, 0.9 * c.magnification()),
+    renderText: (c) => ({
+      magnitudeText: `×${fmtMag(0.9 * c.magnification)}`,
+      description: `${fmtPct(0.3 * c.magnification)} shot clock, but ×${fmtMag(0.9 * c.magnification)} to your score.`,
+      clockText: `${fmtPct(0.3 * c.magnification)} ⏱`,
+    }),
   },
 
   Catalyst: {
@@ -472,11 +558,13 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     color: "#9878ae",
     family: CardFamily.Utility,
     op: CardOp.Fx,
-    magnitudeText: "FX",
-    description:
-      "For every card placed to its right: Y, W and H count as vowels as well as consonants.",
     fold: (v) => fx(v),
     isVowel: (ch) => "aeiouywh".includes(ch),
+    renderText: () =>
+      staticFace(
+        "FX",
+        "For every card placed to its right: Y, W and H count as vowels as well as consonants.",
+      ),
   },
 
   Forgery: {
@@ -485,12 +573,17 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     color: "#dcae4c",
     family: CardFamily.Utility,
     op: CardOp.Fx,
-    magnitudeText: "FX",
-    description: "Every card that checks the word length percieves it to be twice as long.",
     fold: (v) => fx(v),
     // Perceived = double the count seen BEFORE this card (so glasses stack), then
     // scaled by a glass magnifying Forgery itself (×2 → ×3), rounded half-up.
     perceivedLength: (c) => Math.floor(c.resolveWordLength() * 2 * c.magnification() + 0.5),
+    renderText: (c) => ({
+      magnitudeText: "FX",
+      description:
+        c.magnification > 1
+          ? `Every card that checks the word length percieves it to be ×${fmtMag(2 * c.magnification)} as long.`
+          : "Every card that checks the word length percieves it to be twice as long.",
+    }),
   },
 
   MagnifyingGlass: {
@@ -504,10 +597,16 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     color: "#6699bd",
     family: CardFamily.Utility,
     op: CardOp.Fx,
-    magnitudeText: "FX",
-    description: "Magnifies the card to its right by ×1.5. Stackable.",
     fold: (v) => fx(v),
     submitMagnifications: (reg, i) => reg.push(i + 1, 1.5 * reg.getMagnification(i)),
+    // A glassed glass compounds: its output is its own magnification × 1.5.
+    renderText: (c) => ({
+      magnitudeText: "FX",
+      description:
+        c.magnification > 1
+          ? `Magnifies the card to its right by ×${fmtMag(1.5 * c.magnification)}. Stackable.`
+          : "Magnifies the card to its right by ×1.5. Stackable.",
+    }),
   },
 
   Wildcard: {
@@ -516,14 +615,26 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     color: "#dcae4c",
     family: CardFamily.Utility,
     op: CardOp.Fx,
-    magnitudeText: "FX",
-    description:
-      "Once per era, you may ignore the starting letter.",
     fold: (v) => fx(v),
     roomServices: ["wildcardGuard"],
     // Available until consumed this era; the match consumes it only on an accepted bypass.
     ignoresSuccession: (c) =>
       !!c.player && (c.services?.wildcardGuard.isAvailable(c.player.id) ?? false),
+    renderText: (c) => {
+      if (c.wildcardUsed) {
+        return {
+          magnitudeText: "FX",
+          description: "Once per era, you may ignore the starting letter. Used by this word.",
+          badge: "USED",
+        };
+      }
+      return {
+        magnitudeText: "FX",
+        description: `Once per era, you may ignore the starting letter. ${c.wildcardAvailable ? "Charge available." : "Spent this era."}`,
+        badge: c.wildcardAvailable ? "READY" : "SPENT",
+        spent: !c.wildcardAvailable,
+      };
+    },
   },
 
   Prism: {
@@ -532,9 +643,6 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     color: "#74b291",
     family: CardFamily.Utility,
     op: CardOp.Fx,
-    magnitudeText: "FX",
-    description:
-      "Once per era, when your shot clock runs out your clock resets instead of ending your turn.",
     fold: (v) => fx(v),
     roomServices: ["prismGuard"],
     rescueClock: (c) => {
@@ -544,6 +652,12 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
       }
       return false;
     },
+    renderText: (c) => ({
+      magnitudeText: "FX",
+      description: `Once per era, when your shot clock runs out your clock resets instead of ending your turn. ${c.prismAvailable ? "Charge available." : "Spent this era."}`,
+      badge: c.prismAvailable ? "READY" : "SPENT",
+      spent: !c.prismAvailable,
+    }),
   },
 
   IrsAgent: {
@@ -552,11 +666,11 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     color: "#5c9a78",
     family: CardFamily.Economy,
     op: CardOp.Fx,
-    magnitudeText: "FX",
-    description: "When your word is taxed, no Tax Collector collects from you.",
     fold: (v) => fx(v),
     ownTaxScore: () => 0,
     suppressesSiphon: true,
+    renderText: () =>
+      staticFace("FX", "When your word is taxed, no Tax Collector collects from you."),
   },
 
   TaxWriteOff: {
@@ -565,11 +679,14 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     color: "#4f7fa4",
     family: CardFamily.Economy,
     op: CardOp.Fx,
-    magnitudeText: "FX",
-    description: "When your word is taxed, score the first half of it through your engine anyways.",
     fold: (v) => fx(v),
     writeOffBonus: (c, score) =>
       c.word.length > 0 ? score(c.word.substring(0, Math.ceil(c.word.length / 2))) : 0,
+    // The salvage re-scores through this slot, so a glass on it scales the bonus.
+    renderText: (c) => ({
+      magnitudeText: "FX",
+      description: `When your word is taxed, score the first half of it through your engine anyways.${glassNote(c)}`,
+    }),
   },
 
   // ── §3.4 Personal-ban economy ──
@@ -580,9 +697,6 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     color: "#9c4a5e",
     family: CardFamily.Economy,
     op: CardOp.Multiplicative,
-    magnitudeText: "×2",
-    description:
-      "Each era, you get a new personal banned letter. ×2 on every word.",
     fold: (v, c) => mul(v, 2 * c.magnification()),
     roomServices: ["cardBan"],
     onEraStart: (c) => {
@@ -590,6 +704,12 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
       const ban = c.services?.banLetters.rollPersonalBan();
       if (ban) c.services?.cardBan.roll(c.player.id, c.cardIndex, CardId.RouletteWheel, ban);
     },
+    renderText: (c) => ({
+      magnitudeText: `×${fmtMag(2 * c.magnification)}`,
+      description:
+        `Each era, you get a new personal banned letter. ×${fmtMag(2 * c.magnification)} on every word.` +
+        (c.personalBan ? ` (ban: ${c.personalBan.toUpperCase()}).` : ""),
+    }),
   },
 
   TollBooth: {
@@ -599,9 +719,6 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     color: "#c8952f",
     family: CardFamily.Economy,
     op: CardOp.Fx,
-    magnitudeText: "FX",
-    description:
-      "Each era, you get a personal banned letter. Bank 20% of any opponent's score when their word uses that letter.",
     fold: (v) => fx(v),
     roomServices: ["cardBan"],
     onEraStart: (c) => {
@@ -609,6 +726,13 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
       const ban = c.services?.banLetters.rollPersonalBan();
       if (ban) c.services?.cardBan.roll(c.player.id, c.cardIndex, CardId.TollBooth, ban);
     },
+    // The toll payout scales with a glass on this slot — name it.
+    renderText: (c) => ({
+      magnitudeText: "FX",
+      description:
+        `Each era, you get a personal banned letter. Bank 20% of any opponent's score when their word uses that letter.${glassNote(c)}` +
+        (c.personalBan ? ` (ban: ${c.personalBan.toUpperCase()}).` : ""),
+    }),
     onOpponentWordResolved: (c) => {
       const res = c.resolution;
       if (!res || res.taxed || res.earnedScore <= 0) return;
@@ -632,9 +756,12 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     color: "#5c9a78",
     family: CardFamily.Economy,
     op: CardOp.Fx,
-    magnitudeText: "FX",
-    description: "When an opponent is taxed, collect 60% of their would-be score.",
     fold: (v) => fx(v),
+    // The bounty scales with a glass on this slot — name it.
+    renderText: (c) => ({
+      magnitudeText: "FX",
+      description: `When an opponent is taxed, collect 60% of their would-be score.${glassNote(c)}`,
+    }),
     onOpponentWordResolved: (c) => {
       const res = c.resolution;
       if (!res || !res.taxed || res.siphonSuppressed || res.wouldBeScore <= 0) return;
@@ -658,9 +785,12 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
       color: "#5c9a78",
       family: CardFamily.Economy,
       op: CardOp.Fx,
-      magnitudeText: "FX",
-      description: `+${t.perSecond} per whole second taken on an opponent's shot clock when they submit, max ${t.cap}.`,
       fold: (v) => fx(v),
+      // The payout scales with a glass on this slot — name it.
+      renderText: (c) => ({
+        magnitudeText: "FX",
+        description: `+${t.perSecond} per whole second taken on an opponent's shot clock when they submit, max ${t.cap}.${glassNote(c)}`,
+      }),
       onOpponentWordResolved: (c) => {
         const res = c.resolution;
         if (!res) return;
@@ -683,9 +813,6 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     color: "#9878ae",
     family: CardFamily.Utility,
     op: CardOp.Fx,
-    magnitudeText: "FX",
-    description:
-      "When your word is taxed, the next player must use that banned letter for their turn.",
     fold: (v) => fx(v),
     roomServices: ["hijackBan"],
     onTurnEnded: (c) => {
@@ -697,6 +824,11 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
       const next = fx2.peekNextActivePlayer(owner.id);
       if (next) fx2.letterHijack(next, res.offendingLetter, "Bait & Switch");
     },
+    renderText: () =>
+      staticFace(
+        "FX",
+        "When your word is taxed, the next player must use that banned letter for their turn.",
+      ),
   },
 
   // ── Rebalance additions: archetypes to rival the speed build ────────────────
@@ -707,10 +839,13 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     color: "#6699bd",
     family: CardFamily.Letter,
     op: CardOp.Multiplicative,
-    magnitudeText: "×2 @9+",
-    description: "×2 when your word is 9+ letters; +15% shot clock.",
     clock: { pctDelta: 0.15 },
     fold: (v, c) => (c.resolveWordLength() >= 9 ? mul(v, 2 * c.magnification()) : skip(v)),
+    renderText: (c) => ({
+      magnitudeText: `×${fmtMag(2 * c.magnification)} @9+`,
+      description: `×${fmtMag(2 * c.magnification)} when your word is 9+ letters; ${fmtPct(0.15 * c.magnification)} shot clock.`,
+      clockText: `${fmtPct(0.15 * c.magnification)} ⏱`,
+    }),
   },
 
   Stonemason: {
@@ -719,12 +854,14 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     color: "#b26a3a",
     family: CardFamily.Letter,
     op: CardOp.Additive,
-    magnitudeText: "+4/ltr",
-    description: "+4/letter, only at 8+ letters.",
     fold: (v, c) => {
       const L = c.resolveWordLength();
       return L >= 8 ? add(v, 4 * L * c.magnification()) : skip(v);
     },
+    renderText: (c) => ({
+      magnitudeText: `+${fmtMag(4 * c.magnification)}/ltr`,
+      description: `+${fmtMag(4 * c.magnification)}/letter, only at 8+ letters.`,
+    }),
   },
 
   // Economy / Parasite — bank off opponents (Loan Shark taxes the big scorers).
@@ -734,10 +871,12 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     color: "#5c9a78",
     family: CardFamily.Economy,
     op: CardOp.Fx,
-    magnitudeText: "FX",
-    description:
-      "Bank 15% of any opponent's word worth more than 30 points. Only applies if they are ahead of you on the leaderboard.",
     fold: (v) => fx(v),
+    // The cut scales with a glass on this slot — name it.
+    renderText: (c) => ({
+      magnitudeText: "FX",
+      description: `Bank 15% of any opponent's word worth more than 30 points. Only applies if they are ahead of you on the leaderboard.${glassNote(c)}`,
+    }),
     onOpponentWordResolved: (c) => {
       const res = c.resolution;
       if (!res || res.taxed || res.earnedScore <= 30) return;
@@ -760,12 +899,16 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     color: "#c8952f",
     family: CardFamily.Economy,
     op: CardOp.Multiplicative,
-    magnitudeText: "×1.6 /rare",
-    description: "×(1 + 0.6 per rare letter Q, X, Z, J).",
     fold: (v, c) => {
       const rare = [...c.word].filter((ch) => RARE_START.has(ch)).length;
       return rare > 0 ? mul(v, (1 + 0.6 * rare) * c.magnification()) : skip(v);
     },
+    // A per-letter curve: the resting face keeps the curve prose and names the
+    // glass; the exact factor appears once a word is staged.
+    renderText: (c) => ({
+      magnitudeText: "×1.6 /rare",
+      description: `×(1 + 0.6 per rare letter Q, X, Z, J).${glassNote(c)}`,
+    }),
   },
 
   // Aggression / Control — deny tempo (now sharper because timeouts cost points).
@@ -780,12 +923,18 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
       color: "#c25a3a",
       family: CardFamily.Utility,
       op: CardOp.Fx,
-      magnitudeText: "FX",
       // A plain percent, not fmtPct: the shave's sign is carried by the word "Shave", so a signed
       // "+20%" would read as the opposite of what the card does.
-      description: `Shave ${Math.round(t.shavePct * 100)}% off the shot clock of the leader. This applies to you if you are in the lead.`,
       fold: (v) => fx(v),
       roomServices: ["timePenalty"],
+      // The shave scales with a glass on this slot — name the effective cut.
+      renderText: (c) => ({
+        magnitudeText: "FX",
+        description:
+          c.magnification > 1
+            ? `Shave ${Math.round(t.shavePct * 100)}% off the shot clock of the leader (×${fmtMag(c.magnification)} glass → ${Math.round(t.shavePct * c.magnification * 100)}%). This applies to you if you are in the lead.`
+            : `Shave ${Math.round(t.shavePct * 100)}% off the shot clock of the leader. This applies to you if you are in the lead.`,
+      }),
       onTurnEnded: (c) => {
         const owner = c.player;
         const fx2 = c.effects;
@@ -818,14 +967,13 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     color: "#6699bd",
     family: CardFamily.Utility,
     op: CardOp.Fx,
-    magnitudeText: "FX",
-    description: "If you time out, you lose no points.",
     fold: (v) => fx(v),
     // Negate the timeout loss: bring the running penalty back up to 0 (the refund is
     // shown in the replay). negatesTimeoutLoss also floors the net at 0 so glass-cannon
     // drains placed to the right of this card can't re-open a loss (order-independent).
     negatesTimeoutLoss: true,
     timeoutFold: (v) => (v < 0 ? add(v, -v) : skip(v)),
+    renderText: () => staticFace("FX", "If you time out, you lose no points."),
   },
 
   TheFlywheel: {
@@ -834,8 +982,6 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     color: "#6699bd",
     family: CardFamily.Letter,
     op: CardOp.Multiplicative,
-    magnitudeText: "×1.15+",
-    description: "×1.15 for each other multiplier card in your bay (capped at ×2.3).",
     fold: (v, c) => {
       const ids = c.bayCardIds ?? [];
       // `cardIdentity`, not `getCard`: `op` is mode-invariant, so counting the other multipliers
@@ -848,6 +994,20 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
       const factor = Math.min(2.3, round1(1 + 0.15 * others));
       return mul(v, factor * c.magnification());
     },
+    renderText: (c) => {
+      if (c.otherMultipliers === 0) {
+        return {
+          magnitudeText: "—",
+          description:
+            "×1.15 for each other multiplier card in your bay (capped at ×2.3). (no other multipliers in your bay).",
+        };
+      }
+      const factor = Math.min(2.3, round1(1 + 0.15 * c.otherMultipliers)) * c.magnification;
+      return {
+        magnitudeText: `×${fmtMag(factor)}`,
+        description: `×1.15 for each other multiplier card in your bay (capped at ×2.3). (${c.otherMultipliers} other multiplier${c.otherMultipliers === 1 ? "" : "s"} = ×${fmtMag(factor)}).`,
+      };
+    },
   },
 
   // ── New archetype cards: word quality, clean-streak consistency, engine width ──
@@ -857,9 +1017,13 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     color: "#c8952f",
     family: CardFamily.Letter,
     op: CardOp.Additive,
-    magnitudeText: "+tile",
-    description: "Scores the word based on its letter-tile values (Scrabble-style).",
     fold: (v, c) => add(v, tileValue(c.word) * c.magnification()),
+    // Per-letter tile values resolve per word: the resting face names the glass;
+    // the exact total appears once a word is staged.
+    renderText: (c) => ({
+      magnitudeText: "+tile",
+      description: `Scores the word based on its letter-tile values (Scrabble-style).${glassNote(c)}`,
+    }),
   },
 
   Crescendo: {
@@ -868,13 +1032,22 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     color: "#b56276",
     family: CardFamily.Economy,
     op: CardOp.Multiplicative,
-    magnitudeText: "×1+0.25 /clean",
-    description:
-      "×(1 + 0.25 per word you've played this era), capped at ×2. Being taxed or timing out resets it.",
     roomServices: ["crescendoStreak"],
     fold: (v, c) => {
       const streak = c.player && c.services ? c.services.crescendoStreak.get(c.player.id) : 0;
       return streak > 0 ? mul(v, Math.min(2, 1 + 0.25 * streak) * c.magnification()) : skip(v);
+    },
+    renderText: (c) => {
+      const factor = (c.streak > 0 ? Math.min(2, 1 + 0.25 * c.streak) : 1) * c.magnification;
+      const next = Math.min(2, 1 + 0.25 * (c.streak + 1)) * c.magnification;
+      return {
+        magnitudeText: `×${fmtMag(factor)}`,
+        description:
+          "×(1 + 0.25 per word you've played this era), capped at ×2. Being taxed or timing out resets it." +
+          ` Streak ${c.streak}` +
+          (c.streak > 0 ? ` (next word ×${fmtMag(next)}).` : " — play clean to start it."),
+        badge: `STREAK ${c.streak}`,
+      };
     },
   },
 
@@ -884,12 +1057,14 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     color: "#6699bd",
     family: CardFamily.Letter,
     op: CardOp.Multiplicative,
-    magnitudeText: "×2",
-    description: "×2 when the word's first and last letter are the same.",
     fold: (v, c) => {
       const w = c.word;
       return w.length >= 2 && w[0] === w[w.length - 1] ? mul(v, 2 * c.magnification()) : skip(v);
     },
+    renderText: (c) => ({
+      magnitudeText: `×${fmtMag(2 * c.magnification)}`,
+      description: `×${fmtMag(2 * c.magnification)} when the word's first and last letter are the same.`,
+    }),
   },
 
   Dividend: {
@@ -898,9 +1073,14 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     color: "#5c9a78",
     family: CardFamily.Economy,
     op: CardOp.Additive,
-    magnitudeText: "+2/card",
-    description: "+2 for each card in your bay.",
     fold: (v, c) => add(v, 2 * c.bayLength * c.magnification()),
+    renderText: (c) => {
+      const amount = 2 * c.scoringCount * c.magnification;
+      return {
+        magnitudeText: `+${fmtMag(amount)}`,
+        description: `+${fmtMag(2 * c.magnification)} for each card in your bay. (${c.scoringCount} cards = +${fmtMag(amount)}).`,
+      };
+    },
   },
 
   /* ── Preference Cards (Picker only) ──────────────────────────────────────────────────────────
@@ -922,18 +1102,16 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     color: "#74b291",
     family: CardFamily.Utility,
     op: CardOp.Fx,
-    magnitudeText: "8+ seed",
     // States the guarantee the engine can actually keep. selectGoldenSeed clamps the floor to
     // min(minSeedLength, rackSize) because an 8-letter seed cannot be decomposed into a smaller
     // rack — so with Tunnel Vision, or a lobby rack under 8, the seed is the whole rack instead.
-    description:
-      "Seeds your Tile Rack from a word of 8+ letters.",
     fold: (v) => fx(v),
     // The cost: you can never duck a Banned Letter with a short safe word.
     preference: {
       minSeedLength: 8,
       filter: () => (w) => w.length >= 6,
     },
+    renderText: () => staticFace("8+ seed", "Seeds your Tile Rack from a word of 8+ letters."),
   },
 
   /* Tuned not for per-mode values — it is Picker-only, so it has no Classic form to protect — but
@@ -949,13 +1127,17 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
       color: "#9878ae",
       family: CardFamily.Utility,
       op: CardOp.Fx,
-      magnitudeText: "redraw",
-      description: `Once per turn, redraw your whole Tile Rack for ${Math.round(t.clockCostFraction * 100)}% of your shot clock.`,
       fold: (v) => fx(v),
       roomServices: ["winnowerGuard"],
       // The price is a FIXED fraction, so it grows harsher as your engine grows and each Offer
       // takes longer to read — the card gets worse exactly as your bay gets better.
       preference: { redraw: { clockCostFraction: t.clockCostFraction } },
+      renderText: (c) => ({
+        magnitudeText: "redraw",
+        description: `Once per turn, redraw your whole Tile Rack for ${Math.round(t.clockCostFraction * 100)}% of your shot clock. ${c.winnowerAvailable ? "Redraw available." : "Spent this turn."}`,
+        badge: c.winnowerAvailable ? "READY" : "SPENT",
+        spent: !c.winnowerAvailable,
+      }),
     }),
   }),
 
@@ -966,13 +1148,16 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     color: "#6699bd",
     family: CardFamily.Clock,
     op: CardOp.Fx,
-    magnitudeText: "+2 / −15%",
-    description: "+2 Rack tiles, and −15% shot clock.",
     fold: (v) => fx(v),
     // A genuine ClockModifier, which is why armedClockSeconds keeps the FULL bay even though this
     // card is hidden from bay-size SCORING.
     clock: { pctDelta: -0.15 },
     preference: { countDelta: 2 },
+    renderText: (c) => ({
+      magnitudeText: "+2 / −15%",
+      description: `+2 Rack tiles, and ${fmtPct(-0.15 * c.magnification)} shot clock.`,
+      clockText: `${fmtPct(-0.15 * c.magnification)} ⏱`,
+    }),
   },
 
   TunnelVision: {
@@ -983,12 +1168,14 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     color: "#c25a3a",
     family: CardFamily.Utility,
     op: CardOp.Multiplicative,
-    magnitudeText: "×1.4",
-    description: "×1.4 always, but you have 2 fewer Rack tiles.",
     fold: (v, c) => mul(v, 1.4 * c.magnification()),
     // The one Preference Card that really scores, so it is placed and counted like any other
     // multiplier rather than bubbling left — see isInertPreference for why that must be so.
     preference: { countDelta: -2 },
+    renderText: (c) => ({
+      magnitudeText: `×${fmtMag(1.4 * c.magnification)}`,
+      description: `×${fmtMag(1.4 * c.magnification)} always, but you have 2 fewer Rack tiles.`,
+    }),
   },
 
   Prospector: {
@@ -998,14 +1185,14 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     color: "#dcae4c",
     family: CardFamily.Letter,
     op: CardOp.Fx,
-    magnitudeText: "1 rare",
-    description: "Guarantees at least one rare letter (Q, X, Z, J) in your Tile Rack.",
     fold: (v) => fx(v),
     // The cost: one of your Offer slots is permanently spent on a word you may not want.
     preference: {
       guaranteeRare: true,
       guarantee: () => (w) => [...w].some((ch) => RARE_START.has(ch)),
     },
+    renderText: () =>
+      staticFace("1 rare", "Guarantees at least one rare letter (Q, X, Z, J) in your Tile Rack."),
   },
 
   Tide: {
@@ -1015,8 +1202,6 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     color: "#5c9a78",
     family: CardFamily.Letter,
     op: CardOp.Fx,
-    magnitudeText: "vowels",
-    description: "Your Tile Rack is made vowel-heavy (>=50% vowels).",
     fold: (v) => fx(v),
     // A SOFT bias, abandoned when the pool cannot serve it, so it never starves the Offer. The
     // cost is concentration: a narrower draw means more repeats and a thinner ending-letter graph.
@@ -1028,6 +1213,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
         return vowels * 2 >= w.length;
       },
     },
+    renderText: () => staticFace("vowels", "Your Tile Rack is made vowel-heavy (>=50% vowels)."),
   },
 
   Sentinel: {
@@ -1037,9 +1223,6 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
     color: "#6699bd",
     family: CardFamily.Utility,
     op: CardOp.Fx,
-    magnitudeText: "1 safe",
-    description:
-      "Ensures your Tile Rack doesn't contain banned letters.",
     fold: (v) => fx(v),
     // Insurance against the Zero-Point Tax, paid for in slots — and it spends a bay slot on
     // safety rather than on ceiling. With no bans in force it guarantees nothing and costs nothing.
@@ -1050,6 +1233,7 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
           ? null
           : (w) => !ctx.bannedLetters.some((letter) => w.includes(letter)),
     },
+    renderText: () => staticFace("1 safe", "Ensures your Tile Rack doesn't contain banned letters."),
   },
 };
 
