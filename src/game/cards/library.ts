@@ -776,7 +776,13 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
 
   /* Tuned: pure elapsed-time payout — fast submits deny the card, slow submits feed
    * it (capped), and real timeouts bounty the cap (see timeoutCurrent/pickerTimeoutCurrent).
-   * Inverts the old remaining-time formula, whose dominant response was stalling to ~0s. */
+   * Inverts the old remaining-time formula, whose dominant response was stalling to ~0s.
+   *
+   * INTENTIONAL: the cap applies to the base payout BEFORE Magnifying Glass
+   * magnification, so a glassed Syphon can pay out above the nominal max (e.g. a
+   * 30s stall at ×1.5 pays 45 against a stated "max 30"). This matches the other
+   * capped cards (Panic Button, Flywheel, Crescendo), which likewise cap the base
+   * factor and then multiply by magnification. */
   ChronoSyphon: tuned({
     tune: { perSecond: 1, cap: 30 },
     build: (t) => ({
@@ -798,6 +804,8 @@ const CARD_DEFS: Record<CardId, CardEntry> = {
         if (!owner || owner.id === res.submitterId) return;
         const elapsed = Math.floor(c.clockTotal - c.clockRemaining);
         if (elapsed <= 0) return;
+        // Cap-before-magnification is intentional: cap the base payout, then let a
+        // glass multiply above the nominal max (see catalogue comment above).
         const amount = clampScore(Math.min(t.cap, elapsed * t.perSecond) * c.magnification());
         if (amount > 0) {
           owner.score += amount;
